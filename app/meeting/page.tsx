@@ -205,46 +205,52 @@ export default function MeetingPage() {
         <div className="px-4 mt-4 text-xs text-zinc-500 text-center">読み込み中...</div>
       )}
 
-      {/* ============ セクション1: 売上・粗利・件数 ============ */}
-      <Section title="売上・粗利・件数">
-        <MetricsTable
-          metrics={sec1}
-          calc={calc} fmt={fmt} badgeCls={badgeCls} diffCls={diffCls}
-        />
-      </Section>
+      {/* ============ 上段: 2列レイアウト ============ */}
+      <div className="px-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* 左列: 売上・粗利・件数 */}
+        <Section title="売上・粗利・件数" inGrid>
+          <MetricsTable
+            metrics={sec1}
+            calc={calc} fmt={fmt} badgeCls={badgeCls} diffCls={diffCls}
+          />
+        </Section>
 
-      {/* ============ セクション2: HELP部門 ============ */}
-      <Section title="HELP部門">
-        <MetricsTable
-          metrics={sec2}
-          calc={calc} fmt={fmt} badgeCls={badgeCls} diffCls={diffCls}
-        />
-      </Section>
+        {/* 右列: HELP部門 + 部門別実績 */}
+        <div className="flex flex-col gap-4">
+          <Section title="HELP部門" inGrid>
+            <MetricsTable
+              metrics={sec2}
+              calc={calc} fmt={fmt} badgeCls={badgeCls} diffCls={diffCls}
+            />
+          </Section>
+          <Section title="部門別実績" inGrid>
+            <DepartmentTable summary={summary} daysElapsed={daysElapsed} daysInMonth={daysInMonth} />
+          </Section>
+        </div>
+      </div>
 
-      {/* ============ セクション3: 広告・効率指標 ============ */}
+      {/* ============ 下段: 広告・効率指標 全幅 ============ */}
       <Section title="広告・効率指標">
         <MetricsTable
           metrics={sec3}
           calc={calc} fmt={fmt} badgeCls={badgeCls} diffCls={diffCls}
         />
       </Section>
-
-      {/* ============ セクション4: 部門別実績 ============ */}
-      <Section title="部門別実績">
-        <DepartmentTable summary={summary} daysElapsed={daysElapsed} daysInMonth={daysInMonth} />
-      </Section>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title, children, inGrid,
+}: { title: string; children: React.ReactNode; inGrid?: boolean }) {
+  const wrapperCls = inGrid ? "" : "px-4 mt-4";
   return (
-    <section className="px-4 mt-4">
+    <section className={wrapperCls}>
       <div
         className="rounded-xl bg-white overflow-hidden"
         style={{ border: "1px solid #d1fae5" }}
       >
-        <h2 className="px-4 pt-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-emerald-700 border-b border-emerald-100">
+        <h2 className="px-3 pt-2 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700 border-b border-emerald-100">
           {title}
         </h2>
         <div className="overflow-x-auto">{children}</div>
@@ -270,17 +276,25 @@ function MetricsTable({
   badgeCls: (a: number | null, invert: boolean) => string;
   diffCls: (d: number, invert: boolean) => string;
 }) {
+  const cell = "px-2.5 py-2";
   return (
-    <table className="min-w-full text-xs">
+    <table className="w-full table-fixed" style={{ fontSize: 11 }}>
+      <colgroup>
+        <col style={{ width: "22%" }} />
+        <col style={{ width: "20%" }} />
+        <col style={{ width: "20%" }} />
+        <col style={{ width: "12%" }} />
+        <col style={{ width: "14%" }} />
+        <col style={{ width: "12%" }} />
+      </colgroup>
       <thead style={{ background: "#ecfdf5" }}>
         <tr className="text-[10px] text-emerald-800">
-          <th className="text-left p-2 font-semibold">指標</th>
-          <th className="text-right p-2 font-semibold">実績</th>
-          <th className="text-right p-2 font-semibold">月末着地</th>
-          <th className="text-right p-2 font-semibold">達成見込</th>
-          <th className="text-right p-2 font-semibold">目標</th>
-          <th className="text-right p-2 font-semibold">差</th>
-          <th className="text-left p-2 font-semibold">コメント / 1日目安</th>
+          <th className={`${cell} text-left font-semibold`}>指標</th>
+          <th className={`${cell} text-right font-semibold`}>実績</th>
+          <th className={`${cell} text-right font-semibold`}>着地予測</th>
+          <th className={`${cell} text-right font-semibold`}>見込</th>
+          <th className={`${cell} text-right font-semibold`}>目標差</th>
+          <th className={`${cell} text-right font-semibold`}>1日目安</th>
         </tr>
       </thead>
       <tbody className="tabular-nums">
@@ -288,15 +302,20 @@ function MetricsTable({
           const c = calc(m);
           const noTarget = m.target <= 0;
           return (
-            <tr key={i} className="border-t border-emerald-50">
-              <td className={`p-2 font-semibold text-zinc-800 whitespace-nowrap pl-3 ${lineCls[m.ln]}`}>
+            <tr key={i} className="border-t border-emerald-50 align-top">
+              <td
+                className={`${cell} whitespace-nowrap overflow-hidden text-ellipsis pl-3 ${lineCls[m.ln]}`}
+                style={{ fontSize: 12, fontWeight: 700, color: "#27272a" }}
+              >
                 {m.name}
               </td>
-              <td className="p-2 text-right font-semibold whitespace-nowrap">{fmt(m.actual, m.kind)}</td>
-              <td className="p-2 text-right whitespace-nowrap text-zinc-600">
+              <td className={`${cell} text-right font-semibold whitespace-nowrap`}>
+                {fmt(m.actual, m.kind)}
+              </td>
+              <td className={`${cell} text-right whitespace-nowrap text-zinc-600`}>
                 {m.kind === "pct" ? "—" : fmt(c.forecast, m.kind)}
               </td>
-              <td className="p-2 text-right whitespace-nowrap">
+              <td className={`${cell} text-right whitespace-nowrap`}>
                 {noTarget ? (
                   <span className="text-[10px] text-zinc-400">未設定</span>
                 ) : (
@@ -305,17 +324,27 @@ function MetricsTable({
                   </span>
                 )}
               </td>
-              <td className="p-2 text-right whitespace-nowrap text-zinc-600">
-                {noTarget ? "—" : fmt(m.target, m.kind)}
+              <td className={`${cell} text-right whitespace-nowrap`}>
+                {noTarget ? (
+                  <span className="text-zinc-400">—</span>
+                ) : (
+                  <>
+                    <div className={`font-semibold ${diffCls(c.diff, !!m.invert)}`}>
+                      {c.diff >= 0 ? "+" : ""}{fmt(c.diff, m.kind)}
+                    </div>
+                    <div style={{ fontSize: 10, color: "#9ca3af" }}>
+                      目標: {fmt(m.target, m.kind)}
+                    </div>
+                  </>
+                )}
               </td>
-              <td className={`p-2 text-right whitespace-nowrap font-semibold ${noTarget ? "text-zinc-400" : diffCls(c.diff, !!m.invert)}`}>
-                {noTarget ? "—" : `${c.diff >= 0 ? "+" : ""}${fmt(c.diff, m.kind)}`}
-              </td>
-              <td className="p-2 text-[10px] text-zinc-500 whitespace-nowrap">
-                {noTarget ? "目標未設定" :
+              <td className={`${cell} text-right text-[10px] text-zinc-500 whitespace-nowrap`}>
+                {noTarget ? "—" :
                   c.perDay == null
-                    ? (m.kind === "pct" ? "率指標" : "残日数なし")
-                    : `1日 ${m.kind === "yen" ? yen(c.perDay) : `${Math.round(c.perDay * 10) / 10}件`}`}
+                    ? (m.kind === "pct" ? "率" : "—")
+                    : m.kind === "yen"
+                      ? yen(c.perDay)
+                      : `${Math.round(c.perDay * 10) / 10}件`}
               </td>
             </tr>
           );
@@ -350,17 +379,17 @@ function DepartmentTable({
   rows.push(total);
 
   return (
-    <table className="min-w-full text-xs">
+    <table className="min-w-full" style={{ fontSize: 11 }}>
       <thead style={{ background: "#ecfdf5" }}>
         <tr className="text-[10px] text-emerald-800">
-          <th className="text-left p-2 font-semibold">部門</th>
-          <th className="text-right p-2 font-semibold">売上(実績)</th>
-          <th className="text-right p-2 font-semibold">売上(月末予測)</th>
-          <th className="text-right p-2 font-semibold">粗利(実績)</th>
-          <th className="text-right p-2 font-semibold">粗利(月末予測)</th>
-          <th className="text-right p-2 font-semibold">客単価</th>
-          <th className="text-right p-2 font-semibold">件数</th>
-          <th className="text-right p-2 font-semibold">粗利率</th>
+          <th className="text-left px-2.5 py-2 font-semibold">部門</th>
+          <th className="text-right px-2.5 py-2 font-semibold">売上(実績)</th>
+          <th className="text-right px-2.5 py-2 font-semibold">売上(予測)</th>
+          <th className="text-right px-2.5 py-2 font-semibold">粗利(実績)</th>
+          <th className="text-right px-2.5 py-2 font-semibold">粗利(予測)</th>
+          <th className="text-right px-2.5 py-2 font-semibold">客単価</th>
+          <th className="text-right px-2.5 py-2 font-semibold">件数</th>
+          <th className="text-right px-2.5 py-2 font-semibold">粗利率</th>
         </tr>
       </thead>
       <tbody className="tabular-nums">
@@ -371,14 +400,14 @@ function DepartmentTable({
               className={`border-t border-emerald-50 ${r.total ? "font-bold" : ""}`}
               style={r.total ? { background: "#f0fdf4" } : undefined}
             >
-              <td className="p-2 whitespace-nowrap">{r.name}</td>
-              <td className="p-2 text-right whitespace-nowrap">{yen(r.rev)}</td>
-              <td className="p-2 text-right whitespace-nowrap text-emerald-700">{yen(fc(r.rev))}</td>
-              <td className="p-2 text-right whitespace-nowrap">{yen(r.prof)}</td>
-              <td className="p-2 text-right whitespace-nowrap text-emerald-700">{yen(fc(r.prof))}</td>
-              <td className="p-2 text-right whitespace-nowrap">{yen(r.unit)}</td>
-              <td className="p-2 text-right whitespace-nowrap">{r.count}</td>
-              <td className="p-2 text-right whitespace-nowrap">{gmr.toFixed(1)}%</td>
+              <td className="px-2.5 py-2 whitespace-nowrap">{r.name}</td>
+              <td className="px-2.5 py-2 text-right whitespace-nowrap">{yen(r.rev)}</td>
+              <td className="px-2.5 py-2 text-right whitespace-nowrap text-emerald-700">{yen(fc(r.rev))}</td>
+              <td className="px-2.5 py-2 text-right whitespace-nowrap">{yen(r.prof)}</td>
+              <td className="px-2.5 py-2 text-right whitespace-nowrap text-emerald-700">{yen(fc(r.prof))}</td>
+              <td className="px-2.5 py-2 text-right whitespace-nowrap">{yen(r.unit)}</td>
+              <td className="px-2.5 py-2 text-right whitespace-nowrap">{r.count}</td>
+              <td className="px-2.5 py-2 text-right whitespace-nowrap">{gmr.toFixed(1)}%</td>
             </tr>
           );
         })}
