@@ -162,6 +162,166 @@ export function calculateDashboard(
 
 export const yen = (n: number) => `¥${Math.round(n).toLocaleString("ja-JP")}`;
 
+// ============ 指標一覧(全17項目) ============
+export type MetricRow = {
+  name: string;
+  value: string;
+  salesRatio: string | null;
+  targetRatio: number | null;
+  status: string;
+  statusLevel: "good" | "warn" | "bad" | "none";
+};
+
+export function buildMetricRows(
+  summary: DashboardSummary,
+  entries: DailyEntry[],
+  targets: Targets,
+  daysElapsed: number,
+  daysInMonth: number
+): { left: MetricRow[]; right: MetricRow[] } {
+  const totalSales = summary.totalRevenue;
+  const totalAdCost = summary.totalAdCost;
+
+  const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
+  const salesRatioPct = (v: number) =>
+    totalSales > 0 ? `${Math.round((v / totalSales) * 1000) / 10}%` : null;
+  const targetRatio = (actual: number, target: number) => (target > 0 ? pct(actual, target) : null);
+  const dayRatio = (actual: number, target: number) => {
+    if (target <= 0 || daysElapsed <= 0) return null;
+    const pace = (actual / daysElapsed) * daysInMonth;
+    return pct(pace, target);
+  };
+  const statusFromRatio = (
+    ratio: number | null, invert = false
+  ): { status: string; level: "good" | "warn" | "bad" | "none" } => {
+    if (ratio === null) return { status: "未設定", level: "none" };
+    const r = invert ? 200 - ratio : ratio;
+    if (r >= 100) return { status: "達成", level: "good" };
+    if (r >= 90) return { status: "惜しい", level: "warn" };
+    if (r >= 80) return { status: "もう一息", level: "warn" };
+    return { status: "要改善", level: "bad" };
+  };
+
+  const totalCallCount = entries.reduce(
+    (s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0
+  );
+  const acquisitionCount = summary.totalCount;
+  const helpRate = summary.totalCount > 0 ? (summary.help.count / summary.totalCount) * 100 : 0;
+  const conversionRate = totalCallCount > 0 ? (acquisitionCount / totalCallCount) * 100 : 0;
+  const adRate = totalSales > 0 ? (totalAdCost / totalSales) * 100 : 0;
+  const grossMarginRate = totalSales > 0 ? (summary.totalProfit / totalSales) * 100 : 0;
+
+  const leftRows: MetricRow[] = [
+    (() => {
+      const tr = targetRatio(12, targets.targetVehicleCount);
+      const s = statusFromRatio(tr);
+      return { name: "車両数", value: "12台", salesRatio: null, targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targetRatio(totalSales, targets.targetSales);
+      const dr = dayRatio(totalSales, targets.targetSales);
+      const s = statusFromRatio(dr);
+      return { name: "売上", value: `¥${totalSales.toLocaleString()}`, salesRatio: "100%", targetRatio: tr, status: dr ? `${dr}%` : s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const unitPrice = summary.companyUnitPrice;
+      const tr = targets.targetUnitPrice > 0 ? targetRatio(unitPrice, targets.targetUnitPrice) : null;
+      const s = statusFromRatio(tr);
+      return { name: "客単価", value: `¥${unitPrice.toLocaleString()}`, salesRatio: null, targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targetRatio(summary.totalCount, targets.targetCount);
+      const dr = dayRatio(summary.totalCount, targets.targetCount);
+      const s = statusFromRatio(dr);
+      return { name: "合計件数", value: `${summary.totalCount}件`, salesRatio: null, targetRatio: tr, status: dr ? `${dr}%` : s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targets.targetConversionRate > 0 ? targetRatio(conversionRate, targets.targetConversionRate) : null;
+      const s = statusFromRatio(tr);
+      return { name: "対応率", value: `${Math.round(conversionRate * 10) / 10}%`, salesRatio: null, targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targetRatio(summary.help.revenue, targets.targetHelpSales);
+      const s = statusFromRatio(tr);
+      return { name: "HELP売上", value: `¥${summary.help.revenue.toLocaleString()}`, salesRatio: salesRatioPct(summary.help.revenue), targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targetRatio(summary.help.unitPrice, targets.targetHelpUnitPrice);
+      const s = statusFromRatio(tr);
+      return { name: "HELP客単価", value: `¥${summary.help.unitPrice.toLocaleString()}`, salesRatio: null, targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targetRatio(summary.help.count, targets.targetHelpCount);
+      const s = statusFromRatio(tr);
+      return { name: "HELP件数", value: `${summary.help.count}件`, salesRatio: null, targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targets.targetHelpRate > 0 ? targetRatio(helpRate, targets.targetHelpRate) : null;
+      const s = statusFromRatio(tr);
+      return { name: "HELP率", value: `${Math.round(helpRate * 10) / 10}%`, salesRatio: salesRatioPct(summary.help.revenue), targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+  ];
+
+  const rightRows: MetricRow[] = [
+    (() => {
+      const tr = targets.targetAdCost > 0 ? targetRatio(totalAdCost, targets.targetAdCost) : null;
+      const dr = targets.targetAdCost > 0 ? dayRatio(totalAdCost, targets.targetAdCost) : null;
+      const s = statusFromRatio(dr, true);
+      return { name: "広告費", value: `¥${totalAdCost.toLocaleString()}`, salesRatio: salesRatioPct(totalAdCost), targetRatio: tr, status: dr ? `${dr}%` : s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targets.targetAdRate > 0 ? targetRatio(adRate, targets.targetAdRate) : null;
+      const s = statusFromRatio(tr, true);
+      return { name: "広告費率", value: `${Math.round(adRate * 10) / 10}%`, salesRatio: salesRatioPct(totalAdCost), targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targetRatio(totalCallCount, targets.targetCallCount);
+      const dr = dayRatio(totalCallCount, targets.targetCallCount);
+      const s = statusFromRatio(dr);
+      return { name: "入電件数", value: `${totalCallCount}件`, salesRatio: null, targetRatio: tr, status: dr ? `${dr}%` : s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const cup = totalCallCount > 0 ? Math.round(totalAdCost / totalCallCount) : 0;
+      const tr = targets.targetCallUnitPrice > 0 ? targetRatio(cup, targets.targetCallUnitPrice) : null;
+      const s = statusFromRatio(tr, true);
+      return { name: "入電単価", value: `¥${cup.toLocaleString()}`, salesRatio: null, targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targetRatio(acquisitionCount, targets.targetCount);
+      const dr = dayRatio(acquisitionCount, targets.targetCount);
+      const s = statusFromRatio(dr);
+      return { name: "獲得件数", value: `${acquisitionCount}件`, salesRatio: null, targetRatio: tr, status: dr ? `${dr}%` : s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const aup = acquisitionCount > 0 ? Math.round(totalAdCost / acquisitionCount) : 0;
+      const tr = targets.targetCpa > 0 ? targetRatio(aup, targets.targetCpa) : null;
+      const s = statusFromRatio(tr, true);
+      return { name: "獲得単価", value: `¥${aup.toLocaleString()}`, salesRatio: null, targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const cr = totalCallCount > 0 ? (acquisitionCount / totalCallCount) * 100 : 0;
+      const tr = targets.targetConversionRate > 0 ? targetRatio(cr, targets.targetConversionRate) : null;
+      const s = statusFromRatio(tr);
+      return { name: "成約率", value: `${Math.round(cr * 10) / 10}%`, salesRatio: null, targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const tr = targetRatio(summary.totalProfit, targets.targetProfit);
+      const dr = dayRatio(summary.totalProfit, targets.targetProfit);
+      const s = statusFromRatio(dr);
+      return { name: "粗利", value: `¥${summary.totalProfit.toLocaleString()}`, salesRatio: salesRatioPct(summary.totalProfit), targetRatio: tr, status: dr ? `${dr}%` : s.status, statusLevel: s.level };
+    })(),
+    (() => {
+      const targetGMR = targets.targetProfit > 0 && targets.targetSales > 0
+        ? (targets.targetProfit / targets.targetSales) * 100 : 0;
+      const tr = targetGMR > 0 ? targetRatio(grossMarginRate, targetGMR) : null;
+      const s = statusFromRatio(tr);
+      return { name: "粗利率", value: `${Math.round(grossMarginRate * 10) / 10}%`, salesRatio: salesRatioPct(summary.totalProfit), targetRatio: tr, status: s.status, statusLevel: s.level };
+    })(),
+  ];
+
+  return { left: leftRows, right: rightRows };
+}
+
 export function emptyEntry(date: string): DailyEntry {
   return {
     date,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   calculateDashboard, calculateBreakeven, calculateAchievement, achievementColor,
   forecastWeekday, forecastRecent7,
+  buildMetricRows, type MetricRow,
   DailyEntry, FixedCosts, Targets, emptyTargets,
   emptyEntry,
   yen,
@@ -244,6 +245,10 @@ export default function Dashboard() {
   const recent7Forecast = useMemo(
     () => forecastRecent7(aggregateEntries, viewYear, viewMonth, summaryToday),
     [aggregateEntries, viewYear, viewMonth, summaryToday]
+  );
+  const metricRowsResult = useMemo(
+    () => buildMetricRows(summary, aggregateEntries, targets, summary.daysElapsed, summary.daysInMonth),
+    [summary, aggregateEntries, targets]
   );
   // 異常アラート: 前日比 -20% 以上
   const profitDropRate = yesterdaySummary.forecastProfit > 0
@@ -655,6 +660,19 @@ export default function Dashboard() {
         );
       })()}
 
+      {/* ============ 全17項目 指標一覧 ============ */}
+      <section className="px-4 mt-6">
+        <h2 className="text-base font-semibold mb-2">全17項目 指標一覧</h2>
+        <div className="flex gap-3">
+          <div className="flex-1 min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+            <MetricsTable rows={metricRowsResult.left} />
+          </div>
+          <div className="flex-1 min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+            <MetricsTable rows={metricRowsResult.right} />
+          </div>
+        </div>
+      </section>
+
       {/* ============ グループ: トップ/リスクハイライト ============ */}
       {isGroup && perAreaSummaries.length > 0 && (() => {
         const sorted = [...perAreaSummaries].sort(
@@ -925,6 +943,46 @@ function Card({
         </p>
       )}
     </div>
+  );
+}
+
+function MetricsTable({ rows }: { rows: MetricRow[] }) {
+  return (
+    <table className="w-full text-xs border-collapse">
+      <thead>
+        <tr className="bg-emerald-50 dark:bg-emerald-950/30">
+          <th className="text-left p-2 font-semibold text-zinc-500 text-[10px]">指標</th>
+          <th className="text-right p-2 font-semibold text-zinc-500 text-[10px]">実績</th>
+          <th className="text-right p-2 font-semibold text-zinc-500 text-[10px]">売上比</th>
+          <th className="text-right p-2 font-semibold text-zinc-500 text-[10px]">目標比</th>
+          <th className="text-right p-2 font-semibold text-zinc-500 text-[10px]">状況</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, i) => (
+          <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+            <td className="p-2 font-semibold text-zinc-800 dark:text-zinc-200 whitespace-nowrap">{row.name}</td>
+            <td className="p-2 text-right font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">{row.value}</td>
+            <td className="p-2 text-right text-[11px] text-zinc-400 whitespace-nowrap">{row.salesRatio ?? "—"}</td>
+            <td className="p-2 text-right whitespace-nowrap">
+              {row.targetRatio !== null ? (
+                <span className={`inline-block text-[10px] font-bold rounded px-1.5 py-0.5 ${
+                  row.targetRatio >= 100 ? "bg-emerald-100 text-emerald-800"
+                  : row.targetRatio >= 80 ? "bg-amber-100 text-amber-800"
+                  : "bg-red-100 text-red-800"
+                }`}>{row.targetRatio}%</span>
+              ) : <span className="text-zinc-300 text-[10px]">未設定</span>}
+            </td>
+            <td className={`p-2 text-right text-[11px] font-bold whitespace-nowrap ${
+              row.statusLevel === "good" ? "text-emerald-600"
+              : row.statusLevel === "warn" ? "text-amber-600"
+              : row.statusLevel === "bad" ? "text-red-600"
+              : "text-zinc-300"
+            }`}>{row.status}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
