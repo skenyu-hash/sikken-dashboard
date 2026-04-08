@@ -18,6 +18,7 @@ export function NavBar() {
     { href: "/", label: "ダッシュボード", show: true },
     { href: "/ranking", label: "ランキング", show: role === "admin" || role === "manager" },
     { href: "/targets", label: "目標", show: role === "admin" || role === "manager" },
+    { href: "/meeting", label: "会議", show: role === "admin" || role === "manager" },
     { href: "/breakeven", label: "損益分岐", show: role === "admin" || role === "manager" },
     { href: "/driver", label: "ドライバー", show: role === "admin" || role === "manager" },
     { href: "/cockpit", label: "CF", show: role === "admin" },

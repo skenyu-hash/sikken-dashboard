@@ -725,6 +725,66 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
+
+          {/* 部門別グループ集計 */}
+          {(() => {
+            const dept = (sel: "self" | "newSales" | "help") => {
+              let revenue = 0, profit = 0, count = 0;
+              for (const { summary: s } of perAreaSummaries) {
+                revenue += s[sel].revenue;
+                profit += s[sel].profit;
+                count += s[sel].count;
+              }
+              const unit = count > 0 ? Math.round(revenue / count) : 0;
+              return { revenue, profit, count, unit };
+            };
+            const self = dept("self");
+            const ns = dept("newSales");
+            const help = dept("help");
+            const total = {
+              revenue: self.revenue + ns.revenue + help.revenue,
+              profit: self.profit + ns.profit + help.profit,
+              count: self.count + ns.count + help.count,
+            };
+            const totalUnit = total.count > 0 ? Math.round(total.revenue / total.count) : 0;
+            const Row = ({ name, d }: { name: string; d: ReturnType<typeof dept> }) => (
+              <tr className="border-t border-zinc-100 dark:border-zinc-800">
+                <td className="p-2">{name}</td>
+                <td className="p-2 text-right">{yen(d.revenue)}</td>
+                <td className="p-2 text-right">{yen(d.profit)}</td>
+                <td className="p-2 text-right">{d.count}</td>
+                <td className="p-2 text-right">{yen(d.unit)}</td>
+              </tr>
+            );
+            return (
+              <div className="mt-4 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                <h3 className="text-sm font-semibold p-2 bg-zinc-100 dark:bg-zinc-800">部門別グループ集計</h3>
+                <table className="min-w-full text-sm">
+                  <thead className="bg-zinc-50 dark:bg-zinc-800/60 text-xs">
+                    <tr>
+                      <th className="p-2 text-left">部門</th>
+                      <th className="p-2 text-right">合計売上</th>
+                      <th className="p-2 text-right">合計粗利</th>
+                      <th className="p-2 text-right">合計件数</th>
+                      <th className="p-2 text-right">客単価</th>
+                    </tr>
+                  </thead>
+                  <tbody className="tabular-nums">
+                    <Row name="自社施工" d={self} />
+                    <Row name="新規営業" d={ns} />
+                    <Row name="ヘルプ" d={help} />
+                    <tr className="font-bold bg-amber-50 dark:bg-amber-950/40 border-t border-zinc-200 dark:border-zinc-700">
+                      <td className="p-2">合計</td>
+                      <td className="p-2 text-right">{yen(total.revenue)}</td>
+                      <td className="p-2 text-right">{yen(total.profit)}</td>
+                      <td className="p-2 text-right">{total.count}</td>
+                      <td className="p-2 text-right">{yen(totalUnit)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </section>
       )}
 

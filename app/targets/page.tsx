@@ -71,6 +71,7 @@ const MAN_FIELDS = new Set<keyof Targets>(
 
 export default function TargetsPage() {
   const role = useRole();
+  // 役員(admin)と管理職(manager)のみ目標編集可能。事務員(input)は閲覧のみ
   const canEdit = role === "admin" || role === "manager";
   const now = new Date();
   const year = now.getFullYear();
