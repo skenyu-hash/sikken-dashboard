@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 const AUTH_COOKIE = "sd_session";
-const PUBLIC_PATHS = ["/login", "/api/auth/login"];
+const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/init"];
 
 function getSecret(): Uint8Array | null {
   const s = process.env.JWT_SECRET;

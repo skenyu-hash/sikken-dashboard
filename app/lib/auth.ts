@@ -133,19 +133,37 @@ export async function ensureAuthSchema(): Promise<void> {
   await getSql()`CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC)`;
   await getSql()`CREATE INDEX IF NOT EXISTS idx_audit_area ON audit_logs(area_id)`;
 
-  // 初期adminの自動投入
-  const email = process.env.INITIAL_ADMIN_EMAIL;
+  await seedInitialAdmin();
+}
+
+/** 環境変数から初期adminを投入(冪等)。返り値で結果を確認できる */
+export async function seedInitialAdmin(): Promise<{
+  ok: boolean; created: boolean; reason?: string; email?: string;
+}> {
+  const rawEmail = process.env.INITIAL_ADMIN_EMAIL;
   const password = process.env.INITIAL_ADMIN_PASSWORD;
   const name = process.env.INITIAL_ADMIN_NAME ?? "管理者";
-  if (email && password) {
-    const exists = (await getSql()`SELECT 1 FROM users WHERE email = ${email}`) as unknown[];
-    if (exists.length === 0) {
-      const hash = await hashPassword(password);
-      await getSql()`
-        INSERT INTO users (email, password_hash, name, role, is_active)
-        VALUES (${email}, ${hash}, ${name}, 'admin', TRUE)
-      `;
+  if (!rawEmail || !password) {
+    return { ok: false, created: false, reason: "INITIAL_ADMIN_EMAIL/PASSWORD が設定されていません" };
+  }
+  if (password.length < 8) {
+    return { ok: false, created: false, reason: "INITIAL_ADMIN_PASSWORD は8文字以上必要です" };
+  }
+  const email = rawEmail.trim().toLowerCase();
+  try {
+    const exists = (await getSql()`SELECT id FROM users WHERE email = ${email}`) as { id: number }[];
+    if (exists.length > 0) {
+      return { ok: true, created: false, email };
     }
+    const hash = await hashPassword(password);
+    await getSql()`
+      INSERT INTO users (email, password_hash, name, role, is_active)
+      VALUES (${email}, ${hash}, ${name}, 'admin', TRUE)
+    `;
+    return { ok: true, created: true, email };
+  } catch (e) {
+    console.error("seedInitialAdmin failed", e);
+    return { ok: false, created: false, reason: (e as Error).message };
   }
 }
 
