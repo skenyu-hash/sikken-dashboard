@@ -162,42 +162,37 @@ export default function MeetingPage() {
   return (
     <div className="min-h-screen pb-24" style={{ background: "#f2f5f2" }}>
       {/* ============ ヘッダー ============ */}
-      <header
-        className="px-5 py-5 text-white"
-        style={{ background: "linear-gradient(135deg, #059669, #047857)" }}
-      >
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold">10日会議シート</h1>
-            <p className="text-xs opacity-90 mt-1">
-              {year}年{month}月 ・ {activeArea?.name} ・ {periodLabel(period)}
-            </p>
+      <header style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "16px 24px 0" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <select
+            value={areaId}
+            onChange={(e) => setAreaId(e.target.value)}
+            className="min-h-[40px] rounded-lg border border-white/30 bg-white/10 backdrop-blur px-3 text-sm text-white"
+          >
+            {AREAS.map((a) => (
+              <option key={a.id} value={a.id} className="text-zinc-900">{a.name}</option>
+            ))}
+          </select>
+          <div style={{ display: "flex", gap: 6 }}>
+            {(["10", "20", "end"] as Period[]).map((p) => (
+              <button
+                key={p} type="button" onClick={() => setPeriod(p)}
+                className={`min-h-[40px] px-3 rounded-lg text-sm font-semibold border whitespace-nowrap ${
+                  period === p
+                    ? "bg-white text-emerald-700 border-white"
+                    : "bg-transparent text-white border-white/60"
+                }`}
+              >
+                {p === "end" ? "末日" : `${p}日`}
+              </button>
+            ))}
           </div>
-          <div className="flex flex-col gap-2 md:items-end">
-            <select
-              value={areaId}
-              onChange={(e) => setAreaId(e.target.value)}
-              className="min-h-[44px] rounded-lg border border-white/30 bg-white/10 backdrop-blur px-3 text-sm text-white"
-            >
-              {AREAS.map((a) => (
-                <option key={a.id} value={a.id} className="text-zinc-900">{a.name}</option>
-              ))}
-            </select>
-            <div className="flex gap-2">
-              {(["10", "20", "end"] as Period[]).map((p) => (
-                <button
-                  key={p} type="button" onClick={() => setPeriod(p)}
-                  className={`min-h-[44px] px-4 rounded-lg text-sm font-semibold border whitespace-nowrap ${
-                    period === p
-                      ? "bg-white text-emerald-700 border-white"
-                      : "bg-transparent text-white border-white/60"
-                  }`}
-                >
-                  {p === "end" ? "末日" : `${p}日`}
-                </button>
-              ))}
-            </div>
-          </div>
+        </div>
+        <div style={{ paddingBottom: 16 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>10日会議シート</h1>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
+            {year}年{month}月 ／ {activeArea?.name} ／ {periodLabel(period)}
+          </p>
         </div>
       </header>
 
@@ -206,7 +201,7 @@ export default function MeetingPage() {
       )}
 
       {/* ============ 上段: 2列レイアウト ============ */}
-      <div className="px-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="px-4 grid grid-cols-1 md:grid-cols-2" style={{ marginTop: 20, gap: 20 }}>
         {/* 左列: 売上・粗利・件数 */}
         <Section title="売上・粗利・件数" inGrid>
           <MetricsTable
@@ -216,7 +211,7 @@ export default function MeetingPage() {
         </Section>
 
         {/* 右列: HELP部門 + 部門別実績 */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col" style={{ gap: 20 }}>
           <Section title="HELP部門" inGrid>
             <MetricsTable
               metrics={sec2}
@@ -230,12 +225,14 @@ export default function MeetingPage() {
       </div>
 
       {/* ============ 下段: 広告・効率指標 全幅 ============ */}
+      <div style={{ marginTop: 20 }}>
       <Section title="広告・効率指標">
         <MetricsTable
           metrics={sec3}
           calc={calc} fmt={fmt} badgeCls={badgeCls} diffCls={diffCls}
         />
       </Section>
+      </div>
     </div>
   );
 }
@@ -243,7 +240,7 @@ export default function MeetingPage() {
 function Section({
   title, children, inGrid,
 }: { title: string; children: React.ReactNode; inGrid?: boolean }) {
-  const wrapperCls = inGrid ? "" : "px-4 mt-4";
+  const wrapperCls = inGrid ? "" : "px-4";
   return (
     <section className={wrapperCls}>
       <div
@@ -280,12 +277,12 @@ function MetricsTable({
   return (
     <table className="w-full table-fixed" style={{ fontSize: 11 }}>
       <colgroup>
-        <col style={{ width: "22%" }} />
         <col style={{ width: "20%" }} />
-        <col style={{ width: "20%" }} />
-        <col style={{ width: "12%" }} />
         <col style={{ width: "14%" }} />
-        <col style={{ width: "12%" }} />
+        <col style={{ width: "14%" }} />
+        <col style={{ width: "10%" }} />
+        <col style={{ width: "14%" }} />
+        <col style={{ width: "28%" }} />
       </colgroup>
       <thead style={{ background: "#ecfdf5" }}>
         <tr className="text-[10px] text-emerald-800">
@@ -339,12 +336,11 @@ function MetricsTable({
                 )}
               </td>
               <td className={`${cell} text-right text-[10px] text-zinc-500 whitespace-nowrap`}>
-                {noTarget ? "—" :
-                  c.perDay == null
-                    ? (m.kind === "pct" ? "率" : "—")
-                    : m.kind === "yen"
-                      ? yen(c.perDay)
-                      : `${Math.round(c.perDay * 10) / 10}件`}
+                {noTarget || c.perDay == null
+                  ? "—"
+                  : m.kind === "yen"
+                    ? yen(c.perDay)
+                    : `${Math.round(c.perDay * 10) / 10}件`}
               </td>
             </tr>
           );
