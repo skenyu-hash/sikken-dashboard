@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthed } from "../../lib/auth";
+import { isAuthed, currentRole } from "../../lib/auth";
 import { listEntries, upsertEntry } from "../../lib/db";
 import type { DailyEntry } from "../../lib/calculations";
 
@@ -46,8 +46,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const unauth = await requireAuth();
-  if (unauth) return unauth;
+  const role = await currentRole();
+  if (!role) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (role === "manager") {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
 
   const body = (await req.json().catch(() => null)) as {
     areaId?: string;

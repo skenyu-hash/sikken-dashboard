@@ -1,5 +1,12 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
-import type { DailyEntry } from "./calculations";
+import type { DailyEntry, FixedCosts } from "./calculations";
+
+export type Targets = {
+  targetSales: number;
+  targetProfit: number;
+  targetCount: number;
+  cpaTarget: number;
+};
 
 let _sql: NeonQueryFunction<false, false> | null = null;
 function getSql(): NeonQueryFunction<false, false> {
@@ -23,6 +30,30 @@ export function ensureSchema(): Promise<void> {
           data JSONB NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           PRIMARY KEY (area_id, entry_date)
+        )
+      `;
+      await getSql()`
+        CREATE TABLE IF NOT EXISTS fixed_costs (
+          area_id TEXT NOT NULL,
+          year INT NOT NULL,
+          month INT NOT NULL,
+          labor_cost BIGINT NOT NULL DEFAULT 0,
+          rent BIGINT NOT NULL DEFAULT 0,
+          other BIGINT NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (area_id, year, month)
+        )
+      `;
+      await getSql()`
+        CREATE TABLE IF NOT EXISTS targets (
+          area_id TEXT NOT NULL,
+          year INT NOT NULL,
+          month INT NOT NULL,
+          target_sales BIGINT NOT NULL DEFAULT 0,
+          target_profit BIGINT NOT NULL DEFAULT 0,
+          target_count INT NOT NULL DEFAULT 0,
+          cpa_target INT NOT NULL DEFAULT 0,
+          PRIMARY KEY (area_id, year, month)
         )
       `;
     })().catch((e) => {
@@ -53,6 +84,34 @@ export async function listEntries(
   `) as { data: DailyEntry }[];
 
   return rows.map((r) => r.data);
+}
+
+export async function getFixedCosts(
+  areaId: string, year: number, month: number
+): Promise<FixedCosts> {
+  await ensureSchema();
+  const rows = (await getSql()`
+    SELECT labor_cost, rent, other FROM fixed_costs
+    WHERE area_id = ${areaId} AND year = ${year} AND month = ${month}
+  `) as { labor_cost: string | number; rent: string | number; other: string | number }[];
+  if (!rows[0]) return { laborCost: 0, rent: 0, other: 0 };
+  return {
+    laborCost: Number(rows[0].labor_cost),
+    rent: Number(rows[0].rent),
+    other: Number(rows[0].other),
+  };
+}
+
+export async function upsertFixedCosts(
+  areaId: string, year: number, month: number, fc: FixedCosts
+): Promise<void> {
+  await ensureSchema();
+  await getSql()`
+    INSERT INTO fixed_costs (area_id, year, month, labor_cost, rent, other)
+    VALUES (${areaId}, ${year}, ${month}, ${fc.laborCost}, ${fc.rent}, ${fc.other})
+    ON CONFLICT (area_id, year, month) DO UPDATE
+    SET labor_cost = EXCLUDED.labor_cost, rent = EXCLUDED.rent, other = EXCLUDED.other
+  `;
 }
 
 /** 入力データを upsert */

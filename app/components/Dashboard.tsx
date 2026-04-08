@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  calculateDashboard,
-  DailyEntry,
+  calculateDashboard, calculateBreakeven,
+  DailyEntry, FixedCosts,
   emptyEntry,
   yen,
 } from "../lib/calculations";
+import { useRole } from "./RoleProvider";
 
 // ============ エリア定義 ============
 type Area = { id: string; name: string };
@@ -56,12 +57,16 @@ function todayStr() {
 // ============ フォーム定義 ============
 type FieldDef = { key: keyof DailyEntry; label: string; unit?: string };
 
-const FORM_SECTIONS: { title: string; fields: FieldDef[] }[] = [
+// 役員/管理職向け詳細フォーム
+const FORM_SECTIONS_FULL: { title: string; fields: FieldDef[] }[] = [
   {
     title: "全体 / 営業品質",
     fields: [
       { key: "totalCount", label: "全体件数", unit: "件" },
       { key: "constructionCount", label: "工事件数(10万以上)", unit: "件" },
+      { key: "insourceCount", label: "内製対応件数", unit: "件" },
+      { key: "outsourceCount", label: "外注対応件数", unit: "件" },
+      { key: "reviewCount", label: "口コミ件数", unit: "件" },
     ],
   },
   {
@@ -88,6 +93,35 @@ const FORM_SECTIONS: { title: string; fields: FieldDef[] }[] = [
       { key: "addMaterial", label: "追加材料費", unit: "円" },
       { key: "addLabor", label: "追加職人費", unit: "円" },
       { key: "addCount", label: "ヘルプ件数", unit: "件" },
+      { key: "helpRevenue", label: "HELP売上", unit: "円" },
+      { key: "helpCount", label: "HELP件数", unit: "件" },
+    ],
+  },
+  {
+    title: "コスト",
+    fields: [
+      { key: "adCost", label: "広告費", unit: "円" },
+      { key: "laborCost", label: "職人費(全体)", unit: "円" },
+      { key: "materialCost", label: "材料費(全体)", unit: "円" },
+    ],
+  },
+];
+
+// 事務員向け簡易フォーム(10項目以内)
+const FORM_SECTIONS_SIMPLE: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "本日の入力(10項目)",
+    fields: [
+      { key: "totalCount", label: "全体件数", unit: "件" },
+      { key: "constructionCount", label: "工事件数", unit: "件" },
+      { key: "insourceCount", label: "内製件数", unit: "件" },
+      { key: "outsourceCount", label: "外注件数", unit: "件" },
+      { key: "helpCount", label: "HELP件数", unit: "件" },
+      { key: "reviewCount", label: "口コミ件数", unit: "件" },
+      { key: "newRevenue", label: "新規売上", unit: "円" },
+      { key: "helpRevenue", label: "HELP売上", unit: "円" },
+      { key: "adCost", label: "広告費", unit: "円" },
+      { key: "materialCost", label: "材料費", unit: "円" },
     ],
   },
 ];
@@ -96,9 +130,15 @@ const GROUP_TAB = "__group__";
 
 // ============ メイン ============
 export default function Dashboard() {
+  const role = useRole();
+  const isInputOnly = role === "input";
+  const isManager = role === "manager";
+  const formSections = isInputOnly ? FORM_SECTIONS_SIMPLE : FORM_SECTIONS_FULL;
+
   const now = useMemo(() => new Date(), []);
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
+  const [fixedCosts, setFixedCosts] = useState<FixedCosts>({ laborCost: 0, rent: 0, other: 0 });
 
   const [activeTab, setActiveTab] = useState<string>(AREAS[0].id);
 
@@ -132,6 +172,14 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
+  }, [activeTab, viewYear, viewMonth, isGroup]);
+
+  // 固定費の読込(損益分岐表示用)
+  useEffect(() => {
+    if (isGroup) return;
+    fetch(`/api/fixed-costs?area=${activeTab}&year=${viewYear}&month=${viewMonth}`)
+      .then((r) => (r.ok ? r.json() : { fixedCosts: { laborCost: 0, rent: 0, other: 0 } }))
+      .then((j: { fixedCosts: FixedCosts }) => setFixedCosts(j.fixedCosts));
   }, [activeTab, viewYear, viewMonth, isGroup]);
 
   // ============ データ読込: グループタブ ============
@@ -178,6 +226,12 @@ export default function Dashboard() {
   }, [aggregateEntries, viewYear, viewMonth, isCurrentMonth, summary]);
 
   const diff = summary.forecastProfit - yesterdaySummary.forecastProfit;
+  const breakeven = useMemo(() => calculateBreakeven(fixedCosts, summary), [fixedCosts, summary]);
+  // 異常アラート: 前日比 -20% 以上
+  const profitDropRate = yesterdaySummary.forecastProfit > 0
+    ? ((summary.forecastProfit - yesterdaySummary.forecastProfit) / yesterdaySummary.forecastProfit) * 100
+    : 0;
+  const isAlert = isCurrentMonth && profitDropRate <= -20;
 
   // 各エリアサマリー(グループ表示用)
   const perAreaSummaries = useMemo(() => {
@@ -246,6 +300,71 @@ export default function Dashboard() {
 
   const activeArea = AREAS.find((a) => a.id === activeTab);
   const headerLabel = isGroup ? "グループ全体" : activeArea?.name ?? "";
+
+  // 事務員: 入力専用シンプル画面
+  if (isInputOnly) {
+    return (
+      <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 pb-24">
+        <header className="px-5 py-5 bg-emerald-700 text-white">
+          <h1 className="text-xl font-bold">日次入力</h1>
+          <p className="text-xs opacity-80 mt-1">事務員モード</p>
+        </header>
+        <section className="px-4 mt-4">
+          <label className="block text-xs text-zinc-500 mb-1">エリア</label>
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value)}
+            className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-base"
+          >
+            {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </section>
+        <section className="px-4 mt-4">
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-5"
+          >
+            <div>
+              <label className="block text-sm text-zinc-500 mb-1.5">日付</label>
+              <input
+                type="date" value={form.date}
+                onChange={(e) => { setField("date", e.target.value); loadDate(e.target.value); }}
+                className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-4 text-base"
+              />
+            </div>
+            {formSections.map((section) => (
+              <div key={section.title}>
+                <h3 className="text-sm font-semibold text-zinc-500 mb-2">{section.title}</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {section.fields.map((f) => (
+                    <label key={f.key} className="block">
+                      <span className="block text-xs text-zinc-500 mb-1">
+                        {f.label}{f.unit ? `(${f.unit})` : ""}
+                      </span>
+                      <input
+                        type="text" inputMode="numeric" pattern="[0-9]*"
+                        value={(form[f.key] as number) || ""}
+                        onChange={(e) => setField(f.key, e.target.value.replace(/[^0-9]/g, ""))}
+                        className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-right text-base tabular-nums"
+                        placeholder="0"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {saveError && <p className="text-sm text-red-500">{saveError}</p>}
+            <button
+              type="submit" disabled={saving}
+              className="w-full min-h-[52px] rounded-lg bg-emerald-600 active:bg-emerald-800 text-white font-semibold py-4 text-base disabled:opacity-50"
+            >
+              {saving ? "保存中..." : "保存する"}
+            </button>
+          </form>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 pb-24">
@@ -349,23 +468,37 @@ export default function Dashboard() {
         </div>
       </section>
 
+      {/* ============ アラート ============ */}
+      {isAlert && (
+        <div className="mx-4 mt-3 rounded-xl bg-orange-500 text-white px-4 py-3 text-sm font-semibold shadow">
+          ⚠️ 利益予測が前日比 {profitDropRate.toFixed(1)}% 急落しています
+        </div>
+      )}
+
+      {/* ============ あと○件必要 ============ */}
+      {!isGroup && breakeven.fixedTotal > 0 && (
+        <div className="mx-4 mt-3 rounded-xl bg-indigo-700 text-white px-4 py-3">
+          <p className="text-[11px] opacity-80">損益分岐まで</p>
+          <p className="text-2xl font-bold tabular-nums">
+            あと {breakeven.remainingCount} 件 必要
+          </p>
+          <p className="text-[11px] opacity-80 mt-1">
+            1日あたり {breakeven.perDayCount.toFixed(1)} 件 ・ 達成率 {breakeven.achievementPct.toFixed(0)}%
+          </p>
+        </div>
+      )}
+
       {/* ============ KPI / 全体カード ============ */}
-      <section className="px-4 -mt-4">
+      <section className="px-4 mt-3">
         <div className="grid grid-cols-2 gap-3">
           <Card label="合計売上(実績)" value={yen(summary.totalRevenue)} />
           <Card label="売上 月末予測" value={yen(summary.forecastRevenue)} />
           <Card label="会社総合客単価" value={yen(summary.companyUnitPrice)} />
           <Card label="全体件数" value={`${summary.totalCount} 件`} />
-          <Card
-            label="工事取得率"
-            value={`${summary.constructionRate.toFixed(1)} %`}
-            accent="emerald"
-          />
-          <Card
-            label="ヘルプ率"
-            value={`${summary.helpRate.toFixed(1)} %`}
-            accent="amber"
-          />
+          <Card label="工事取得率" value={`${summary.constructionRate.toFixed(1)} %`} accent="emerald" />
+          <Card label="ヘルプ率" value={`${summary.helpRate.toFixed(1)} %`} accent="amber" />
+          <Card label="内製化率" value={`${summary.insourceRate.toFixed(1)} %`} accent="emerald" />
+          <Card label="外注比率" value={`${summary.outsourceRate.toFixed(1)} %`} accent="amber" />
         </div>
       </section>
 
@@ -451,8 +584,8 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* ============ 入力フォーム (当月 & 会社タブのみ) ============ */}
-      {canEdit ? (
+      {/* ============ 入力フォーム (当月 & 会社タブのみ・managerは編集不可) ============ */}
+      {canEdit && !isManager ? (
         <section className="px-4 mt-8">
           <h2 className="text-base font-semibold mb-2">
             {activeArea?.name} 日次入力
@@ -474,7 +607,7 @@ export default function Dashboard() {
               />
             </div>
 
-            {FORM_SECTIONS.map((section) => (
+            {formSections.map((section) => (
               <div key={section.title}>
                 <h3 className="text-sm font-semibold text-zinc-500 mb-2">
                   {section.title}
