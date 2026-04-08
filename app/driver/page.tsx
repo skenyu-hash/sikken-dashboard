@@ -26,14 +26,32 @@ export default function DriverPage() {
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [fixed, setFixed] = useState<FixedCosts>({ laborCost: 0, rent: 0, other: 0 });
 
-  // 全エリア合算で参考情報を取得
+  // 全エリア合算で参考情報を取得 + 実績ベースの初期値セット
   useEffect(() => {
     const ids = ["kansai","kanto","nagoya","kyushu","kitakanto","hokkaido","chugoku","shizuoka"];
     Promise.all(ids.map(id =>
       fetch(`/api/entries?area=${id}&year=${year}&month=${month}`)
         .then(r => r.ok ? r.json() : { entries: [] })
     )).then((rs: { entries: DailyEntry[] }[]) => {
-      setEntries(rs.flatMap(r => r.entries ?? []));
+      const all = rs.flatMap(r => r.entries ?? []);
+      setEntries(all);
+      // 実績から初期値を推定
+      let adCost = 0, count = 0, helpCount = 0, constructionCount = 0;
+      for (const e of all) {
+        adCost += e.adCost ?? 0;
+        count += e.totalCount;
+        helpCount += e.helpCount ?? 0;
+        constructionCount += e.constructionCount;
+      }
+      const lightCount = Math.max(0, count - constructionCount - helpCount);
+      const total = Math.max(1, count);
+      setD((prev) => ({
+        ...prev,
+        adCost: adCost > 0 ? adCost : prev.adCost,
+        lightRatio: Math.round((lightCount / total) * 100),
+        constRatio: Math.round((constructionCount / total) * 100),
+        helpRatio: Math.round((helpCount / total) * 100),
+      }));
     });
     fetch(`/api/fixed-costs?area=kansai&year=${year}&month=${month}`)
       .then(r => r.ok ? r.json() : { fixedCosts: { laborCost: 0, rent: 0, other: 0 } })
@@ -66,6 +84,44 @@ export default function DriverPage() {
         <h1 className="text-2xl font-bold">利益ドライバーモデル</h1>
         <p className="text-xs opacity-80 mt-1">スライダー操作でリアルタイム試算</p>
       </header>
+
+      {/* シミュレーション vs 実績 */}
+      <section className="px-4 mt-4">
+        <h2 className="text-base font-semibold mb-2">シミュレーション vs 実績</h2>
+        <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+          <table className="min-w-full text-sm">
+            <thead className="bg-zinc-100 dark:bg-zinc-800 text-xs">
+              <tr>
+                <th className="p-2 text-left">指標</th>
+                <th className="p-2 text-right">シミュレーション</th>
+                <th className="p-2 text-right">実績</th>
+                <th className="p-2 text-right">差分</th>
+              </tr>
+            </thead>
+            <tbody className="tabular-nums">
+              <DiffRow label="売上" sim={result.revenue} actual={summary.totalRevenue} kind="yen" />
+              <DiffRow label="粗利" sim={result.grossProfit} actual={summary.totalProfit} kind="yen" />
+              <DiffRow label="件数" sim={result.deals} actual={summary.totalCount} kind="count" />
+              <DiffRow label="客単価" sim={result.avgUnit} actual={summary.companyUnitPrice} kind="yen" />
+              <DiffRow label="粗利率" sim={result.avgMargin} actual={summary.grossMargin} kind="pct" />
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 広告費 逆算 */}
+      <section className="px-4 mt-4">
+        <div className="rounded-xl bg-purple-700 text-white p-4">
+          <p className="text-xs opacity-90">
+            このCPA({yen(d.cpa)})・成約率({d.closingRate}%) で
+            <strong> 損益分岐 </strong>
+            ({yen(be.fixedTotal)}) を達成するには
+          </p>
+          <p className="text-2xl font-bold tabular-nums mt-1">
+            広告費 {yen(requiredAdCost(d, be.fixedTotal))} 必要
+          </p>
+        </div>
+      </section>
 
       {/* 結果カード */}
       <section className="px-4 mt-4">
@@ -149,6 +205,38 @@ function Slider({
         className="w-full h-3 accent-purple-600"
       />
     </div>
+  );
+}
+
+/** 1件あたり粗利を逆算 → 必要広告費を算出 */
+function requiredAdCost(d: DriverInputs, fixedTotal: number): number {
+  const lr = d.lightRatio / 100, cr = d.constRatio / 100, hr = d.helpRatio / 100;
+  const profitPerDeal =
+    lr * d.lightUnit * (d.lightMargin / 100) +
+    cr * d.constUnit * (d.constMargin / 100) +
+    hr * d.helpUnit * (d.helpMargin / 100);
+  if (profitPerDeal <= 0 || d.closingRate <= 0) return 0;
+  const dealsNeeded = fixedTotal / profitPerDeal;
+  const leadsNeeded = dealsNeeded / (d.closingRate / 100);
+  return Math.round(leadsNeeded * d.cpa);
+}
+
+function DiffRow({
+  label, sim, actual, kind,
+}: { label: string; sim: number; actual: number; kind: "yen" | "count" | "pct" }) {
+  const fmt = (v: number) =>
+    kind === "yen" ? yen(v) : kind === "pct" ? `${v.toFixed(1)}%` : `${v}件`;
+  const diff = sim - actual;
+  const cls = diff > 0 ? "text-emerald-600" : diff < 0 ? "text-red-500" : "text-zinc-500";
+  return (
+    <tr className="border-t border-zinc-100 dark:border-zinc-800">
+      <td className="p-2">{label}</td>
+      <td className="p-2 text-right">{fmt(sim)}</td>
+      <td className="p-2 text-right">{fmt(actual)}</td>
+      <td className={`p-2 text-right font-semibold ${cls}`}>
+        {diff > 0 ? "+" : ""}{fmt(diff)}
+      </td>
+    </tr>
   );
 }
 

@@ -9,6 +9,8 @@ export function NavBar({ role }: { role: Role | null }) {
 
   const items: { href: string; label: string; show: boolean }[] = [
     { href: "/", label: "ダッシュボード", show: true },
+    { href: "/ranking", label: "ランキング", show: role === "admin" || role === "manager" },
+    { href: "/targets", label: "目標", show: role === "admin" || role === "manager" },
     { href: "/breakeven", label: "損益分岐", show: role === "admin" || role === "manager" },
     { href: "/driver", label: "ドライバー", show: role === "admin" },
   ];

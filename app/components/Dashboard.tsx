@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  calculateDashboard, calculateBreakeven,
-  DailyEntry, FixedCosts,
+  calculateDashboard, calculateBreakeven, calculateAchievement, achievementColor,
+  forecastWeekday, forecastRecent7,
+  DailyEntry, FixedCosts, Targets, emptyTargets,
   emptyEntry,
   yen,
 } from "../lib/calculations";
@@ -139,6 +140,7 @@ export default function Dashboard() {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
   const [fixedCosts, setFixedCosts] = useState<FixedCosts>({ laborCost: 0, rent: 0, other: 0 });
+  const [targets, setTargets] = useState<Targets>(emptyTargets());
 
   const [activeTab, setActiveTab] = useState<string>(AREAS[0].id);
 
@@ -174,12 +176,15 @@ export default function Dashboard() {
     };
   }, [activeTab, viewYear, viewMonth, isGroup]);
 
-  // 固定費の読込(損益分岐表示用)
+  // 固定費 + 目標の読込
   useEffect(() => {
     if (isGroup) return;
     fetch(`/api/fixed-costs?area=${activeTab}&year=${viewYear}&month=${viewMonth}`)
       .then((r) => (r.ok ? r.json() : { fixedCosts: { laborCost: 0, rent: 0, other: 0 } }))
       .then((j: { fixedCosts: FixedCosts }) => setFixedCosts(j.fixedCosts));
+    fetch(`/api/targets?area=${activeTab}&year=${viewYear}&month=${viewMonth}`)
+      .then((r) => (r.ok ? r.json() : { targets: emptyTargets() }))
+      .then((j: { targets: Targets }) => setTargets(j.targets));
   }, [activeTab, viewYear, viewMonth, isGroup]);
 
   // ============ データ読込: グループタブ ============
@@ -227,6 +232,15 @@ export default function Dashboard() {
 
   const diff = summary.forecastProfit - yesterdaySummary.forecastProfit;
   const breakeven = useMemo(() => calculateBreakeven(fixedCosts, summary), [fixedCosts, summary]);
+  const achievement = useMemo(() => calculateAchievement(targets, summary), [targets, summary]);
+  const weekdayForecast = useMemo(
+    () => forecastWeekday(aggregateEntries, viewYear, viewMonth, summaryToday),
+    [aggregateEntries, viewYear, viewMonth, summaryToday]
+  );
+  const recent7Forecast = useMemo(
+    () => forecastRecent7(aggregateEntries, viewYear, viewMonth, summaryToday),
+    [aggregateEntries, viewYear, viewMonth, summaryToday]
+  );
   // 異常アラート: 前日比 -20% 以上
   const profitDropRate = yesterdaySummary.forecastProfit > 0
     ? ((summary.forecastProfit - yesterdaySummary.forecastProfit) / yesterdaySummary.forecastProfit) * 100
@@ -468,14 +482,27 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* ============ アラート ============ */}
+      {/* ============ 異常アラート(赤) ============ */}
       {isAlert && (
-        <div className="mx-4 mt-3 rounded-xl bg-orange-500 text-white px-4 py-3 text-sm font-semibold shadow">
-          ⚠️ 利益予測が前日比 {profitDropRate.toFixed(1)}% 急落しています
+        <div className="mx-4 mt-3 rounded-xl bg-red-600 text-white px-4 py-3 text-sm font-bold shadow animate-pulse">
+          🚨 利益予測が前日比 {profitDropRate.toFixed(1)}% 急落しています
         </div>
       )}
 
-      {/* ============ あと○件必要 ============ */}
+      {/* ============ あと○件で目標達成 ============ */}
+      {!isGroup && targets.targetCount > 0 && (
+        <div className="mx-4 mt-3 rounded-xl bg-blue-700 text-white px-4 py-3">
+          <p className="text-[11px] opacity-80">目標達成まで</p>
+          <p className="text-3xl font-bold tabular-nums">
+            あと {achievement.remainingCount} 件
+          </p>
+          <p className="text-[11px] opacity-80 mt-1">
+            目標 {targets.targetCount}件 ・ 達成率 {achievement.countPct.toFixed(0)}%
+          </p>
+        </div>
+      )}
+
+      {/* ============ あと○件必要(損益分岐) ============ */}
       {!isGroup && breakeven.fixedTotal > 0 && (
         <div className="mx-4 mt-3 rounded-xl bg-indigo-700 text-white px-4 py-3">
           <p className="text-[11px] opacity-80">損益分岐まで</p>
@@ -488,13 +515,40 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ============ マイルストーン進捗 ============ */}
+      <section className="px-4 mt-3">
+        <MilestoneBar
+          daysElapsed={summary.daysElapsed}
+          daysInMonth={summary.daysInMonth}
+        />
+      </section>
+
+      {/* ============ 未来予測(複数モデル) ============ */}
+      <section className="px-4 mt-3">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <ForecastTile label="単純平均" value={yen(summary.forecastProfit)} />
+          <ForecastTile label="曜日補正" value={yen(weekdayForecast.forecastProfit)} accent />
+          <ForecastTile label="直近7日" value={yen(recent7Forecast.forecastProfit)} />
+        </div>
+      </section>
+
       {/* ============ KPI / 全体カード ============ */}
       <section className="px-4 mt-3">
         <div className="grid grid-cols-2 gap-3">
-          <Card label="合計売上(実績)" value={yen(summary.totalRevenue)} />
+          <Card
+            label="合計売上(実績)"
+            value={yen(summary.totalRevenue)}
+            target={targets.targetSales > 0 ? `達成 ${achievement.salesPct.toFixed(0)}%` : undefined}
+            targetAccent={targets.targetSales > 0 ? achievementColor(achievement.salesPct) : undefined}
+          />
           <Card label="売上 月末予測" value={yen(summary.forecastRevenue)} />
           <Card label="会社総合客単価" value={yen(summary.companyUnitPrice)} />
-          <Card label="全体件数" value={`${summary.totalCount} 件`} />
+          <Card
+            label="全体件数"
+            value={`${summary.totalCount} 件`}
+            target={targets.targetCount > 0 ? `達成 ${achievement.countPct.toFixed(0)}%` : undefined}
+            targetAccent={targets.targetCount > 0 ? achievementColor(achievement.countPct) : undefined}
+          />
           <Card label="工事取得率" value={`${summary.constructionRate.toFixed(1)} %`} accent="emerald" />
           <Card label="ヘルプ率" value={`${summary.helpRate.toFixed(1)} %`} accent="amber" />
           <Card label="内製化率" value={`${summary.insourceRate.toFixed(1)} %`} accent="emerald" />
@@ -662,24 +716,84 @@ export default function Dashboard() {
 }
 
 function Card({
-  label,
-  value,
-  accent,
+  label, value, accent, target, targetAccent,
 }: {
   label: string;
   value: string;
   accent?: "emerald" | "amber";
+  target?: string;
+  targetAccent?: "good" | "warn" | "bad";
 }) {
   const accentCls =
-    accent === "emerald"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : accent === "amber"
-      ? "text-amber-600 dark:text-amber-400"
-      : "text-zinc-900 dark:text-zinc-100";
+    accent === "emerald" ? "text-emerald-600 dark:text-emerald-400"
+    : accent === "amber" ? "text-amber-600 dark:text-amber-400"
+    : "text-zinc-900 dark:text-zinc-100";
+  const tCls =
+    targetAccent === "good" ? "bg-emerald-100 text-emerald-700"
+    : targetAccent === "warn" ? "bg-amber-100 text-amber-700"
+    : targetAccent === "bad" ? "bg-red-100 text-red-700"
+    : "bg-zinc-100 text-zinc-700";
   return (
     <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 shadow-sm">
       <p className="text-[11px] text-zinc-500">{label}</p>
       <p className={`mt-1 text-lg font-bold tabular-nums ${accentCls}`}>{value}</p>
+      {target && (
+        <p className={`mt-1 inline-block text-[10px] font-semibold rounded px-1.5 py-0.5 ${tCls}`}>
+          {target}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MilestoneBar({
+  daysElapsed, daysInMonth,
+}: { daysElapsed: number; daysInMonth: number }) {
+  const milestones = [5, 10, 15, 20, 25].filter((m) => m <= daysInMonth);
+  const pct = Math.min(100, (daysElapsed / daysInMonth) * 100);
+  return (
+    <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3">
+      <div className="flex justify-between text-[11px] text-zinc-500 mb-1">
+        <span>マイルストーン</span>
+        <span>{daysElapsed}/{daysInMonth}日</span>
+      </div>
+      <div className="relative h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-visible">
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-emerald-500"
+          style={{ width: `${pct}%` }}
+        />
+        {milestones.map((m) => {
+          const left = (m / daysInMonth) * 100;
+          const reached = daysElapsed >= m;
+          return (
+            <div
+              key={m}
+              className="absolute -top-1 h-5 w-0.5 -translate-x-1/2"
+              style={{ left: `${left}%` }}
+            >
+              <div className={`h-full ${reached ? "bg-emerald-700" : "bg-zinc-400"}`} />
+              <div className={`mt-0.5 text-[9px] -translate-x-1/2 ${reached ? "text-emerald-700" : "text-zinc-400"}`}>
+                {m}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ForecastTile({
+  label, value, accent,
+}: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className={`rounded-xl border p-2 ${
+      accent
+        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800"
+        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
+    }`}>
+      <p className="text-[10px] text-zinc-500">{label}</p>
+      <p className="mt-0.5 text-sm font-bold tabular-nums">{value}</p>
     </div>
   );
 }

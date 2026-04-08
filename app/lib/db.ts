@@ -1,12 +1,5 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
-import type { DailyEntry, FixedCosts } from "./calculations";
-
-export type Targets = {
-  targetSales: number;
-  targetProfit: number;
-  targetCount: number;
-  cpaTarget: number;
-};
+import type { DailyEntry, FixedCosts, Targets } from "./calculations";
 
 let _sql: NeonQueryFunction<false, false> | null = null;
 function getSql(): NeonQueryFunction<false, false> {
@@ -52,10 +45,17 @@ export function ensureSchema(): Promise<void> {
           target_sales BIGINT NOT NULL DEFAULT 0,
           target_profit BIGINT NOT NULL DEFAULT 0,
           target_count INT NOT NULL DEFAULT 0,
-          cpa_target INT NOT NULL DEFAULT 0,
+          target_cpa INT NOT NULL DEFAULT 0,
+          target_conversion_rate NUMERIC NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           PRIMARY KEY (area_id, year, month)
         )
       `;
+      // 旧スキーマからのマイグレーション(列が無ければ追加)
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_cpa INT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_conversion_rate NUMERIC NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
     })().catch((e) => {
       schemaReady = null;
       throw e;
@@ -111,6 +111,44 @@ export async function upsertFixedCosts(
     VALUES (${areaId}, ${year}, ${month}, ${fc.laborCost}, ${fc.rent}, ${fc.other})
     ON CONFLICT (area_id, year, month) DO UPDATE
     SET labor_cost = EXCLUDED.labor_cost, rent = EXCLUDED.rent, other = EXCLUDED.other
+  `;
+}
+
+export async function getTargets(
+  areaId: string, year: number, month: number
+): Promise<Targets> {
+  await ensureSchema();
+  const rows = (await getSql()`
+    SELECT target_sales, target_profit, target_count, target_cpa, target_conversion_rate
+    FROM targets WHERE area_id = ${areaId} AND year = ${year} AND month = ${month}
+  `) as Record<string, string | number>[];
+  if (!rows[0]) {
+    return { targetSales: 0, targetProfit: 0, targetCount: 0, targetCpa: 0, targetConversionRate: 0 };
+  }
+  const r = rows[0];
+  return {
+    targetSales: Number(r.target_sales),
+    targetProfit: Number(r.target_profit),
+    targetCount: Number(r.target_count),
+    targetCpa: Number(r.target_cpa),
+    targetConversionRate: Number(r.target_conversion_rate),
+  };
+}
+
+export async function upsertTargets(
+  areaId: string, year: number, month: number, t: Targets
+): Promise<void> {
+  await ensureSchema();
+  await getSql()`
+    INSERT INTO targets (area_id, year, month, target_sales, target_profit, target_count, target_cpa, target_conversion_rate, updated_at)
+    VALUES (${areaId}, ${year}, ${month}, ${t.targetSales}, ${t.targetProfit}, ${t.targetCount}, ${t.targetCpa}, ${t.targetConversionRate}, NOW())
+    ON CONFLICT (area_id, year, month) DO UPDATE
+    SET target_sales = EXCLUDED.target_sales,
+        target_profit = EXCLUDED.target_profit,
+        target_count = EXCLUDED.target_count,
+        target_cpa = EXCLUDED.target_cpa,
+        target_conversion_rate = EXCLUDED.target_conversion_rate,
+        updated_at = NOW()
   `;
 }
 

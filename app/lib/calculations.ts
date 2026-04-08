@@ -246,6 +246,133 @@ export type DriverResult = {
   avgMargin: number;      // 加重平均粗利率(%)
 };
 
+// ============ 目標管理 ============
+export type Targets = {
+  targetSales: number;
+  targetProfit: number;
+  targetCount: number;
+  targetCpa: number;
+  targetConversionRate: number; // %
+};
+
+export const emptyTargets = (): Targets => ({
+  targetSales: 0, targetProfit: 0, targetCount: 0, targetCpa: 0, targetConversionRate: 0,
+});
+
+export type Achievement = {
+  salesPct: number;
+  profitPct: number;
+  countPct: number;
+  remainingCount: number;
+};
+
+export function calculateAchievement(t: Targets, s: DashboardSummary): Achievement {
+  const safe = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
+  return {
+    salesPct: safe(s.totalRevenue, t.targetSales),
+    profitPct: safe(s.totalProfit, t.targetProfit),
+    countPct: safe(s.totalCount, t.targetCount),
+    remainingCount: Math.max(0, t.targetCount - s.totalCount),
+  };
+}
+
+/** 達成率に応じた色クラス */
+export function achievementColor(pct: number): "good" | "warn" | "bad" {
+  if (pct >= 100) return "good";
+  if (pct >= 80) return "warn";
+  return "bad";
+}
+
+// ============ 未来予測(曜日補正・トレンド) ============
+/** 曜日別の平均単件数を出してトレンド予測 */
+export function forecastWeekday(
+  entries: DailyEntry[],
+  year: number, month: number, today: Date
+): { forecastRevenue: number; forecastProfit: number } {
+  // 曜日別平均
+  const buckets: { rev: number; prof: number; n: number }[] =
+    Array.from({ length: 7 }, () => ({ rev: 0, prof: 0, n: 0 }));
+  for (const e of entries) {
+    const d = new Date(e.date);
+    const w = d.getDay();
+    const profit = e.selfProfit + (e.newRevenue - e.newMaterial - e.newLabor)
+      + (e.addRevenue - e.addMaterial - e.addLabor);
+    const revenue = e.selfRevenue + e.newRevenue + e.addRevenue + (e.helpRevenue ?? 0);
+    buckets[w].rev += revenue;
+    buckets[w].prof += profit;
+    buckets[w].n += 1;
+  }
+  const avg = buckets.map((b) =>
+    b.n > 0 ? { rev: b.rev / b.n, prof: b.prof / b.n } : null
+  );
+  // 全体平均(欠損補完用)
+  const allCount = buckets.reduce((a, b) => a + b.n, 0);
+  const fallback = allCount > 0
+    ? {
+        rev: buckets.reduce((a, b) => a + b.rev, 0) / allCount,
+        prof: buckets.reduce((a, b) => a + b.prof, 0) / allCount,
+      }
+    : { rev: 0, prof: 0 };
+
+  // 既に経過した日の実績をそのまま使う
+  const daysInMonth = getDaysInMonth(year, month);
+  let forecastRevenue = 0;
+  let forecastProfit = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(year, month - 1, day);
+    if (d <= today && d.getMonth() === month - 1) {
+      const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const found = entries.find((e) => e.date === iso);
+      if (found) {
+        forecastRevenue += found.selfRevenue + found.newRevenue + found.addRevenue + (found.helpRevenue ?? 0);
+        forecastProfit += found.selfProfit + (found.newRevenue - found.newMaterial - found.newLabor)
+          + (found.addRevenue - found.addMaterial - found.addLabor);
+        continue;
+      }
+    }
+    const a = avg[d.getDay()] ?? fallback;
+    forecastRevenue += a.rev;
+    forecastProfit += a.prof;
+  }
+  return {
+    forecastRevenue: Math.round(forecastRevenue),
+    forecastProfit: Math.round(forecastProfit),
+  };
+}
+
+/** 直近7日間の平均で予測 */
+export function forecastRecent7(
+  entries: DailyEntry[],
+  year: number, month: number, today: Date
+): { forecastRevenue: number; forecastProfit: number } {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = sorted.slice(-7);
+  if (recent.length === 0) return { forecastRevenue: 0, forecastProfit: 0 };
+  let rev = 0, prof = 0;
+  for (const e of recent) {
+    rev += e.selfRevenue + e.newRevenue + e.addRevenue + (e.helpRevenue ?? 0);
+    prof += e.selfProfit + (e.newRevenue - e.newMaterial - e.newLabor)
+      + (e.addRevenue - e.addMaterial - e.addLabor);
+  }
+  const avgRev = rev / recent.length;
+  const avgProf = prof / recent.length;
+  const daysInMonth = getDaysInMonth(year, month);
+  const elapsed = Math.max(1, getDaysElapsed(today, year, month));
+  // 経過分の実績 + 残日数 × 直近7日平均
+  let actualRev = 0, actualProf = 0;
+  for (const e of entries) {
+    actualRev += e.selfRevenue + e.newRevenue + e.addRevenue + (e.helpRevenue ?? 0);
+    actualProf += e.selfProfit + (e.newRevenue - e.newMaterial - e.newLabor)
+      + (e.addRevenue - e.addMaterial - e.addLabor);
+  }
+  const remaining = Math.max(0, daysInMonth - elapsed);
+  return {
+    forecastRevenue: Math.round(actualRev + avgRev * remaining),
+    forecastProfit: Math.round(actualProf + avgProf * remaining),
+  };
+}
+
+// ============ ドライバーモデル ============
 export function calculateDriver(d: DriverInputs): DriverResult {
   const leads = d.cpa > 0 ? d.adCost / d.cpa : 0;
   const deals = leads * (d.closingRate / 100);
