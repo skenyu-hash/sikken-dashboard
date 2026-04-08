@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { currentUser } from "./lib/auth";
 import { NavBar } from "./components/NavBar";
 import { RoleProvider } from "./components/RoleProvider";
 
@@ -13,11 +12,9 @@ export const metadata: Metadata = {
   description: "Sikken Management Dashboard",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const user = await currentUser();
-  const role = user?.role ?? null;
   return (
     <html
       lang="ja"
@@ -25,7 +22,7 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <RoleProvider>
-          <NavBar role={role} userName={user?.name ?? null} />
+          <NavBar />
           {children}
         </RoleProvider>
       </body>
