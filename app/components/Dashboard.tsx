@@ -8,7 +8,7 @@ import {
   emptyEntry,
   yen,
 } from "../lib/calculations";
-import { useRole } from "./RoleProvider";
+import { useRole, useSession } from "./RoleProvider";
 
 // ============ エリア定義 ============
 type Area = { id: string; name: string };
@@ -132,8 +132,11 @@ const GROUP_TAB = "__group__";
 // ============ メイン ============
 export default function Dashboard() {
   const role = useRole();
+  const session = useSession();
   const isInputOnly = role === "input";
   const isManager = role === "manager";
+  // 事務員で担当エリアが指定されている場合、そのエリアのみ編集可
+  const lockedAreaId = isInputOnly && session?.areaId ? session.areaId : null;
   const formSections = isInputOnly ? FORM_SECTIONS_SIMPLE : FORM_SECTIONS_FULL;
 
   const now = useMemo(() => new Date(), []);
@@ -156,7 +159,8 @@ export default function Dashboard() {
 
   const isCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
   const isGroup = activeTab === GROUP_TAB;
-  const canEdit = isCurrentMonth && !isGroup;
+  const isAreaEditable = !lockedAreaId || lockedAreaId === activeTab;
+  const canEdit = isCurrentMonth && !isGroup && isAreaEditable;
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);

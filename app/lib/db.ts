@@ -2,7 +2,7 @@ import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import type { DailyEntry, FixedCosts, Targets } from "./calculations";
 
 let _sql: NeonQueryFunction<false, false> | null = null;
-function getSql(): NeonQueryFunction<false, false> {
+export function getSql(): NeonQueryFunction<false, false> {
   if (_sql) return _sql;
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");

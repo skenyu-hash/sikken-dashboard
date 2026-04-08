@@ -1,30 +1,36 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { AUTH_COOKIE } from "./app/lib/auth";
+import { jwtVerify } from "jose";
 
+const AUTH_COOKIE = "sd_session";
 const PUBLIC_PATHS = ["/login", "/api/auth/login"];
 
-// proxy は edge runtime なので env だけで認証チェック(ロールはAPI側で再検証)
-function isCookieValid(value: string | undefined): boolean {
-  if (!value) return false;
-  const idx = value.indexOf(":");
-  if (idx < 0) return false;
-  const role = value.slice(0, idx);
-  const pw = value.slice(idx + 1);
-  if (role === "admin" && pw && pw === process.env.ADMIN_PASSWORD) return true;
-  if (role === "manager" && pw && pw === process.env.MANAGER_PASSWORD) return true;
-  if (role === "input" && pw && pw === process.env.INPUT_PASSWORD) return true;
-  return false;
+function getSecret(): Uint8Array | null {
+  const s = process.env.JWT_SECRET;
+  if (!s || s.length < 16) return null;
+  return new TextEncoder().encode(s);
 }
 
-export function proxy(req: NextRequest) {
+async function isTokenValid(token: string | undefined): Promise<boolean> {
+  if (!token) return false;
+  const secret = getSecret();
+  if (!secret) return false;
+  try {
+    await jwtVerify(token, secret);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     return NextResponse.next();
   }
 
-  const cookie = req.cookies.get(AUTH_COOKIE)?.value;
-  if (!isCookieValid(cookie)) {
+  const token = req.cookies.get(AUTH_COOKIE)?.value;
+  if (!(await isTokenValid(token))) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
@@ -33,7 +39,6 @@ export function proxy(req: NextRequest) {
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
-
   return NextResponse.next();
 }
 
