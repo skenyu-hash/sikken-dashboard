@@ -73,6 +73,9 @@ export function ensureSchema(): Promise<void> {
       await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_call_count INT NOT NULL DEFAULT 0`;
       await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_construction_rate NUMERIC NOT NULL DEFAULT 0`;
       await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_pass_rate NUMERIC NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_unit_price INT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_call_unit_price INT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_rate NUMERIC NOT NULL DEFAULT 0`;
       await getSql()`
         CREATE TABLE IF NOT EXISTS cashflow_entries (
           id BIGSERIAL PRIMARY KEY,
@@ -159,7 +162,8 @@ export async function getTargets(
       target_self_sales, target_self_profit, target_self_count,
       target_new_sales, target_new_profit, target_new_count,
       target_ad_cost, target_ad_rate, target_labor_rate, target_material_rate,
-      target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate
+      target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate,
+      target_unit_price, target_call_unit_price, target_help_rate
     FROM targets WHERE area_id = ${areaId} AND year = ${year} AND month = ${month}
   `) as Record<string, string | number>[];
   if (!rows[0]) {
@@ -171,6 +175,7 @@ export async function getTargets(
       targetAdCost: 0, targetAdRate: 0, targetLaborRate: 0, targetMaterialRate: 0,
       targetVehicleCount: 0, targetCallCount: 0,
       targetConstructionRate: 0, targetPassRate: 0,
+      targetUnitPrice: 0, targetCallUnitPrice: 0, targetHelpRate: 0,
     };
   }
   const r = rows[0];
@@ -197,6 +202,9 @@ export async function getTargets(
     targetCallCount: Number(r.target_call_count),
     targetConstructionRate: Number(r.target_construction_rate),
     targetPassRate: Number(r.target_pass_rate),
+    targetUnitPrice: Number(r.target_unit_price),
+    targetCallUnitPrice: Number(r.target_call_unit_price),
+    targetHelpRate: Number(r.target_help_rate),
   };
 }
 
@@ -213,6 +221,7 @@ export async function upsertTargets(
       target_new_sales, target_new_profit, target_new_count,
       target_ad_cost, target_ad_rate, target_labor_rate, target_material_rate,
       target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate,
+      target_unit_price, target_call_unit_price, target_help_rate,
       updated_at
     )
     VALUES (
@@ -223,6 +232,7 @@ export async function upsertTargets(
       ${t.targetNewSales}, ${t.targetNewProfit}, ${t.targetNewCount},
       ${t.targetAdCost}, ${t.targetAdRate}, ${t.targetLaborRate}, ${t.targetMaterialRate},
       ${t.targetVehicleCount}, ${t.targetCallCount}, ${t.targetConstructionRate}, ${t.targetPassRate},
+      ${t.targetUnitPrice}, ${t.targetCallUnitPrice}, ${t.targetHelpRate},
       NOW()
     )
     ON CONFLICT (area_id, year, month) DO UPDATE
@@ -248,6 +258,9 @@ export async function upsertTargets(
         target_call_count = EXCLUDED.target_call_count,
         target_construction_rate = EXCLUDED.target_construction_rate,
         target_pass_rate = EXCLUDED.target_pass_rate,
+        target_unit_price = EXCLUDED.target_unit_price,
+        target_call_unit_price = EXCLUDED.target_call_unit_price,
+        target_help_rate = EXCLUDED.target_help_rate,
         updated_at = NOW()
   `;
 }

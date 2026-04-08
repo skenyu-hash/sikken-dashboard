@@ -23,6 +23,7 @@ const SECTIONS: { title: string; fields: Field[] }[] = [
       { key: "targetCount", label: "獲得件数目標", unit: "count" },
       { key: "targetCpa", label: "CPA目標", unit: "yen" },
       { key: "targetConversionRate", label: "成約率目標", unit: "pct" },
+      { key: "targetUnitPrice", label: "客単価目標", unit: "yen" },
     ],
   },
   {
@@ -31,6 +32,7 @@ const SECTIONS: { title: string; fields: Field[] }[] = [
       { key: "targetHelpSales", label: "HELP売上目標", unit: "man" },
       { key: "targetHelpCount", label: "HELP件数目標", unit: "count" },
       { key: "targetHelpUnitPrice", label: "HELP客単価目標", unit: "yen" },
+      { key: "targetHelpRate", label: "HELP率目標", unit: "pct" },
     ],
   },
   {
@@ -58,6 +60,7 @@ const SECTIONS: { title: string; fields: Field[] }[] = [
     fields: [
       { key: "targetVehicleCount", label: "車両数", unit: "count" },
       { key: "targetCallCount", label: "入電件数目標", unit: "count" },
+      { key: "targetCallUnitPrice", label: "入電単価目標", unit: "yen" },
       { key: "targetConstructionRate", label: "工事取得率目標", unit: "pct" },
       { key: "targetPassRate", label: "パス率目標", unit: "pct" },
     ],

@@ -270,6 +270,9 @@ export type Targets = {
   targetCallCount: number;
   targetConstructionRate: number;
   targetPassRate: number;
+  targetUnitPrice: number;        // 客単価目標(円)
+  targetCallUnitPrice: number;    // 入電単価目標(円)
+  targetHelpRate: number;         // HELP率目標(%)
 };
 
 export const emptyTargets = (): Targets => ({
@@ -280,6 +283,7 @@ export const emptyTargets = (): Targets => ({
   targetAdCost: 0, targetAdRate: 0, targetLaborRate: 0, targetMaterialRate: 0,
   targetVehicleCount: 0, targetCallCount: 0,
   targetConstructionRate: 0, targetPassRate: 0,
+  targetUnitPrice: 0, targetCallUnitPrice: 0, targetHelpRate: 0,
 });
 
 export type Achievement = {
