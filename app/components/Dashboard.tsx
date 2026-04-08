@@ -560,6 +560,101 @@ export default function Dashboard() {
         </div>
       </section>
 
+      {/* ============ 目標対比 ============ */}
+      {!isGroup && (() => {
+        const adRateActual = summary.totalRevenue > 0
+          ? (summary.totalAdCost / summary.totalRevenue) * 100
+          : 0;
+        const cards: {
+          label: string;
+          actual: string;
+          target?: string;
+          accent?: "good" | "warn" | "bad";
+        }[] = [];
+
+        if (targets.targetHelpSales > 0) {
+          const pct = (summary.help.revenue / targets.targetHelpSales) * 100;
+          cards.push({
+            label: "HELP売上",
+            actual: yen(summary.help.revenue),
+            target: `目標 ${yen(targets.targetHelpSales)} ・ ${pct.toFixed(0)}%`,
+            accent: achievementColor(pct),
+          });
+        }
+        if (targets.targetHelpCount > 0) {
+          const pct = (summary.help.count / targets.targetHelpCount) * 100;
+          cards.push({
+            label: "HELP件数",
+            actual: `${summary.help.count} 件`,
+            target: `目標 ${targets.targetHelpCount}件 ・ ${pct.toFixed(0)}%`,
+            accent: achievementColor(pct),
+          });
+        }
+        if (targets.targetAdRate > 0) {
+          // 広告費率は低いほうが良い
+          const accent: "good" | "warn" | "bad" =
+            adRateActual <= targets.targetAdRate ? "good"
+            : adRateActual <= targets.targetAdRate + 5 ? "warn"
+            : "bad";
+          cards.push({
+            label: "広告費率",
+            actual: `${adRateActual.toFixed(1)} %`,
+            target: `目標 ${targets.targetAdRate.toFixed(1)}%`,
+            accent,
+          });
+        }
+        if (targets.targetConstructionRate > 0) {
+          // 工事取得率は高いほうが良い
+          const accent: "good" | "warn" | "bad" =
+            summary.constructionRate >= targets.targetConstructionRate ? "good"
+            : summary.constructionRate >= targets.targetConstructionRate - 5 ? "warn"
+            : "bad";
+          cards.push({
+            label: "工事取得率",
+            actual: `${summary.constructionRate.toFixed(1)} %`,
+            target: `目標 ${targets.targetConstructionRate.toFixed(1)}%`,
+            accent,
+          });
+        }
+        if (targets.targetSelfSales > 0) {
+          const pct = (summary.self.revenue / targets.targetSelfSales) * 100;
+          cards.push({
+            label: "自社施工売上",
+            actual: yen(summary.self.revenue),
+            target: `目標 ${yen(targets.targetSelfSales)} ・ ${pct.toFixed(0)}%`,
+            accent: achievementColor(pct),
+          });
+        }
+        if (targets.targetNewSales > 0) {
+          const pct = (summary.newSales.revenue / targets.targetNewSales) * 100;
+          cards.push({
+            label: "新規営業売上",
+            actual: yen(summary.newSales.revenue),
+            target: `目標 ${yen(targets.targetNewSales)} ・ ${pct.toFixed(0)}%`,
+            accent: achievementColor(pct),
+          });
+        }
+
+        if (cards.length === 0) return null;
+
+        return (
+          <section className="px-4 mt-6">
+            <h2 className="text-base font-semibold mb-2">目標対比</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {cards.map((c) => (
+                <Card
+                  key={c.label}
+                  label={c.label}
+                  value={c.actual}
+                  target={c.target}
+                  targetAccent={c.accent}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })()}
+
       {/* ============ グループ: トップ/リスクハイライト ============ */}
       {isGroup && perAreaSummaries.length > 0 && (() => {
         const sorted = [...perAreaSummaries].sort(
