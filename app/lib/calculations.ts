@@ -372,6 +372,50 @@ export function forecastRecent7(
   };
 }
 
+// ============ キャッシュフロー指標 ============
+export type CashflowSummary = {
+  totalAR: number;             // 売掛金合計
+  totalAROverdue: number;      // 30日超売掛
+  totalBank: number;           // 口座残高合計
+  totalLoan: number;           // 融資残高
+  totalRepayment: number;      // 月次返済
+  totalPayments: number;       // 支払予定
+  monthlyCF: number;           // 月次CF = 売掛金 - 支払 - 返済
+  daysToShortage: number;      // 資金ショート予測日数
+  dso: number;                 // DSO
+  overdueRate: number;         // 回収遅延率(%)
+};
+
+export function calculateCashflow(
+  cfs: { accountsReceivable: number; accountsReceivableOverdue: number;
+         bankBalance: number; loanBalance: number; loanRepayment: number;
+         scheduledPayments: number }[],
+  monthlyRevenue: number
+): CashflowSummary {
+  const safe = (a: number, b: number) => (b > 0 ? a / b : 0);
+  let totalAR = 0, totalAROverdue = 0, totalBank = 0;
+  let totalLoan = 0, totalRepayment = 0, totalPayments = 0;
+  for (const c of cfs) {
+    totalAR += c.accountsReceivable;
+    totalAROverdue += c.accountsReceivableOverdue;
+    totalBank += c.bankBalance;
+    totalLoan += c.loanBalance;
+    totalRepayment += c.loanRepayment;
+    totalPayments += c.scheduledPayments;
+  }
+  const monthlyCF = totalAR - totalPayments - totalRepayment;
+  const dailyOutflow = (totalPayments + totalRepayment) / 30;
+  const daysToShortage = dailyOutflow > 0 ? Math.floor(totalBank / dailyOutflow) : 9999;
+  const dailyRevenue = monthlyRevenue / 30;
+  const dso = safe(totalAR, dailyRevenue);
+  const overdueRate = safe(totalAROverdue, totalAR) * 100;
+  return {
+    totalAR, totalAROverdue, totalBank, totalLoan,
+    totalRepayment, totalPayments, monthlyCF,
+    daysToShortage, dso, overdueRate,
+  };
+}
+
 // ============ ドライバーモデル ============
 export function calculateDriver(d: DriverInputs): DriverResult {
   const leads = d.cpa > 0 ? d.adCost / d.cpa : 0;

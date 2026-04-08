@@ -56,6 +56,24 @@ export function ensureSchema(): Promise<void> {
       await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_cpa INT NOT NULL DEFAULT 0`;
       await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_conversion_rate NUMERIC NOT NULL DEFAULT 0`;
       await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
+      await getSql()`
+        CREATE TABLE IF NOT EXISTS cashflow_entries (
+          id BIGSERIAL PRIMARY KEY,
+          area_id TEXT NOT NULL,
+          year INT NOT NULL,
+          month INT NOT NULL,
+          accounts_receivable BIGINT NOT NULL DEFAULT 0,
+          accounts_receivable_overdue BIGINT NOT NULL DEFAULT 0,
+          bank_balance BIGINT NOT NULL DEFAULT 0,
+          loan_balance BIGINT NOT NULL DEFAULT 0,
+          loan_repayment BIGINT NOT NULL DEFAULT 0,
+          scheduled_payments BIGINT NOT NULL DEFAULT 0,
+          payment_due_date DATE,
+          notes TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+      await getSql()`CREATE INDEX IF NOT EXISTS idx_cf_area_ym ON cashflow_entries(area_id, year, month)`;
     })().catch((e) => {
       schemaReady = null;
       throw e;
@@ -150,6 +168,68 @@ export async function upsertTargets(
         target_conversion_rate = EXCLUDED.target_conversion_rate,
         updated_at = NOW()
   `;
+}
+
+// ============ Cashflow ============
+export type CashflowEntry = {
+  id?: number;
+  areaId: string;
+  year: number;
+  month: number;
+  accountsReceivable: number;
+  accountsReceivableOverdue: number;
+  bankBalance: number;
+  loanBalance: number;
+  loanRepayment: number;
+  scheduledPayments: number;
+  paymentDueDate: string | null;
+  notes: string;
+};
+
+export async function listCashflow(year: number, month: number): Promise<CashflowEntry[]> {
+  await ensureSchema();
+  const rows = (await getSql()`
+    SELECT id, area_id, year, month,
+      accounts_receivable, accounts_receivable_overdue,
+      bank_balance, loan_balance, loan_repayment,
+      scheduled_payments, payment_due_date, notes
+    FROM cashflow_entries
+    WHERE year = ${year} AND month = ${month}
+    ORDER BY area_id, id
+  `) as Record<string, string | number | null>[];
+  return rows.map((r) => ({
+    id: Number(r.id),
+    areaId: String(r.area_id),
+    year: Number(r.year),
+    month: Number(r.month),
+    accountsReceivable: Number(r.accounts_receivable),
+    accountsReceivableOverdue: Number(r.accounts_receivable_overdue),
+    bankBalance: Number(r.bank_balance),
+    loanBalance: Number(r.loan_balance),
+    loanRepayment: Number(r.loan_repayment),
+    scheduledPayments: Number(r.scheduled_payments),
+    paymentDueDate: r.payment_due_date ? String(r.payment_due_date).slice(0, 10) : null,
+    notes: r.notes ? String(r.notes) : "",
+  }));
+}
+
+export async function insertCashflow(e: CashflowEntry): Promise<void> {
+  await ensureSchema();
+  await getSql()`
+    INSERT INTO cashflow_entries
+      (area_id, year, month, accounts_receivable, accounts_receivable_overdue,
+       bank_balance, loan_balance, loan_repayment, scheduled_payments,
+       payment_due_date, notes)
+    VALUES
+      (${e.areaId}, ${e.year}, ${e.month}, ${e.accountsReceivable}, ${e.accountsReceivableOverdue},
+       ${e.bankBalance}, ${e.loanBalance}, ${e.loanRepayment}, ${e.scheduledPayments},
+       ${e.paymentDueDate}, ${e.notes})
+  `;
+}
+
+export async function deleteCashflow(id: number): Promise<void> {
+  await ensureSchema();
+  await getSql()`DELETE FROM cashflow_entries WHERE id = ${id}`;
 }
 
 /** 入力データを upsert */

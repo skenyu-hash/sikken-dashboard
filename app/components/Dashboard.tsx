@@ -556,6 +556,29 @@ export default function Dashboard() {
         </div>
       </section>
 
+      {/* ============ グループ: トップ/リスクハイライト ============ */}
+      {isGroup && perAreaSummaries.length > 0 && (() => {
+        const sorted = [...perAreaSummaries].sort(
+          (a, b) => b.summary.totalProfit - a.summary.totalProfit
+        );
+        const top = sorted[0];
+        const risk = sorted[sorted.length - 1];
+        return (
+          <section className="px-4 mt-3 grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-emerald-600 text-white p-3">
+              <p className="text-[10px] opacity-90">🏆 利益貢献トップ</p>
+              <p className="text-base font-bold mt-1">{top.area.name}</p>
+              <p className="text-xs tabular-nums">{yen(top.summary.totalProfit)}</p>
+            </div>
+            <div className="rounded-xl bg-red-600 text-white p-3">
+              <p className="text-[10px] opacity-90">⚠️ 要注意エリア</p>
+              <p className="text-base font-bold mt-1">{risk.area.name}</p>
+              <p className="text-xs tabular-nums">{yen(risk.summary.totalProfit)}</p>
+            </div>
+          </section>
+        );
+      })()}
+
       {/* ============ グループ: エリア別ブレイクダウン ============ */}
       {isGroup && (
         <section className="px-4 mt-6">
