@@ -56,6 +56,23 @@ export function ensureSchema(): Promise<void> {
       await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_cpa INT NOT NULL DEFAULT 0`;
       await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_conversion_rate NUMERIC NOT NULL DEFAULT 0`;
       await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_sales BIGINT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_count INT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_unit_price INT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_self_sales BIGINT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_self_profit BIGINT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_self_count INT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_new_sales BIGINT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_new_profit BIGINT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_new_count INT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_ad_cost BIGINT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_ad_rate NUMERIC NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_labor_rate NUMERIC NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_material_rate NUMERIC NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_vehicle_count INT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_call_count INT NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_construction_rate NUMERIC NOT NULL DEFAULT 0`;
+      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_pass_rate NUMERIC NOT NULL DEFAULT 0`;
       await getSql()`
         CREATE TABLE IF NOT EXISTS cashflow_entries (
           id BIGSERIAL PRIMARY KEY,
@@ -137,11 +154,24 @@ export async function getTargets(
 ): Promise<Targets> {
   await ensureSchema();
   const rows = (await getSql()`
-    SELECT target_sales, target_profit, target_count, target_cpa, target_conversion_rate
+    SELECT target_sales, target_profit, target_count, target_cpa, target_conversion_rate,
+      target_help_sales, target_help_count, target_help_unit_price,
+      target_self_sales, target_self_profit, target_self_count,
+      target_new_sales, target_new_profit, target_new_count,
+      target_ad_cost, target_ad_rate, target_labor_rate, target_material_rate,
+      target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate
     FROM targets WHERE area_id = ${areaId} AND year = ${year} AND month = ${month}
   `) as Record<string, string | number>[];
   if (!rows[0]) {
-    return { targetSales: 0, targetProfit: 0, targetCount: 0, targetCpa: 0, targetConversionRate: 0 };
+    return {
+      targetSales: 0, targetProfit: 0, targetCount: 0, targetCpa: 0, targetConversionRate: 0,
+      targetHelpSales: 0, targetHelpCount: 0, targetHelpUnitPrice: 0,
+      targetSelfSales: 0, targetSelfProfit: 0, targetSelfCount: 0,
+      targetNewSales: 0, targetNewProfit: 0, targetNewCount: 0,
+      targetAdCost: 0, targetAdRate: 0, targetLaborRate: 0, targetMaterialRate: 0,
+      targetVehicleCount: 0, targetCallCount: 0,
+      targetConstructionRate: 0, targetPassRate: 0,
+    };
   }
   const r = rows[0];
   return {
@@ -150,6 +180,23 @@ export async function getTargets(
     targetCount: Number(r.target_count),
     targetCpa: Number(r.target_cpa),
     targetConversionRate: Number(r.target_conversion_rate),
+    targetHelpSales: Number(r.target_help_sales),
+    targetHelpCount: Number(r.target_help_count),
+    targetHelpUnitPrice: Number(r.target_help_unit_price),
+    targetSelfSales: Number(r.target_self_sales),
+    targetSelfProfit: Number(r.target_self_profit),
+    targetSelfCount: Number(r.target_self_count),
+    targetNewSales: Number(r.target_new_sales),
+    targetNewProfit: Number(r.target_new_profit),
+    targetNewCount: Number(r.target_new_count),
+    targetAdCost: Number(r.target_ad_cost),
+    targetAdRate: Number(r.target_ad_rate),
+    targetLaborRate: Number(r.target_labor_rate),
+    targetMaterialRate: Number(r.target_material_rate),
+    targetVehicleCount: Number(r.target_vehicle_count),
+    targetCallCount: Number(r.target_call_count),
+    targetConstructionRate: Number(r.target_construction_rate),
+    targetPassRate: Number(r.target_pass_rate),
   };
 }
 
@@ -158,14 +205,49 @@ export async function upsertTargets(
 ): Promise<void> {
   await ensureSchema();
   await getSql()`
-    INSERT INTO targets (area_id, year, month, target_sales, target_profit, target_count, target_cpa, target_conversion_rate, updated_at)
-    VALUES (${areaId}, ${year}, ${month}, ${t.targetSales}, ${t.targetProfit}, ${t.targetCount}, ${t.targetCpa}, ${t.targetConversionRate}, NOW())
+    INSERT INTO targets (
+      area_id, year, month,
+      target_sales, target_profit, target_count, target_cpa, target_conversion_rate,
+      target_help_sales, target_help_count, target_help_unit_price,
+      target_self_sales, target_self_profit, target_self_count,
+      target_new_sales, target_new_profit, target_new_count,
+      target_ad_cost, target_ad_rate, target_labor_rate, target_material_rate,
+      target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate,
+      updated_at
+    )
+    VALUES (
+      ${areaId}, ${year}, ${month},
+      ${t.targetSales}, ${t.targetProfit}, ${t.targetCount}, ${t.targetCpa}, ${t.targetConversionRate},
+      ${t.targetHelpSales}, ${t.targetHelpCount}, ${t.targetHelpUnitPrice},
+      ${t.targetSelfSales}, ${t.targetSelfProfit}, ${t.targetSelfCount},
+      ${t.targetNewSales}, ${t.targetNewProfit}, ${t.targetNewCount},
+      ${t.targetAdCost}, ${t.targetAdRate}, ${t.targetLaborRate}, ${t.targetMaterialRate},
+      ${t.targetVehicleCount}, ${t.targetCallCount}, ${t.targetConstructionRate}, ${t.targetPassRate},
+      NOW()
+    )
     ON CONFLICT (area_id, year, month) DO UPDATE
     SET target_sales = EXCLUDED.target_sales,
         target_profit = EXCLUDED.target_profit,
         target_count = EXCLUDED.target_count,
         target_cpa = EXCLUDED.target_cpa,
         target_conversion_rate = EXCLUDED.target_conversion_rate,
+        target_help_sales = EXCLUDED.target_help_sales,
+        target_help_count = EXCLUDED.target_help_count,
+        target_help_unit_price = EXCLUDED.target_help_unit_price,
+        target_self_sales = EXCLUDED.target_self_sales,
+        target_self_profit = EXCLUDED.target_self_profit,
+        target_self_count = EXCLUDED.target_self_count,
+        target_new_sales = EXCLUDED.target_new_sales,
+        target_new_profit = EXCLUDED.target_new_profit,
+        target_new_count = EXCLUDED.target_new_count,
+        target_ad_cost = EXCLUDED.target_ad_cost,
+        target_ad_rate = EXCLUDED.target_ad_rate,
+        target_labor_rate = EXCLUDED.target_labor_rate,
+        target_material_rate = EXCLUDED.target_material_rate,
+        target_vehicle_count = EXCLUDED.target_vehicle_count,
+        target_call_count = EXCLUDED.target_call_count,
+        target_construction_rate = EXCLUDED.target_construction_rate,
+        target_pass_rate = EXCLUDED.target_pass_rate,
         updated_at = NOW()
   `;
 }

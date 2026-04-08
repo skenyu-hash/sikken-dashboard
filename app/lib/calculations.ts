@@ -252,11 +252,34 @@ export type Targets = {
   targetProfit: number;
   targetCount: number;
   targetCpa: number;
-  targetConversionRate: number; // %
+  targetConversionRate: number;
+  targetHelpSales: number;
+  targetHelpCount: number;
+  targetHelpUnitPrice: number;
+  targetSelfSales: number;
+  targetSelfProfit: number;
+  targetSelfCount: number;
+  targetNewSales: number;
+  targetNewProfit: number;
+  targetNewCount: number;
+  targetAdCost: number;
+  targetAdRate: number;
+  targetLaborRate: number;
+  targetMaterialRate: number;
+  targetVehicleCount: number;
+  targetCallCount: number;
+  targetConstructionRate: number;
+  targetPassRate: number;
 };
 
 export const emptyTargets = (): Targets => ({
   targetSales: 0, targetProfit: 0, targetCount: 0, targetCpa: 0, targetConversionRate: 0,
+  targetHelpSales: 0, targetHelpCount: 0, targetHelpUnitPrice: 0,
+  targetSelfSales: 0, targetSelfProfit: 0, targetSelfCount: 0,
+  targetNewSales: 0, targetNewProfit: 0, targetNewCount: 0,
+  targetAdCost: 0, targetAdRate: 0, targetLaborRate: 0, targetMaterialRate: 0,
+  targetVehicleCount: 0, targetCallCount: 0,
+  targetConstructionRate: 0, targetPassRate: 0,
 });
 
 export type Achievement = {

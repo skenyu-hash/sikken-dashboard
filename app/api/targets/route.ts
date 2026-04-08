@@ -32,7 +32,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const role = await currentRole();
-  if (role !== "admin") {
+  if (role !== "admin" && role !== "manager") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const body = await req.json().catch(() => null) as {
