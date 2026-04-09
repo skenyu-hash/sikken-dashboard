@@ -11,7 +11,8 @@
       "Bash(git fetch:*)",
       "Bash(git reset:*)",
       "Bash(git checkout:*)",
-      "Bash(find .git -name \"* 2\" -delete)"
+      "Bash(find .git -name \"* 2\" -delete)",
+      "Bash(grep -n \"breakeven\\\\|achievement\\\\b\\\\|weekdayForecast\\\\|recent7Forecast\\\\| Card\\\\b\\\\| Card$\" app/components/Dashboard.tsx)"
     ],
     "additionalDirectories": [
       "/Users/kenyu/Desktop/sikken-dashboard/.git/refs/heads"

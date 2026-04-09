@@ -888,37 +888,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Card({
-  label, value, accent, target, targetAccent,
-}: {
-  label: string;
-  value: string;
-  accent?: "emerald" | "amber";
-  target?: string;
-  targetAccent?: "good" | "warn" | "bad";
-}) {
-  const accentCls =
-    accent === "emerald" ? "text-emerald-600 dark:text-emerald-400"
-    : accent === "amber" ? "text-amber-600 dark:text-amber-400"
-    : "text-zinc-900 dark:text-zinc-100";
-  const tCls =
-    targetAccent === "good" ? "bg-emerald-100 text-emerald-700"
-    : targetAccent === "warn" ? "bg-amber-100 text-amber-700"
-    : targetAccent === "bad" ? "bg-red-100 text-red-700"
-    : "bg-zinc-100 text-zinc-700";
-  return (
-    <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 shadow-sm">
-      <p className="text-[11px] text-zinc-500">{label}</p>
-      <p className={`mt-1 text-lg font-bold tabular-nums ${accentCls}`}>{value}</p>
-      {target && (
-        <p className={`mt-1 inline-block text-[10px] font-semibold rounded px-1.5 py-0.5 ${tCls}`}>
-          {target}
-        </p>
-      )}
-    </div>
-  );
-}
-
 function MetricsTable({ rows }: { rows: MetricRow[] }) {
   return (
     <table className="w-full text-xs border-collapse">
@@ -956,58 +925,6 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
         ))}
       </tbody>
     </table>
-  );
-}
-
-function MilestoneBar({
-  daysElapsed, daysInMonth,
-}: { daysElapsed: number; daysInMonth: number }) {
-  const milestones = [5, 10, 15, 20, 25].filter((m) => m <= daysInMonth);
-  const pct = Math.min(100, (daysElapsed / daysInMonth) * 100);
-  return (
-    <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3">
-      <div className="flex justify-between text-[11px] text-zinc-500 mb-1">
-        <span>マイルストーン</span>
-        <span>{daysElapsed}/{daysInMonth}日</span>
-      </div>
-      <div className="relative h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-visible">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-emerald-500"
-          style={{ width: `${pct}%` }}
-        />
-        {milestones.map((m) => {
-          const left = (m / daysInMonth) * 100;
-          const reached = daysElapsed >= m;
-          return (
-            <div
-              key={m}
-              className="absolute -top-1 h-5 w-0.5 -translate-x-1/2"
-              style={{ left: `${left}%` }}
-            >
-              <div className={`h-full ${reached ? "bg-emerald-700" : "bg-zinc-400"}`} />
-              <div className={`mt-0.5 text-[9px] -translate-x-1/2 ${reached ? "text-emerald-700" : "text-zinc-400"}`}>
-                {m}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ForecastTile({
-  label, value, accent,
-}: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div className={`rounded-xl border p-2 ${
-      accent
-        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800"
-        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
-    }`}>
-      <p className="text-[10px] text-zinc-500">{label}</p>
-      <p className="mt-0.5 text-sm font-bold tabular-nums">{value}</p>
-    </div>
   );
 }
 
