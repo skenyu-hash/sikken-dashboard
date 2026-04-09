@@ -31,33 +31,63 @@ export function NavBar() {
   }
 
   return (
-    <nav className="bg-zinc-950 text-white border-b border-zinc-800 sticky top-0 z-50">
-      <div className="flex overflow-x-auto no-scrollbar gap-1 px-2 py-2 touch-pan-x">
-        {items.filter((i) => i.show).map((i) => (
-          <Link
-            key={i.href}
-            href={i.href}
-            className={`shrink-0 min-h-[40px] px-4 py-2 rounded-lg text-sm whitespace-nowrap ${
-              pathname === i.href
-                ? "bg-emerald-600 text-white font-semibold"
-                : "bg-zinc-800 text-zinc-300"
-            }`}
-          >
-            {i.label}
-          </Link>
-        ))}
-        <div className="ml-auto shrink-0 self-center flex items-center gap-2 px-2">
-          <span className="text-[10px] text-zinc-400 whitespace-nowrap">
-            {session.name} ({role === "admin" ? "役員" : role === "manager" ? "管理職" : "事務員"})
-          </span>
-          <button
-            type="button"
-            onClick={logout}
-            className="text-[10px] px-2 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap"
-          >
-            ログアウト
-          </button>
-        </div>
+    <nav
+      style={{
+        background: "#fff",
+        borderBottom: "1px solid #d1fae5",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "0 20px",
+        overflowX: "auto",
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+      }}
+    >
+      <div style={{ display: "flex" }}>
+        {items.filter((i) => i.show).map((i) => {
+          const isActive = pathname === i.href;
+          return (
+            <Link
+              key={i.href}
+              href={i.href}
+              style={{
+                padding: "11px 15px",
+                fontSize: 12,
+                fontWeight: isActive ? 700 : 500,
+                color: isActive ? "#065f46" : "#6b7280",
+                borderBottom: isActive ? "2px solid #059669" : "2px solid transparent",
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {i.label}
+            </Link>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+        <span style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap" }}>
+          {session.name}（{role === "admin" ? "役員" : role === "manager" ? "管理職" : "事務員"}）
+        </span>
+        <button
+          type="button"
+          onClick={logout}
+          style={{
+            fontSize: 11,
+            padding: "5px 12px",
+            borderRadius: 6,
+            background: "#f3f4f6",
+            color: "#374151",
+            border: "1px solid #e5e7eb",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            fontWeight: 600,
+          }}
+        >
+          ログアウト
+        </button>
       </div>
     </nav>
   );

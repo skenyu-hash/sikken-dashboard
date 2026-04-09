@@ -405,40 +405,6 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* ============ メインナビゲーション ============ */}
-      <div style={{
-        background: "#fff", borderBottom: "1px solid #d1fae5",
-        display: "flex", padding: "0 20px", overflowX: "auto",
-      }}>
-        {[
-          { label: "エリア進捗", href: "/" },
-          { label: "ランキング", href: "/ranking" },
-          { label: "目標", href: "/targets" },
-          { label: "会議シート", href: "/meeting" },
-          { label: "損益分岐", href: "/breakeven" },
-          { label: "ドライバー", href: "/driver" },
-          { label: "CF", href: "/cockpit" },
-          { label: "管理者", href: "/admin" },
-        ].map((item) => {
-          const active = item.href === "/";
-          return (
-            <a
-              key={item.href}
-              href={item.href}
-              style={{
-                padding: "11px 15px", fontSize: 12,
-                color: active ? "#065f46" : "#6b7280",
-                borderBottom: active ? "2px solid #059669" : "2px solid transparent",
-                textDecoration: "none", whiteSpace: "nowrap",
-                fontWeight: active ? 700 : 500,
-              }}
-            >
-              {item.label}
-            </a>
-          );
-        })}
-      </div>
-
       {/* ============ グリーンヘッダー: タブ + ヒーロー + KPIストリップ ============ */}
       <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
         {/* エリアタブ */}
