@@ -950,7 +950,7 @@ function DeptTable({ summary, targets, daysElapsed, daysInMonth }: {
       targetRevenue: targets.targetNewSales, targetProfit: targets.targetNewProfit,
     },
     {
-      name: "ヘルプ", color: "#0891b2",
+      name: "HELP", color: "#0891b2",
       revenue: summary.help.revenue, profit: summary.help.profit,
       count: summary.help.count, unitPrice: summary.help.unitPrice,
       targetRevenue: targets.targetHelpSales, targetProfit: targets.targetProfit,
