@@ -105,6 +105,7 @@ const FORM_SECTIONS_FULL: { title: string; fields: FieldDef[] }[] = [
       { key: "adCost", label: "広告費", unit: "円" },
       { key: "laborCost", label: "職人費(全体)", unit: "円" },
       { key: "materialCost", label: "材料費(全体)", unit: "円" },
+      { key: "outsourceCost", label: "営業外注費", unit: "円" },
     ],
   },
 ];
@@ -855,38 +856,73 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 function MetricsTable({ rows }: { rows: MetricRow[] }) {
+  const badge = (level: string, text: string) => {
+    const styles: Record<string, { bg: string; color: string }> = {
+      good: { bg: "#d1fae5", color: "#065f46" },
+      warn: { bg: "#fef9c3", color: "#854d0e" },
+      bad:  { bg: "#fee2e2", color: "#991b1b" },
+      none: { bg: "transparent", color: "#d1d5db" },
+    };
+    const s = styles[level] ?? styles.none;
+    return (
+      <span style={{
+        display: "inline-block", fontSize: 10, fontWeight: 700,
+        borderRadius: 4, padding: "2px 7px",
+        background: s.bg, color: s.color,
+      }}>{text}</span>
+    );
+  };
+
   return (
-    <table className="w-full text-xs border-collapse">
+    <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
       <thead>
-        <tr className="bg-emerald-50 dark:bg-emerald-950/30">
-          <th className="text-left p-2 font-semibold text-zinc-500 text-[10px]">指標</th>
-          <th className="text-right p-2 font-semibold text-zinc-500 text-[10px]">実績</th>
-          <th className="text-right p-2 font-semibold text-zinc-500 text-[10px]">売上比</th>
-          <th className="text-right p-2 font-semibold text-zinc-500 text-[10px]">目標比</th>
-          <th className="text-right p-2 font-semibold text-zinc-500 text-[10px]">状況</th>
+        <tr style={{ background: "#ecfdf5" }}>
+          {["指標", "実績", "売上比", "目標比", "着地見込"].map((h) => (
+            <th key={h} style={{
+              padding: "7px 10px", fontSize: 9, fontWeight: 700,
+              color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
+              borderBottom: "1px solid #d1fae5",
+              textAlign: h === "指標" ? "left" : "right",
+            }}>{h}</th>
+          ))}
         </tr>
       </thead>
       <tbody>
         {rows.map((row, i) => (
-          <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-            <td className="p-2 font-semibold text-zinc-800 dark:text-zinc-200 whitespace-nowrap">{row.name}</td>
-            <td className="p-2 text-right font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">{row.value}</td>
-            <td className="p-2 text-right text-[11px] text-zinc-400 whitespace-nowrap">{row.salesRatio ?? "—"}</td>
-            <td className="p-2 text-right whitespace-nowrap">
-              {row.targetRatio !== null ? (
-                <span className={`inline-block text-[10px] font-bold rounded px-1.5 py-0.5 ${
-                  row.targetRatio >= 100 ? "bg-emerald-100 text-emerald-800"
-                  : row.targetRatio >= 80 ? "bg-amber-100 text-amber-800"
-                  : "bg-red-100 text-red-800"
-                }`}>{row.targetRatio}%</span>
-              ) : <span className="text-zinc-300 text-[10px]">未設定</span>}
+          <tr key={i} style={{ borderBottom: "1px solid #f0faf0" }}>
+            <td style={{
+              padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#111",
+              borderLeft: `3px solid ${row.lineColor}`, paddingLeft: 10,
+            }}>{row.name}</td>
+            <td style={{ padding: "8px 10px", fontSize: 11, fontWeight: 700, color: "#111", textAlign: "right" }}>
+              {row.value}
+              {row.subValue && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  color: row.subValueColor ?? "#9ca3af",
+                  marginLeft: 3,
+                  background: row.subValueColor === "#065f46" ? "#d1fae5"
+                    : row.subValueColor === "#854d0e" ? "#fef9c3"
+                    : row.subValueColor === "#991b1b" ? "#fee2e2" : "transparent",
+                  borderRadius: 3, padding: "1px 4px",
+                }}>
+                  {row.subValue}
+                </span>
+              )}
             </td>
-            <td className={`p-2 text-right text-[11px] font-bold whitespace-nowrap ${
-              row.statusLevel === "good" ? "text-emerald-600"
-              : row.statusLevel === "warn" ? "text-amber-600"
-              : row.statusLevel === "bad" ? "text-red-600"
-              : "text-zinc-300"
-            }`}>{row.status}</td>
+            <td style={{ padding: "8px 10px", fontSize: 10, color: "#9ca3af", textAlign: "right" }}>
+              {row.salesRatio ?? "—"}
+            </td>
+            <td style={{ padding: "8px 10px", textAlign: "right" }}>
+              {row.targetRatio !== null
+                ? badge(row.targetRatio >= 100 ? "good" : row.targetRatio >= 80 ? "warn" : "bad", `${row.targetRatio.toFixed(1)}%`)
+                : <span style={{ color: "#d1d5db", fontSize: 9 }}>未設定</span>}
+            </td>
+            <td style={{ padding: "8px 10px", textAlign: "right" }}>
+              {row.status !== "—" && row.statusLevel !== "none"
+                ? badge(row.statusLevel, row.status)
+                : <span style={{ color: "#d1d5db", fontSize: 10 }}>{row.status}</span>}
+            </td>
           </tr>
         ))}
       </tbody>
