@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  calculateDashboard, calculateBreakeven, calculateAchievement, achievementColor,
+  calculateDashboard, calculateBreakeven, calculateAchievement,
   forecastWeekday, forecastRecent7,
   buildMetricRows, type MetricRow,
   DailyEntry, FixedCosts, Targets, emptyTargets,
@@ -165,6 +165,7 @@ export default function Dashboard() {
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [inputOpen, setInputOpen] = useState(false);
 
   // ============ データ読込: エリアタブ ============
   useEffect(() => {
@@ -438,287 +439,205 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* ============ エリアタブ ============ */}
-      <div className="bg-zinc-900 text-white">
-        <div className="flex overflow-x-auto no-scrollbar px-2 pt-2 pb-2 gap-1.5 touch-pan-x">
+      {/* ============ グリーンヘッダー: タブ + ヒーロー + KPIストリップ ============ */}
+      <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
+        {/* エリアタブ */}
+        <div style={{ display: "flex", gap: 4, padding: "10px 20px 0", overflowX: "auto" }}>
           {AREAS.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              onClick={() => setActiveTab(a.id)}
-              className={`shrink-0 min-h-[44px] px-4 py-3 text-sm rounded-lg whitespace-nowrap active:scale-95 transition ${
-                activeTab === a.id
-                  ? "bg-emerald-600 text-white font-semibold"
-                  : "bg-zinc-800 text-zinc-300"
-              }`}
-            >
+            <button key={a.id} type="button" onClick={() => setActiveTab(a.id)}
+              style={{
+                padding: "8px 16px", borderRadius: "8px 8px 0 0",
+                fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
+                background: activeTab === a.id ? "rgba(255,255,255,0.18)" : "transparent",
+                color: activeTab === a.id ? "#fff" : "rgba(255,255,255,0.65)",
+                whiteSpace: "nowrap",
+              }}>
               {a.name}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => setActiveTab(GROUP_TAB)}
-            className={`shrink-0 min-h-[44px] px-4 py-3 text-sm rounded-lg whitespace-nowrap active:scale-95 transition ${
-              isGroup
-                ? "bg-amber-500 text-white font-semibold"
-                : "bg-zinc-800 text-zinc-300"
-            }`}
-          >
+          <button type="button" onClick={() => setActiveTab(GROUP_TAB)}
+            style={{
+              padding: "8px 16px", borderRadius: "8px 8px 0 0",
+              fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
+              background: isGroup ? "rgba(255,255,255,0.18)" : "transparent",
+              color: isGroup ? "#fff" : "rgba(255,255,255,0.65)",
+              whiteSpace: "nowrap",
+            }}>
             グループ全体
           </button>
         </div>
-      </div>
 
-      {/* ============ 月切り替え ============ */}
-      <div
-        className={`flex items-center justify-between px-4 pt-4 text-white ${
-          isGroup ? "bg-amber-600" : "bg-emerald-600"
-        }`}
-      >
-        <button
-          type="button"
-          onClick={gotoPrevMonth}
-          className="min-h-[44px] min-w-[44px] rounded-full bg-white/15 active:bg-white/30 px-4 py-2 text-base font-bold"
-          aria-label="前の月"
-        >
-          ◀
-        </button>
-        <div className="text-base font-semibold tabular-nums">
-          {viewYear}年{viewMonth}月
-          {!isCurrentMonth && (
-            <span className="ml-2 text-[10px] rounded bg-white/20 px-1.5 py-0.5">
-              読み取り専用
-            </span>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={gotoNextMonth}
-          disabled={isCurrentMonth}
-          className="min-h-[44px] min-w-[44px] rounded-full bg-white/15 active:bg-white/30 px-4 py-2 text-base font-bold disabled:opacity-30"
-          aria-label="次の月"
-        >
-          ▶
-        </button>
-      </div>
+        {/* ヒーロー */}
+        <div style={{ padding: "14px 20px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <button type="button" onClick={gotoPrevMonth}
+                  style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 14 }}>◀</button>
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{viewYear}年{viewMonth}月</span>
+                <button type="button" onClick={gotoNextMonth} disabled={isCurrentMonth}
+                  style={{
+                    background: "rgba(255,255,255,0.15)", border: "none",
+                    color: isCurrentMonth ? "rgba(255,255,255,0.3)" : "#fff",
+                    borderRadius: 6, padding: "3px 10px",
+                    cursor: isCurrentMonth ? "default" : "pointer", fontSize: 14,
+                  }}>▶</button>
+                {!isCurrentMonth && (
+                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", padding: "1px 6px", background: "rgba(255,255,255,0.15)", borderRadius: 4 }}>
+                    読み取り専用
+                  </span>
+                )}
+              </div>
+              <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>
+                {headerLabel}{!isGroup && "エリア"}
+              </h1>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
+                {viewYear}年{viewMonth}月 / {summary.daysElapsed}日時点 ｜ 月末着地予測 {yen(isCurrentMonth ? summary.forecastProfit : summary.totalProfit)} ｜ 達成率{" "}
+                <strong style={{ color: "#86efac" }}>
+                  {targets.targetProfit > 0 ? (summary.totalProfit / targets.targetProfit * 100).toFixed(1) : "—"}%
+                </strong>
+              </p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)" }}>残り</div>
+              <div style={{ fontSize: 38, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
+                {summary.daysInMonth - summary.daysElapsed}日
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>
+                経過 {summary.daysElapsed} / {summary.daysInMonth}日
+              </div>
+            </div>
+          </div>
 
-      {/* ============ ヒーロー ============ */}
-      <section
-        className={`px-5 pt-4 pb-6 text-white bg-gradient-to-b ${
-          isGroup
-            ? "from-amber-600 to-amber-700"
-            : "from-emerald-600 to-emerald-700"
-        }`}
-      >
-        <p className="text-xs opacity-90">
-          {headerLabel} ・ {viewYear}年{viewMonth}月{" "}
-          {isCurrentMonth ? "着地予測" : "実績"}({summary.daysElapsed}/
-          {summary.daysInMonth}日)
-        </p>
-        <h1 className="mt-1 text-4xl font-bold tracking-tight tabular-nums sm:text-5xl">
-          {yen(isCurrentMonth ? summary.forecastProfit : summary.totalProfit)}
-        </h1>
-        <p className="mt-1 text-sm opacity-90">
-          {isCurrentMonth ? "合計限界利益・月末予測" : "合計限界利益・月次実績"}
-        </p>
-        <div className="mt-3 flex gap-3 text-xs">
-          <span className="rounded-full bg-white/15 px-3 py-1">
-            実績 {yen(summary.totalProfit)}
-          </span>
-          {isCurrentMonth && (
-            <span
-              className={`rounded-full px-3 py-1 ${
-                diff >= 0 ? "bg-white/15" : "bg-red-500/40"
-              }`}
-            >
-              前日比 {diff >= 0 ? "+" : ""}
-              {yen(diff)}
-            </span>
-          )}
-        </div>
-      </section>
-
-      {/* ============ 異常アラート(赤) ============ */}
-      {isAlert && (
-        <div className="mx-4 mt-3 rounded-xl bg-red-600 text-white px-4 py-3 text-sm font-bold shadow animate-pulse">
-          🚨 利益予測が前日比 {profitDropRate.toFixed(1)}% 急落しています
-        </div>
-      )}
-
-      {/* ============ あと○件で目標達成 ============ */}
-      {!isGroup && targets.targetCount > 0 && (
-        <div className="mx-4 mt-3 rounded-xl bg-blue-700 text-white px-4 py-3">
-          <p className="text-[11px] opacity-80">目標達成まで</p>
-          <p className="text-3xl font-bold tabular-nums">
-            あと {achievement.remainingCount} 件
-          </p>
-          <p className="text-[11px] opacity-80 mt-1">
-            目標 {targets.targetCount}件 ・ 達成率 {achievement.countPct.toFixed(0)}%
-          </p>
-        </div>
-      )}
-
-      {/* ============ あと○件必要(損益分岐) ============ */}
-      {!isGroup && breakeven.fixedTotal > 0 && (
-        <div className="mx-4 mt-3 rounded-xl bg-indigo-700 text-white px-4 py-3">
-          <p className="text-[11px] opacity-80">損益分岐まで</p>
-          <p className="text-2xl font-bold tabular-nums">
-            あと {breakeven.remainingCount} 件 必要
-          </p>
-          <p className="text-[11px] opacity-80 mt-1">
-            1日あたり {breakeven.perDayCount.toFixed(1)} 件 ・ 達成率 {breakeven.achievementPct.toFixed(0)}%
-          </p>
-        </div>
-      )}
-
-      {/* ============ マイルストーン進捗 ============ */}
-      <section className="px-4 mt-3">
-        <MilestoneBar
-          daysElapsed={summary.daysElapsed}
-          daysInMonth={summary.daysInMonth}
-        />
-      </section>
-
-      {/* ============ 未来予測(複数モデル) ============ */}
-      <section className="px-4 mt-3">
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <ForecastTile label="単純平均" value={yen(summary.forecastProfit)} />
-          <ForecastTile label="曜日補正" value={yen(weekdayForecast.forecastProfit)} accent />
-          <ForecastTile label="直近7日" value={yen(recent7Forecast.forecastProfit)} />
-        </div>
-      </section>
-
-      {/* ============ KPI / 全体カード ============ */}
-      <section className="px-4 mt-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Card
-            label="合計売上(実績)"
-            value={yen(summary.totalRevenue)}
-            target={targets.targetSales > 0 ? `達成 ${achievement.salesPct.toFixed(0)}%` : undefined}
-            targetAccent={targets.targetSales > 0 ? achievementColor(achievement.salesPct) : undefined}
-          />
-          <Card label="売上 月末予測" value={yen(summary.forecastRevenue)} />
-          <Card label="会社総合客単価" value={yen(summary.companyUnitPrice)} />
-          <Card
-            label="全体件数"
-            value={`${summary.totalCount} 件`}
-            target={targets.targetCount > 0 ? `達成 ${achievement.countPct.toFixed(0)}%` : undefined}
-            targetAccent={targets.targetCount > 0 ? achievementColor(achievement.countPct) : undefined}
-          />
-          <Card label="工事取得率" value={`${summary.constructionRate.toFixed(1)} %`} accent="emerald" />
-          <Card label="ヘルプ率" value={`${summary.helpRate.toFixed(1)} %`} accent="amber" />
-          <Card label="内製化率" value={`${summary.insourceRate.toFixed(1)} %`} accent="emerald" />
-          <Card label="外注比率" value={`${summary.outsourceRate.toFixed(1)} %`} accent="amber" />
-        </div>
-      </section>
-
-      {/* ============ 目標対比 ============ */}
-      {!isGroup && (() => {
-        const adRateActual = summary.totalRevenue > 0
-          ? (summary.totalAdCost / summary.totalRevenue) * 100
-          : 0;
-        const cards: {
-          label: string;
-          actual: string;
-          target?: string;
-          accent?: "good" | "warn" | "bad";
-        }[] = [];
-
-        if (targets.targetHelpSales > 0) {
-          const pct = (summary.help.revenue / targets.targetHelpSales) * 100;
-          cards.push({
-            label: "HELP売上",
-            actual: yen(summary.help.revenue),
-            target: `目標 ${yen(targets.targetHelpSales)} ・ ${pct.toFixed(0)}%`,
-            accent: achievementColor(pct),
-          });
-        }
-        if (targets.targetHelpCount > 0) {
-          const pct = (summary.help.count / targets.targetHelpCount) * 100;
-          cards.push({
-            label: "HELP件数",
-            actual: `${summary.help.count} 件`,
-            target: `目標 ${targets.targetHelpCount}件 ・ ${pct.toFixed(0)}%`,
-            accent: achievementColor(pct),
-          });
-        }
-        if (targets.targetAdRate > 0) {
-          // 広告費率は低いほうが良い
-          const accent: "good" | "warn" | "bad" =
-            adRateActual <= targets.targetAdRate ? "good"
-            : adRateActual <= targets.targetAdRate + 5 ? "warn"
-            : "bad";
-          cards.push({
-            label: "広告費率",
-            actual: `${adRateActual.toFixed(1)} %`,
-            target: `目標 ${targets.targetAdRate.toFixed(1)}%`,
-            accent,
-          });
-        }
-        if (targets.targetConstructionRate > 0) {
-          // 工事取得率は高いほうが良い
-          const accent: "good" | "warn" | "bad" =
-            summary.constructionRate >= targets.targetConstructionRate ? "good"
-            : summary.constructionRate >= targets.targetConstructionRate - 5 ? "warn"
-            : "bad";
-          cards.push({
-            label: "工事取得率",
-            actual: `${summary.constructionRate.toFixed(1)} %`,
-            target: `目標 ${targets.targetConstructionRate.toFixed(1)}%`,
-            accent,
-          });
-        }
-        if (targets.targetSelfSales > 0) {
-          const pct = (summary.self.revenue / targets.targetSelfSales) * 100;
-          cards.push({
-            label: "自社施工売上",
-            actual: yen(summary.self.revenue),
-            target: `目標 ${yen(targets.targetSelfSales)} ・ ${pct.toFixed(0)}%`,
-            accent: achievementColor(pct),
-          });
-        }
-        if (targets.targetNewSales > 0) {
-          const pct = (summary.newSales.revenue / targets.targetNewSales) * 100;
-          cards.push({
-            label: "新規営業売上",
-            actual: yen(summary.newSales.revenue),
-            target: `目標 ${yen(targets.targetNewSales)} ・ ${pct.toFixed(0)}%`,
-            accent: achievementColor(pct),
-          });
-        }
-
-        if (cards.length === 0) return null;
-
-        return (
-          <section className="px-4 mt-6">
-            <h2 className="text-base font-semibold mb-2">目標対比</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {cards.map((c) => (
-                <Card
-                  key={c.label}
-                  label={c.label}
-                  value={c.actual}
-                  target={c.target}
-                  targetAccent={c.accent}
-                />
+          {/* KPIストリップ */}
+          {!isGroup && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+              {[
+                { label: "売上", val: yen(summary.totalRevenue),
+                  targetRatio: targets.targetSales > 0 ? (summary.totalRevenue / targets.targetSales * 100).toFixed(1) : null,
+                  dayRatio: targets.targetSales > 0 && summary.daysElapsed > 0 ? (summary.totalRevenue / summary.daysElapsed * summary.daysInMonth / targets.targetSales * 100).toFixed(1) : null },
+                { label: "粗利", val: yen(summary.totalProfit),
+                  targetRatio: targets.targetProfit > 0 ? (summary.totalProfit / targets.targetProfit * 100).toFixed(1) : null,
+                  dayRatio: targets.targetProfit > 0 && summary.daysElapsed > 0 ? (summary.totalProfit / summary.daysElapsed * summary.daysInMonth / targets.targetProfit * 100).toFixed(1) : null },
+                { label: "獲得件数", val: `${summary.totalCount}件`,
+                  targetRatio: targets.targetCount > 0 ? (summary.totalCount / targets.targetCount * 100).toFixed(1) : null,
+                  dayRatio: targets.targetCount > 0 && summary.daysElapsed > 0 ? (summary.totalCount / summary.daysElapsed * summary.daysInMonth / targets.targetCount * 100).toFixed(1) : null },
+                { label: "粗利率",
+                  val: `${(summary.totalRevenue > 0 ? (summary.totalProfit / summary.totalRevenue * 100) : 0).toFixed(1)}%`,
+                  targetRatio: null, dayRatio: null },
+              ].map((kpi) => (
+                <div key={kpi.label} style={{ padding: "12px 18px", borderRight: "1px solid rgba(255,255,255,0.1)" }}>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 5 }}>{kpi.label}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", whiteSpace: "nowrap" }}>{kpi.val}</div>
+                  <div style={{ display: "flex", gap: 5, marginTop: 4, flexWrap: "wrap" }}>
+                    {kpi.targetRatio && (
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(252,165,165,0.2)", color: "#fca5a5" }}>
+                        目標比 {kpi.targetRatio}%
+                      </span>
+                    )}
+                    {kpi.dayRatio && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 3,
+                        background: Number(kpi.dayRatio) >= 100 ? "rgba(134,239,172,0.2)" : "rgba(253,230,138,0.2)",
+                        color: Number(kpi.dayRatio) >= 100 ? "#86efac" : "#fde68a",
+                      }}>
+                        日割 {kpi.dayRatio}%
+                      </span>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
-          </section>
+          )}
+        </div>
+      </div>
+
+      {/* ============ ボディ ============ */}
+      <div style={{ padding: "16px 20px", background: "#f2f5f2" }}>
+
+      {/* 異常アラート */}
+      {isAlert && (
+        <div style={{
+          marginBottom: 14, borderRadius: 10, background: "#dc2626", color: "#fff",
+          padding: "10px 14px", fontSize: 12, fontWeight: 700,
+        }}>
+          🚨 利益予測が前日比 {profitDropRate.toFixed(1)}% 急落しています
+          {" "}（前日 {yen(yesterdaySummary.forecastProfit)} → 現在 {yen(summary.forecastProfit)}, 差 {diff >= 0 ? "+" : ""}{yen(diff)}）
+          {" "}残追加見積必要 {!isGroup && breakeven.fixedTotal > 0 && breakeven.remainingCount > 0 && `あと ${breakeven.remainingCount} 件`}
+          {!isGroup && targets.targetCount > 0 && achievement.remainingCount > 0 && ` / 目標達成まで ${achievement.remainingCount} 件`}
+          {weekdayForecast.forecastProfit + recent7Forecast.forecastProfit > 0 && ""}
+        </div>
+      )}
+
+      {/* 1日あたりの目安 */}
+      {!isGroup && isCurrentMonth && targets.targetSales > 0 && (() => {
+        const remain = summary.daysInMonth - summary.daysElapsed;
+        const cards = [
+          { label: "全体売上",
+            val: remain > 0 ? yen(Math.round((targets.targetSales - summary.totalRevenue) / remain)) + "/日" : "—",
+            sub: `残り ${yen(Math.max(0, targets.targetSales - summary.totalRevenue))}`,
+            type: summary.totalRevenue / Math.max(1, summary.daysElapsed) * summary.daysInMonth >= targets.targetSales * 0.9 ? "g" : "y" },
+          { label: "全体粗利",
+            val: remain > 0 ? yen(Math.round((targets.targetProfit - summary.totalProfit) / remain)) + "/日" : "—",
+            sub: `残り ${yen(Math.max(0, targets.targetProfit - summary.totalProfit))}`,
+            type: summary.totalProfit / Math.max(1, summary.daysElapsed) * summary.daysInMonth >= targets.targetProfit * 0.9 ? "g" : "y" },
+          { label: "獲得件数",
+            val: remain > 0 ? `${Math.ceil((targets.targetCount - summary.totalCount) / remain)}件/日` : "—",
+            sub: `残り ${Math.max(0, targets.targetCount - summary.totalCount)}件`,
+            type: summary.totalCount >= targets.targetCount ? "g" : "y" },
+          { label: "HELP売上",
+            val: remain > 0 && targets.targetHelpSales > 0 ? yen(Math.round((targets.targetHelpSales - summary.help.revenue) / remain)) + "/日" : "—",
+            sub: targets.targetHelpSales > 0 ? `残り ${yen(Math.max(0, targets.targetHelpSales - summary.help.revenue))}` : "目標未設定",
+            type: "y" },
+          { label: "HELP件数",
+            val: remain > 0 && targets.targetHelpCount > 0 ? `${Math.ceil((targets.targetHelpCount - summary.help.count) / remain)}件/日` : "—",
+            sub: targets.targetHelpCount > 0 ? `残り ${Math.max(0, targets.targetHelpCount - summary.help.count)}件` : "目標未設定",
+            type: "y" },
+          { label: "工事取得率",
+            val: `${summary.constructionRate.toFixed(1)}%`,
+            sub: `目標 ${targets.targetConstructionRate > 0 ? targets.targetConstructionRate.toFixed(1) : "—"}%`,
+            type: targets.targetConstructionRate > 0 && summary.constructionRate < targets.targetConstructionRate * 0.9 ? "r" : "y" },
+        ];
+        return (
+          <div style={{ marginBottom: 18 }}>
+            <SectionLabel>目標達成に向けた 1日あたりの目安</SectionLabel>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
+              {cards.map((c) => (
+                <div key={c.label} style={{
+                  borderRadius: 10, padding: "12px 10px",
+                  background: c.type === "g" ? "#f0fdf4" : c.type === "r" ? "#fff1f2" : "#fffbeb",
+                  border: `1.5px solid ${c.type === "g" ? "#bbf7d0" : c.type === "r" ? "#fecdd3" : "#fde68a"}`,
+                }}>
+                  <div style={{ fontSize: 9, color: "#9ca3af", fontWeight: 700, textAlign: "center", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.05em" }}>{c.label}</div>
+                  <div style={{
+                    fontSize: 15, fontWeight: 800, textAlign: "center", whiteSpace: "nowrap",
+                    color: c.type === "g" ? "#16a34a" : c.type === "r" ? "#dc2626" : "#d97706",
+                  }}>{c.val}</div>
+                  <div style={{ fontSize: 9, color: "#9ca3af", textAlign: "center", marginTop: 3 }}>{c.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         );
       })()}
 
       {/* ============ 全17項目 指標一覧 ============ */}
-      <section className="px-4 mt-6">
-        <h2 className="text-base font-semibold mb-2">全17項目 指標一覧</h2>
-        <div className="flex gap-3">
-          <div className="flex-1 min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-            <MetricsTable rows={metricRowsResult.left} />
+      {!isGroup && (
+        <section style={{ marginBottom: 16 }}>
+          <SectionLabel>全17項目 指標一覧</SectionLabel>
+          <div style={{
+            display: "flex", gap: 0, background: "#fff",
+            borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden",
+          }}>
+            <div style={{ flex: 1, minWidth: 0, borderRight: "1px solid #d1fae5" }}>
+              <MetricsTable rows={metricRowsResult.left} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <MetricsTable rows={metricRowsResult.right} />
+            </div>
           </div>
-          <div className="flex-1 min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-            <MetricsTable rows={metricRowsResult.right} />
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ============ グループ: トップ/リスクハイライト ============ */}
       {isGroup && perAreaSummaries.length > 0 && (() => {
@@ -885,79 +804,86 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* ============ 入力フォーム (当月 & 会社タブのみ・managerは編集不可) ============ */}
-      {canEdit && !isManager ? (
-        <section className="px-4 mt-8">
-          <h2 className="text-base font-semibold mb-2">
-            {activeArea?.name} 日次入力
-          </h2>
-          <form
-            onSubmit={handleSubmit}
-            className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-5"
-          >
-            <div>
-              <label className="block text-sm text-zinc-500 mb-1.5">日付</label>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => {
-                  setField("date", e.target.value);
-                  loadDate(e.target.value);
-                }}
-                className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-4 py-3 text-base"
-              />
-            </div>
-
-            {formSections.map((section) => (
-              <div key={section.title}>
-                <h3 className="text-sm font-semibold text-zinc-500 mb-2">
-                  {section.title}
-                </h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {section.fields.map((f) => (
-                    <label key={f.key} className="block">
-                      <span className="block text-xs text-zinc-500 mb-1">
-                        {f.label}
-                        {f.unit ? `(${f.unit})` : ""}
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={(form[f.key] as number) || ""}
-                        onChange={(e) =>
-                          setField(f.key, e.target.value.replace(/[^0-9]/g, ""))
-                        }
-                        className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-3 text-right text-base tabular-nums"
-                        placeholder="0"
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {saveError && (
-              <p className="text-sm text-red-500">{saveError}</p>
-            )}
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full min-h-[52px] rounded-lg bg-emerald-600 active:bg-emerald-800 text-white font-semibold py-4 text-base active:scale-[0.98] transition disabled:opacity-50"
+      {/* ============ 入力フォーム (折りたたみ式) ============ */}
+      {canEdit && !isManager && isCurrentMonth && !isGroup && (
+        <section style={{ marginBottom: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+            <div
+              onClick={() => setInputOpen((prev) => !prev)}
+              style={{
+                padding: "12px 18px", display: "flex", justifyContent: "space-between",
+                alignItems: "center", cursor: "pointer", background: "#f8fdf8",
+                borderBottom: inputOpen ? "1px solid #d1fae5" : "none",
+              }}
             >
-              {saving ? "保存中..." : "保存する"}
-            </button>
-          </form>
-        </section>
-      ) : (
-        <section className="px-4 mt-8">
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 text-center text-sm text-zinc-500">
-            {isGroup
-              ? "グループ全体は読み取り専用です。各社タブから入力してください。"
-              : "過去月のため読み取り専用です。入力・編集は当月のみ可能です。"}
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#065f46" }}>
+                {activeArea?.name} 日次入力
+              </span>
+              <button type="button"
+                style={{
+                  fontSize: 11, background: "#059669", color: "#fff", border: "none",
+                  borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontWeight: 600,
+                }}>
+                {inputOpen ? "▲ 閉じる" : "▼ 入力フォームを開く"}
+              </button>
+            </div>
+            {inputOpen && (
+              <div style={{ padding: 16 }}>
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  <div>
+                    <label className="block text-sm text-zinc-500 mb-1.5">日付</label>
+                    <input
+                      type="date" value={form.date}
+                      onChange={(e) => { setField("date", e.target.value); loadDate(e.target.value); }}
+                      className="w-full min-h-[44px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-4 py-3 text-base"
+                    />
+                  </div>
+                  {formSections.map((section) => (
+                    <div key={section.title}>
+                      <h3 className="text-sm font-semibold text-zinc-500 mb-2">{section.title}</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {section.fields.map((f) => (
+                          <label key={f.key} className="block">
+                            <span className="block text-xs text-zinc-500 mb-1">
+                              {f.label}{f.unit ? `(${f.unit})` : ""}
+                            </span>
+                            <input
+                              type="text" inputMode="numeric" pattern="[0-9]*"
+                              value={(form[f.key] as number) || ""}
+                              onChange={(e) => setField(f.key, e.target.value.replace(/[^0-9]/g, ""))}
+                              className="w-full min-h-[44px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-right text-base tabular-nums"
+                              placeholder="0"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {saveError && <p className="text-sm text-red-500">{saveError}</p>}
+                  <button type="submit" disabled={saving}
+                    className="w-full min-h-[48px] rounded-lg bg-emerald-600 active:bg-emerald-800 text-white font-semibold py-3 disabled:opacity-50">
+                    {saving ? "保存中..." : "保存する"}
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         </section>
       )}
+      </div>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: 10, fontWeight: 700, color: "#6b7280",
+      textTransform: "uppercase", letterSpacing: "0.1em",
+      marginBottom: 10, display: "flex", alignItems: "center", gap: 8,
+    }}>
+      {children}
+      <div style={{ flex: 1, height: 1, background: "#d1fae5" }} />
     </div>
   );
 }
