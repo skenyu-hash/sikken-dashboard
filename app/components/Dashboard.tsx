@@ -5,6 +5,7 @@ import {
   calculateDashboard, calculateBreakeven, calculateAchievement,
   forecastWeekday, forecastRecent7,
   buildMetricRows, type MetricRow,
+  type DashboardSummary,
   DailyEntry, FixedCosts, Targets, emptyTargets,
   emptyEntry,
   yen,
@@ -739,36 +740,15 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* ============ 部門別 実績 vs 予測 ============ */}
-      <section className="px-4 mt-6">
-        <h2 className="text-base font-semibold mb-2">部門別 実績 / 予測</h2>
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-          <table className="min-w-full text-sm">
-            <thead className="bg-zinc-100 dark:bg-zinc-800 text-xs">
-              <tr>
-                <th className="p-2 text-left">部門</th>
-                <th className="p-2 text-right">利益(実績)</th>
-                <th className="p-2 text-right">利益(予測)</th>
-                <th className="p-2 text-right">客単価</th>
-                <th className="p-2 text-right">件数</th>
-              </tr>
-            </thead>
-            <tbody className="tabular-nums">
-              <DeptRow name="自社施工" dept={summary.self} summary={summary} />
-              <DeptRow name="新規営業" dept={summary.newSales} summary={summary} />
-              <DeptRow name="ヘルプ" dept={summary.help} summary={summary} />
-              <tr className="font-bold bg-emerald-50 dark:bg-emerald-950/40">
-                <td className="p-2">合計</td>
-                <td className="p-2 text-right">{yen(summary.totalProfit)}</td>
-                <td className="p-2 text-right text-emerald-700 dark:text-emerald-400">
-                  {yen(summary.forecastProfit)}
-                </td>
-                <td className="p-2 text-right">{yen(summary.companyUnitPrice)}</td>
-                <td className="p-2 text-right">{summary.totalCount}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      {/* ============ 部門別 実績・月末予測 ============ */}
+      <section style={{ marginBottom: 16 }}>
+        <SectionLabel>部門別 実績・月末予測</SectionLabel>
+        <DeptTable
+          summary={summary}
+          targets={targets}
+          daysElapsed={summary.daysElapsed}
+          daysInMonth={summary.daysInMonth}
+        />
       </section>
 
       {/* ============ 入力フォーム (折りたたみ式) ============ */}
@@ -930,27 +910,159 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
   );
 }
 
-function DeptRow({
-  name,
-  dept,
-  summary,
-}: {
-  name: string;
-  dept: { profit: number; unitPrice: number; count: number };
-  summary: { daysElapsed: number; daysInMonth: number };
+function DeptTable({ summary, targets, daysElapsed, daysInMonth }: {
+  summary: DashboardSummary;
+  targets: Targets;
+  daysElapsed: number;
+  daysInMonth: number;
 }) {
-  const forecast = Math.round(
-    (dept.profit / summary.daysElapsed) * summary.daysInMonth
-  );
+  const ratio = daysElapsed > 0 ? daysInMonth / daysElapsed : 0;
+
+  const badge = (targetRatio: number | null) => {
+    if (targetRatio === null) return <span style={{ color: "#d1d5db", fontSize: 9 }}>未設定</span>;
+    const level = targetRatio >= 100 ? "good" : targetRatio >= 80 ? "warn" : "bad";
+    const styles = {
+      good: { bg: "#d1fae5", color: "#065f46" },
+      warn: { bg: "#fef9c3", color: "#854d0e" },
+      bad:  { bg: "#fee2e2", color: "#991b1b" },
+    } as const;
+    const s = styles[level];
+    return (
+      <span style={{
+        display: "inline-block", fontSize: 10, fontWeight: 700,
+        borderRadius: 4, padding: "2px 7px",
+        background: s.bg, color: s.color,
+      }}>{targetRatio.toFixed(1)}%</span>
+    );
+  };
+
+  const depts = [
+    {
+      name: "自社施工", color: "#059669",
+      revenue: summary.self.revenue, profit: summary.self.profit,
+      count: summary.self.count, unitPrice: summary.self.unitPrice,
+      targetRevenue: targets.targetSelfSales, targetProfit: targets.targetSelfProfit,
+    },
+    {
+      name: "新規営業", color: "#3b82f6",
+      revenue: summary.newSales.revenue, profit: summary.newSales.profit,
+      count: summary.newSales.count, unitPrice: summary.newSales.unitPrice,
+      targetRevenue: targets.targetNewSales, targetProfit: targets.targetNewProfit,
+    },
+    {
+      name: "ヘルプ", color: "#0891b2",
+      revenue: summary.help.revenue, profit: summary.help.profit,
+      count: summary.help.count, unitPrice: summary.help.unitPrice,
+      targetRevenue: targets.targetHelpSales, targetProfit: targets.targetProfit,
+    },
+  ];
+
+  const total = {
+    revenue: depts.reduce((s, d) => s + d.revenue, 0),
+    profit: depts.reduce((s, d) => s + d.profit, 0),
+    count: depts.reduce((s, d) => s + d.count, 0),
+  };
+
+  const thStyle: React.CSSProperties = {
+    padding: "8px 10px", fontSize: 9, fontWeight: 700,
+    color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
+    borderBottom: "1px solid #d1fae5", textAlign: "right", background: "#ecfdf5",
+    whiteSpace: "nowrap",
+  };
+  const tdStyle: React.CSSProperties = {
+    padding: "9px 10px", fontSize: 11, color: "#374151",
+    borderBottom: "1px solid #f0faf0", textAlign: "right", whiteSpace: "nowrap",
+  };
+
   return (
-    <tr className="border-t border-zinc-100 dark:border-zinc-800">
-      <td className="p-2">{name}</td>
-      <td className="p-2 text-right">{yen(dept.profit)}</td>
-      <td className="p-2 text-right text-emerald-700 dark:text-emerald-400">
-        {yen(forecast)}
-      </td>
-      <td className="p-2 text-right">{yen(dept.unitPrice)}</td>
-      <td className="p-2 text-right">{dept.count}</td>
-    </tr>
+    <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+        <colgroup>
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "7%" }} />
+          <col style={{ width: "6%" }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th style={{ ...thStyle, textAlign: "left" }}>部門</th>
+            <th style={thStyle}>売上(実績)</th>
+            <th style={thStyle}>目標比</th>
+            <th style={thStyle}>売上(月末予測)</th>
+            <th style={thStyle}>粗利(実績)</th>
+            <th style={thStyle}>目標比</th>
+            <th style={thStyle}>粗利(月末予測)</th>
+            <th style={thStyle}>客単価</th>
+            <th style={thStyle}>件数</th>
+            <th style={thStyle}>粗利率</th>
+          </tr>
+        </thead>
+        <tbody>
+          {depts.map((d) => {
+            const forecastRevenue = Math.round(d.revenue * ratio);
+            const forecastProfit = Math.round(d.profit * ratio);
+            const marginRate = d.revenue > 0 ? (d.profit / d.revenue * 100).toFixed(1) : "0.0";
+            const revRatio = d.targetRevenue > 0 ? Math.round(d.revenue / d.targetRevenue * 1000) / 10 : null;
+            const profitRatio = d.targetProfit > 0 ? Math.round(d.profit / d.targetProfit * 1000) / 10 : null;
+            return (
+              <tr key={d.name}>
+                <td style={{
+                  ...tdStyle, textAlign: "left", fontWeight: 700, color: "#111",
+                  borderLeft: `3px solid ${d.color}`, paddingLeft: 10,
+                }}>{d.name}</td>
+                <td style={{ ...tdStyle, fontWeight: 700, color: "#111" }}>¥{d.revenue.toLocaleString()}</td>
+                <td style={tdStyle}>{badge(revRatio)}</td>
+                <td style={{ ...tdStyle, color: "#059669", fontWeight: 700 }}>¥{forecastRevenue.toLocaleString()}</td>
+                <td style={{ ...tdStyle, fontWeight: 700, color: "#111" }}>¥{d.profit.toLocaleString()}</td>
+                <td style={tdStyle}>{badge(profitRatio)}</td>
+                <td style={{ ...tdStyle, color: "#059669", fontWeight: 700 }}>¥{forecastProfit.toLocaleString()}</td>
+                <td style={tdStyle}>¥{d.unitPrice.toLocaleString()}</td>
+                <td style={tdStyle}>{d.count}件</td>
+                <td style={tdStyle}>{marginRate}%</td>
+              </tr>
+            );
+          })}
+          <tr style={{ background: "#f0fdf4" }}>
+            <td style={{
+              ...tdStyle, textAlign: "left", fontWeight: 700, color: "#065f46",
+              borderLeft: "3px solid #059669", paddingLeft: 10, borderBottom: "none",
+            }}>合計</td>
+            <td style={{ ...tdStyle, fontWeight: 700, color: "#065f46", borderBottom: "none" }}>
+              ¥{total.revenue.toLocaleString()}
+            </td>
+            <td style={{ ...tdStyle, borderBottom: "none" }}>
+              {badge(targets.targetSales > 0 ? Math.round(total.revenue / targets.targetSales * 1000) / 10 : null)}
+            </td>
+            <td style={{ ...tdStyle, color: "#059669", fontWeight: 700, borderBottom: "none" }}>
+              ¥{Math.round(total.revenue * ratio).toLocaleString()}
+            </td>
+            <td style={{ ...tdStyle, fontWeight: 700, color: "#065f46", borderBottom: "none" }}>
+              ¥{total.profit.toLocaleString()}
+            </td>
+            <td style={{ ...tdStyle, borderBottom: "none" }}>
+              {badge(targets.targetProfit > 0 ? Math.round(total.profit / targets.targetProfit * 1000) / 10 : null)}
+            </td>
+            <td style={{ ...tdStyle, color: "#059669", fontWeight: 700, borderBottom: "none" }}>
+              ¥{Math.round(total.profit * ratio).toLocaleString()}
+            </td>
+            <td style={{ ...tdStyle, fontWeight: 700, color: "#065f46", borderBottom: "none" }}>
+              ¥{total.count > 0 ? Math.round(total.revenue / total.count).toLocaleString() : 0}
+            </td>
+            <td style={{ ...tdStyle, fontWeight: 700, color: "#065f46", borderBottom: "none" }}>
+              {total.count}件
+            </td>
+            <td style={{ ...tdStyle, fontWeight: 700, color: "#065f46", borderBottom: "none" }}>
+              {total.revenue > 0 ? (total.profit / total.revenue * 100).toFixed(1) : "0.0"}%
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }
