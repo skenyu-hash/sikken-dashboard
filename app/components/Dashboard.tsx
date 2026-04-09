@@ -391,6 +391,53 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 pb-24">
+      {/* ============ SIKKENトップバー ============ */}
+      <div style={{
+        background: "#064e3b", display: "flex", justifyContent: "space-between",
+        alignItems: "center", padding: "0 24px", height: 48,
+      }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "0.06em" }}>
+          SIKKEN GROUP 経営OS
+        </span>
+        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>
+          {currentYear}年{currentMonth}月{new Date().getDate()}日時点
+        </span>
+      </div>
+
+      {/* ============ メインナビゲーション ============ */}
+      <div style={{
+        background: "#fff", borderBottom: "1px solid #d1fae5",
+        display: "flex", padding: "0 20px", overflowX: "auto",
+      }}>
+        {[
+          { label: "エリア進捗", href: "/" },
+          { label: "ランキング", href: "/ranking" },
+          { label: "目標", href: "/targets" },
+          { label: "会議シート", href: "/meeting" },
+          { label: "損益分岐", href: "/breakeven" },
+          { label: "ドライバー", href: "/driver" },
+          { label: "CF", href: "/cockpit" },
+          { label: "管理者", href: "/admin" },
+        ].map((item) => {
+          const active = item.href === "/";
+          return (
+            <a
+              key={item.href}
+              href={item.href}
+              style={{
+                padding: "11px 15px", fontSize: 12,
+                color: active ? "#065f46" : "#6b7280",
+                borderBottom: active ? "2px solid #059669" : "2px solid transparent",
+                textDecoration: "none", whiteSpace: "nowrap",
+                fontWeight: active ? 700 : 500,
+              }}
+            >
+              {item.label}
+            </a>
+          );
+        })}
+      </div>
+
       {/* ============ エリアタブ ============ */}
       <div className="bg-zinc-900 text-white">
         <div className="flex overflow-x-auto no-scrollbar px-2 pt-2 pb-2 gap-1.5 touch-pan-x">
