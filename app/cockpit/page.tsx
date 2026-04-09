@@ -36,6 +36,16 @@ const empty = (year: number, month: number): CashflowEntry => ({
   scheduledPayments: 0, paymentDueDate: null, notes: "",
 });
 
+const SECTION_TITLE_STYLE: React.CSSProperties = {
+  background: "#ecfdf5", padding: "8px 14px",
+  fontSize: 11, fontWeight: 700, color: "#065f46",
+  textTransform: "uppercase", letterSpacing: "0.07em",
+  borderBottom: "1px solid #d1fae5",
+};
+const CARD_STYLE: React.CSSProperties = {
+  background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden",
+};
+
 export default function CockpitPage() {
   const role = useRole();
   const now = new Date();
@@ -57,7 +67,6 @@ export default function CockpitPage() {
   useEffect(() => {
     if (role !== "admin") return;
     reload();
-    // 全エリア合算売上(DSO計算用)
     Promise.all(AREAS.map(async (a) => {
       const r = await fetch(`/api/entries?area=${a.id}&year=${year}&month=${month}`);
       return (await r.json()).entries ?? [];
@@ -70,7 +79,6 @@ export default function CockpitPage() {
 
   const summary = useMemo(() => calculateCashflow(cfs, monthlyRevenue), [cfs, monthlyRevenue]);
 
-  // エリア別集計
   const perArea = useMemo(() => {
     const map = new Map<string, CashflowSummary>();
     for (const a of AREAS) {
@@ -81,11 +89,25 @@ export default function CockpitPage() {
   }, [cfs, monthlyRevenue]);
 
   if (role && role !== "admin") {
-    return (
-      <div className="p-8 text-center text-zinc-500">
-        このページは役員のみアクセス可能です
-      </div>
-    );
+    return <div style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>このページは役員のみアクセス可能です</div>;
+  }
+
+  // 万円<->円
+  const MAN_KEYS = new Set<keyof CashflowEntry>([
+    "accountsReceivable", "accountsReceivableOverdue", "bankBalance",
+    "loanBalance", "loanRepayment", "scheduledPayments",
+  ]);
+  function setF<K extends keyof CashflowEntry>(k: K, v: CashflowEntry[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+  function setManField(k: keyof CashflowEntry, raw: string) {
+    const n = Number(raw.replace(/[^0-9.]/g, "")) || 0;
+    setForm((f) => ({ ...f, [k]: Math.round(n * 10000) }));
+  }
+  function dispMan(k: keyof CashflowEntry): string {
+    const v = form[k];
+    if (typeof v !== "number" || !v) return "";
+    return MAN_KEYS.has(k) ? String(v / 10000) : String(v);
   }
 
   async function save(e: React.FormEvent) {
@@ -107,189 +129,257 @@ export default function CockpitPage() {
     reload();
   }
 
-  function setF<K extends keyof CashflowEntry>(k: K, v: CashflowEntry[K]) {
-    setForm((f) => ({ ...f, [k]: v }));
-  }
-
   const shortAlert = summary.daysToShortage < 30;
 
+  const moneyFields: { key: keyof CashflowEntry; label: string }[] = [
+    { key: "accountsReceivable", label: "売掛金" },
+    { key: "accountsReceivableOverdue", label: "うち30日超(遅延)" },
+    { key: "bankBalance", label: "口座残高" },
+    { key: "loanBalance", label: "融資残高" },
+    { key: "loanRepayment", label: "月次返済" },
+    { key: "scheduledPayments", label: "支払予定" },
+  ];
+
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 pb-24">
-      <header className="px-5 py-5 bg-gradient-to-b from-slate-800 to-slate-900 text-white">
-        <h1 className="text-2xl font-bold">役員コックピット</h1>
-        <p className="text-xs opacity-80 mt-1">{year}年{month}月 ・ CF管理</p>
-      </header>
-
-      {/* 資金ショート予測 */}
-      <section className="px-4 mt-4">
-        <div className={`rounded-2xl p-5 text-white ${
-          shortAlert ? "bg-red-700 animate-pulse" : "bg-emerald-700"
-        }`}>
-          <p className="text-xs opacity-90">資金ショートまで</p>
-          <p className="text-5xl font-bold tabular-nums mt-1">
-            {summary.daysToShortage >= 9999 ? "—" : `${summary.daysToShortage} 日`}
-          </p>
-          <p className="text-xs opacity-90 mt-2">
-            残高 {yen(summary.totalBank)} ÷ 日次支出
-          </p>
+    <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
+      {/* ヘッダー */}
+      <div style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "16px 24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>役員コックピット</h1>
+            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
+              {year}年{month}月 ／ キャッシュフロー管理
+            </p>
+          </div>
         </div>
-      </section>
-
-      {/* 主要指標 */}
-      <section className="px-4 mt-4">
-        <div className="grid grid-cols-2 gap-3">
-          <Card label="売掛金合計" value={yen(summary.totalAR)} />
-          <Card label="口座残高合計" value={yen(summary.totalBank)}
-            color={summary.totalBank > summary.totalPayments ? "good" : "bad"} />
-          <Card label="融資残高" value={yen(summary.totalLoan)} />
-          <Card label="月次返済" value={yen(summary.totalRepayment)} />
-          <Card label="支払予定" value={yen(summary.totalPayments)} />
-          <Card label="月次CF" value={yen(summary.monthlyCF)}
-            color={summary.monthlyCF >= 0 ? "good" : "bad"} />
-          <Card label="DSO(回収日数)" value={`${summary.dso.toFixed(1)} 日`} />
-          <Card label="回収遅延率" value={`${summary.overdueRate.toFixed(1)} %`}
-            color={summary.overdueRate > 20 ? "bad" : summary.overdueRate > 10 ? "warn" : "good"} />
+        {/* KPIサマリーバー */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
+          <KPI label="資金ショートまで"
+            value={summary.daysToShortage >= 9999 ? "—" : `${summary.daysToShortage}日`}
+            alert={shortAlert} />
+          <KPI label="売掛金合計" value={yen(summary.totalAR)} />
+          <KPI label="口座残高" value={yen(summary.totalBank)} />
+          <KPI label="融資残高" value={yen(summary.totalLoan)} />
+          <KPI label="月次CF" value={yen(summary.monthlyCF)}
+            color={summary.monthlyCF >= 0 ? "#a7f3d0" : "#fca5a5"} />
         </div>
-      </section>
+      </div>
 
-      {/* エリア別CF */}
-      <section className="px-4 mt-6">
-        <h2 className="text-base font-semibold mb-2">エリア別 売掛金 / 残高</h2>
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-          <table className="min-w-full text-sm">
-            <thead className="bg-zinc-100 dark:bg-zinc-800 text-xs">
-              <tr>
-                <th className="p-2 text-left">エリア</th>
-                <th className="p-2 text-right">売掛金</th>
-                <th className="p-2 text-right">残高</th>
-                <th className="p-2 text-right">CF</th>
+      {/* 主要指標カード(4枚) */}
+      <div style={{ padding: "16px 20px 0" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 14 }}>
+          <SubCard label="月次返済" value={yen(summary.totalRepayment)} />
+          <SubCard label="支払予定" value={yen(summary.totalPayments)} />
+          <SubCard label="DSO(回収日数)" value={`${summary.dso.toFixed(1)} 日`} />
+          <SubCard label="回収遅延率" value={`${summary.overdueRate.toFixed(1)}%`}
+            badge={summary.overdueRate > 20 ? "danger" : summary.overdueRate > 10 ? "warn" : "good"} />
+        </div>
+      </div>
+
+      {/* ボディ: 2列 */}
+      <div style={{ padding: "0 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {/* 左: エリア別テーブル */}
+        <div style={CARD_STYLE}>
+          <div style={SECTION_TITLE_STYLE}>エリア別 売掛金 / 残高</div>
+          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "23%" }} />
+              <col style={{ width: "23%" }} />
+              <col style={{ width: "23%" }} />
+              <col style={{ width: "15%" }} />
+            </colgroup>
+            <thead>
+              <tr style={{ background: "#f8fdf8" }}>
+                {["エリア", "売掛金", "口座残高", "月次CF", "件数"].map((h) => (
+                  <th key={h} style={{
+                    padding: "7px 8px", fontSize: 9, fontWeight: 700, color: "#9ca3af",
+                    textTransform: "uppercase", letterSpacing: "0.05em",
+                    borderBottom: "1px solid #f0faf0",
+                    textAlign: h === "エリア" ? "left" : "right",
+                  }}>{h}</th>
+                ))}
               </tr>
             </thead>
-            <tbody className="tabular-nums">
+            <tbody>
               {AREAS.map((a) => {
                 const s = perArea.get(a.id)!;
+                const cfPositive = s.monthlyCF >= 0;
+                const count = cfs.filter((c) => c.areaId === a.id).length;
                 return (
-                  <tr key={a.id} className="border-t border-zinc-100 dark:border-zinc-800">
-                    <td className="p-2">{a.name}</td>
-                    <td className="p-2 text-right">{yen(s.totalAR)}</td>
-                    <td className="p-2 text-right">{yen(s.totalBank)}</td>
-                    <td className={`p-2 text-right font-semibold ${
-                      s.monthlyCF >= 0 ? "text-emerald-600" : "text-red-500"
-                    }`}>{yen(s.monthlyCF)}</td>
+                  <tr key={a.id} style={{ borderBottom: "1px solid #f5faf5" }}>
+                    <td style={{ padding: "8px 8px", fontSize: 12, fontWeight: 700, color: "#111" }}>{a.name}</td>
+                    <td style={{ padding: "8px 8px", fontSize: 11, textAlign: "right" }}>{yen(s.totalAR)}</td>
+                    <td style={{ padding: "8px 8px", fontSize: 11, textAlign: "right" }}>{yen(s.totalBank)}</td>
+                    <td style={{ padding: "8px 8px", fontSize: 11, textAlign: "right", fontWeight: 700, color: cfPositive ? "#059669" : "#dc2626" }}>
+                      {yen(s.monthlyCF)}
+                    </td>
+                    <td style={{ padding: "8px 8px", fontSize: 10, textAlign: "right", color: "#9ca3af" }}>{count}件</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-      </section>
 
-      {/* 支払予定一覧 */}
-      <section className="px-4 mt-6">
-        <h2 className="text-base font-semibold mb-2">登録済みエントリ</h2>
-        <div className="space-y-2">
-          {cfs.length === 0 && (
-            <p className="text-xs text-zinc-500 text-center py-4">まだ登録がありません</p>
-          )}
-          {cfs.map((c) => {
-            const area = AREAS.find((a) => a.id === c.areaId);
-            return (
-              <div key={c.id} className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3">
-                <div className="flex justify-between items-start">
-                  <div className="text-sm font-semibold">{area?.name}</div>
-                  <button
-                    type="button"
-                    onClick={() => c.id && remove(c.id)}
-                    className="text-xs text-red-500"
-                  >削除</button>
-                </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs tabular-nums">
-                  <div>売掛: {yen(c.accountsReceivable)}</div>
-                  <div className="text-amber-600">遅延: {yen(c.accountsReceivableOverdue)}</div>
-                  <div>残高: {yen(c.bankBalance)}</div>
-                  <div>融資: {yen(c.loanBalance)}</div>
-                  <div>返済: {yen(c.loanRepayment)}</div>
-                  <div>支払: {yen(c.scheduledPayments)}</div>
-                </div>
-                {c.paymentDueDate && (
-                  <div className="text-[11px] text-zinc-500 mt-1">期日: {c.paymentDueDate}</div>
-                )}
-                {c.notes && <div className="text-[11px] text-zinc-500 mt-1">{c.notes}</div>}
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* 入力フォーム */}
-      <section className="px-4 mt-6">
-        <h2 className="text-base font-semibold mb-2">CFエントリ追加</h2>
-        <form onSubmit={save} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-3">
-          <label className="block">
-            <span className="block text-xs text-zinc-500 mb-1">エリア</span>
-            <select value={form.areaId} onChange={(e) => setF("areaId", e.target.value)}
-              className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-base">
-              {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </label>
-
-          {([
-            ["売掛金", "accountsReceivable"],
-            ["うち30日超(遅延)", "accountsReceivableOverdue"],
-            ["口座残高", "bankBalance"],
-            ["融資残高", "loanBalance"],
-            ["月次返済", "loanRepayment"],
-            ["支払予定", "scheduledPayments"],
-          ] as const).map(([label, key]) => (
-            <label key={key} className="block">
-              <span className="block text-xs text-zinc-500 mb-1">{label}</span>
-              <input
-                type="text" inputMode="numeric" pattern="[0-9]*"
-                value={form[key] || ""}
-                onChange={(e) => setF(key, Number(e.target.value.replace(/[^0-9]/g, "")) || 0)}
-                className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-right text-base tabular-nums"
-                placeholder="0"
+        {/* 右: CFエントリ追加フォーム */}
+        <div style={CARD_STYLE}>
+          <div style={SECTION_TITLE_STYLE}>CFエントリ追加</div>
+          <form onSubmit={save} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+            <FieldRow label="エリア">
+              <select value={form.areaId} onChange={(e) => setF("areaId", e.target.value)}
+                style={{
+                  width: 160, height: 32, border: "1px solid #d1fae5", borderRadius: 6,
+                  padding: "0 10px", fontSize: 12, fontWeight: 600, background: "#fff",
+                }}>
+                {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </FieldRow>
+            {moneyFields.map((f) => (
+              <FieldRow key={f.key} label={f.label} unit="万円">
+                <input
+                  type="text" inputMode="decimal"
+                  value={dispMan(f.key)}
+                  onChange={(e) => setManField(f.key, e.target.value)}
+                  placeholder="0"
+                  style={{
+                    width: 160, height: 32, border: "1px solid #d1fae5", borderRadius: 6,
+                    padding: "0 10px", fontSize: 12, fontWeight: 600, textAlign: "right",
+                  }}
+                />
+              </FieldRow>
+            ))}
+            <FieldRow label="支払期日">
+              <input type="date"
+                value={form.paymentDueDate ?? ""}
+                onChange={(e) => setF("paymentDueDate", e.target.value || null)}
+                style={{
+                  width: 160, height: 32, border: "1px solid #d1fae5", borderRadius: 6,
+                  padding: "0 10px", fontSize: 12,
+                }}
               />
-            </label>
-          ))}
+            </FieldRow>
+            <div style={{ paddingTop: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>備考</div>
+              <textarea value={form.notes} onChange={(e) => setF("notes", e.target.value)} rows={2}
+                style={{
+                  width: "100%", border: "1px solid #d1fae5", borderRadius: 6,
+                  padding: "6px 10px", fontSize: 12, resize: "vertical",
+                }}
+              />
+            </div>
+            <button type="submit" disabled={saving}
+              style={{
+                marginTop: 4, width: "100%", height: 40,
+                background: "#059669", color: "#fff", border: "none",
+                borderRadius: 8, fontSize: 13, fontWeight: 700,
+                cursor: "pointer", opacity: saving ? 0.6 : 1,
+              }}>
+              {saving ? "保存中..." : "追加する"}
+            </button>
+          </form>
+        </div>
+      </div>
 
-          <label className="block">
-            <span className="block text-xs text-zinc-500 mb-1">支払期日</span>
-            <input type="date" value={form.paymentDueDate ?? ""}
-              onChange={(e) => setF("paymentDueDate", e.target.value || null)}
-              className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-base" />
-          </label>
-
-          <label className="block">
-            <span className="block text-xs text-zinc-500 mb-1">備考</span>
-            <textarea value={form.notes}
-              onChange={(e) => setF("notes", e.target.value)}
-              rows={2}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-base" />
-          </label>
-
-          <button type="submit" disabled={saving}
-            className="w-full min-h-[52px] rounded-lg bg-slate-700 active:bg-slate-900 text-white font-semibold disabled:opacity-50">
-            {saving ? "保存中..." : "追加する"}
-          </button>
-        </form>
-      </section>
+      {/* 下段: 登録済みエントリ */}
+      <div style={{ padding: "14px 20px 24px" }}>
+        <div style={CARD_STYLE}>
+          <div style={SECTION_TITLE_STYLE}>登録済みエントリ</div>
+          {cfs.length === 0 ? (
+            <p style={{ padding: 24, fontSize: 11, color: "#9ca3af", textAlign: "center" }}>まだ登録がありません</p>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#f8fdf8" }}>
+                  {["エリア", "売掛金", "口座残高", "融資残高", "月次返済", "支払予定", "支払期日", "備考", ""].map((h) => (
+                    <th key={h} style={{
+                      padding: "7px 8px", fontSize: 9, fontWeight: 700, color: "#9ca3af",
+                      textTransform: "uppercase", letterSpacing: "0.05em",
+                      borderBottom: "1px solid #f0faf0",
+                      textAlign: h === "エリア" || h === "備考" ? "left" : "right",
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {cfs.map((c) => {
+                  const area = AREAS.find((a) => a.id === c.areaId);
+                  return (
+                    <tr key={c.id} style={{ borderBottom: "1px solid #f5faf5" }}>
+                      <td style={{ padding: "8px 8px", fontSize: 12, fontWeight: 700 }}>{area?.name}</td>
+                      <td style={{ padding: "8px 8px", fontSize: 11, textAlign: "right" }}>{yen(c.accountsReceivable)}</td>
+                      <td style={{ padding: "8px 8px", fontSize: 11, textAlign: "right" }}>{yen(c.bankBalance)}</td>
+                      <td style={{ padding: "8px 8px", fontSize: 11, textAlign: "right" }}>{yen(c.loanBalance)}</td>
+                      <td style={{ padding: "8px 8px", fontSize: 11, textAlign: "right" }}>{yen(c.loanRepayment)}</td>
+                      <td style={{ padding: "8px 8px", fontSize: 11, textAlign: "right" }}>{yen(c.scheduledPayments)}</td>
+                      <td style={{ padding: "8px 8px", fontSize: 10, textAlign: "right", color: "#6b7280" }}>{c.paymentDueDate ?? "—"}</td>
+                      <td style={{ padding: "8px 8px", fontSize: 10, color: "#6b7280" }}>{c.notes || "—"}</td>
+                      <td style={{ padding: "8px 8px", textAlign: "right" }}>
+                        <button type="button" onClick={() => c.id && remove(c.id)}
+                          style={{
+                            fontSize: 10, color: "#dc2626", background: "none", border: "none",
+                            cursor: "pointer", fontWeight: 700,
+                          }}>削除</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function Card({
-  label, value, color,
-}: { label: string; value: string; color?: "good" | "warn" | "bad" }) {
-  const cls =
-    color === "good" ? "text-emerald-600 dark:text-emerald-400" :
-    color === "warn" ? "text-amber-600 dark:text-amber-400" :
-    color === "bad" ? "text-red-600 dark:text-red-400" :
-    "text-zinc-900 dark:text-zinc-100";
+function KPI({ label, value, color, alert }: { label: string; value: string; color?: string; alert?: boolean }) {
   return (
-    <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3">
-      <p className="text-[11px] text-zinc-500">{label}</p>
-      <p className={`mt-1 text-lg font-bold tabular-nums ${cls}`}>{value}</p>
+    <div style={{
+      background: alert ? "rgba(220,38,38,0.25)" : "rgba(255,255,255,0.1)",
+      borderRadius: 8, padding: "8px 12px",
+      border: alert ? "1px solid rgba(255,255,255,0.4)" : "1px solid rgba(255,255,255,0.15)",
+    }}>
+      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: color ?? "#fff", marginTop: 2 }}>{value}</div>
+    </div>
+  );
+}
+
+function SubCard({ label, value, badge }: { label: string; value: string; badge?: "good" | "warn" | "danger" }) {
+  const bg = badge === "good" ? "#d1fae5" : badge === "warn" ? "#fef9c3" : badge === "danger" ? "#fee2e2" : "#fff";
+  const color = badge === "good" ? "#064e3b" : badge === "warn" ? "#713f12" : badge === "danger" ? "#7f1d1d" : "#111";
+  return (
+    <div style={{
+      background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", padding: 14,
+    }}>
+      <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
+        {label}
+      </div>
+      <div style={{ marginTop: 4 }}>
+        {badge ? (
+          <span style={{
+            display: "inline-block", fontSize: 14, fontWeight: 800,
+            borderRadius: 4, padding: "2px 10px", background: bg, color,
+          }}>{value}</span>
+        ) : (
+          <span style={{ fontSize: 18, fontWeight: 800, color: "#111" }}>{value}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FieldRow({ label, unit, children }: { label: string; unit?: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{label}</span>
+        {unit && <span style={{ fontSize: 10, color: "#9ca3af" }}>（{unit}）</span>}
+      </div>
+      {children}
     </div>
   );
 }
