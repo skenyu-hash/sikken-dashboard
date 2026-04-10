@@ -348,7 +348,7 @@ export default function Dashboard() {
         convRate: Number(monthlySummary.conv_rate ?? 0),
       } : undefined
     ),
-    [displaySummary, aggregateEntries, targets, monthlySummary]
+    [displaySummary, aggregateEntries, targets, monthlySummary, isCurrentMonth]
   );
   // 異常アラート: 前日比 -20% 以上
   const profitDropRate = yesterdaySummary.forecastProfit > 0
