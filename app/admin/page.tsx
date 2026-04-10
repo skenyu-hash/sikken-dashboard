@@ -156,91 +156,138 @@ export default function AdminPage() {
       )}
 
       {tab === "users" && (
-        <section className="px-4 mt-4">
-          <button
-            type="button" onClick={() => setShowCreate((v) => !v)}
-            className="w-full min-h-[48px] rounded-lg bg-emerald-600 text-white font-semibold mb-3"
-          >{showCreate ? "閉じる" : "+ 新規ユーザー追加"}</button>
-
+        <section style={{ padding: "16px 20px" }}>
+          {/* 新規追加フォーム（トグル） */}
           {showCreate && (
-            <form onSubmit={createUser} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-3 mb-4">
-              <Input label="氏名" value={form.name}
-                onChange={(v) => setForm((f) => ({ ...f, name: v }))} />
-              <Input label="メール" type="email" value={form.email}
-                onChange={(v) => setForm((f) => ({ ...f, email: v }))} />
-              <Input label="パスワード(8文字以上)" type="password" value={form.password}
-                onChange={(v) => setForm((f) => ({ ...f, password: v }))} />
-              <label className="block">
-                <span className="block text-xs text-zinc-500 mb-1">ロール</span>
-                <select value={form.role}
-                  onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))}
-                  className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-base">
-                  <option value="admin">役員（全編集・全閲覧）</option>
-                  <option value="manager">部長（ダッシュボード・目標のみ編集）</option>
-                  <option value="staff">内勤・役職者（編集なし・限定閲覧）</option>
-                  <option value="input">事務員（ダッシュボードのみ編集）</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="block text-xs text-zinc-500 mb-1">担当エリア(input時のみ有効/未指定=全エリア)</span>
-                <select value={form.areaId}
-                  onChange={(e) => setForm((f) => ({ ...f, areaId: e.target.value }))}
-                  className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-base">
-                  <option value="">(全エリア)</option>
-                  {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-              </label>
-              <button type="submit"
-                className="w-full min-h-[48px] rounded-lg bg-blue-600 text-white font-semibold">
-                作成
-              </button>
-            </form>
-          )}
-
-          <div className="space-y-2">
-            {users.map((u) => (
-              <div key={u.id} className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="text-sm font-semibold">{u.name}</div>
-                    <div className="text-xs text-zinc-500">{u.email}</div>
-                  </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded ${
-                    u.isActive ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-                  }`}>{u.isActive ? "有効" : "無効"}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <select value={u.role}
-                    onChange={(e) => changeRole(u, e.target.value as Role)}
-                    className="min-h-[40px] rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm px-2">
+            <form onSubmit={createUser} style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", padding: 16, marginBottom: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 10, alignItems: "end" }}>
+                <label>
+                  <span style={{ display: "block", fontSize: 10, color: "#6b7280", marginBottom: 4 }}>氏名</span>
+                  <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    style={{ width: "100%", height: 34, border: "1px solid #d1fae5", borderRadius: 6, padding: "0 8px", fontSize: 12 }} />
+                </label>
+                <label>
+                  <span style={{ display: "block", fontSize: 10, color: "#6b7280", marginBottom: 4 }}>メール</span>
+                  <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    style={{ width: "100%", height: 34, border: "1px solid #d1fae5", borderRadius: 6, padding: "0 8px", fontSize: 12 }} />
+                </label>
+                <label>
+                  <span style={{ display: "block", fontSize: 10, color: "#6b7280", marginBottom: 4 }}>パスワード(8文字以上)</span>
+                  <input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                    style={{ width: "100%", height: 34, border: "1px solid #d1fae5", borderRadius: 6, padding: "0 8px", fontSize: 12 }} />
+                </label>
+                <label>
+                  <span style={{ display: "block", fontSize: 10, color: "#6b7280", marginBottom: 4 }}>ロール</span>
+                  <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))}
+                    style={{ width: "100%", height: 34, border: "1px solid #d1fae5", borderRadius: 6, padding: "0 6px", fontSize: 11 }}>
                     <option value="admin">役員</option>
                     <option value="manager">部長</option>
                     <option value="staff">内勤・役職者</option>
                     <option value="input">事務員</option>
                   </select>
-                  <select value={u.areaId ?? ""}
-                    onChange={(e) => changeArea(u, e.target.value)}
-                    className="min-h-[40px] rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm px-2">
-                    <option value="">全エリア</option>
-                    {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                </div>
-                <div className="text-[10px] text-zinc-500 mt-2">
-                  最終ログイン: {u.lastLoginAt ?? "未"}
-                  {u.lockedUntil && <span className="text-red-500 ml-2">ロック中</span>}
-                </div>
-                <div className="flex gap-2 mt-2">
-                  <button type="button" onClick={() => toggleActive(u)}
-                    className="flex-1 min-h-[36px] rounded text-xs bg-zinc-200 dark:bg-zinc-800">
-                    {u.isActive ? "無効化" : "有効化"}
-                  </button>
-                  <button type="button" onClick={() => resetPassword(u)}
-                    className="flex-1 min-h-[36px] rounded text-xs bg-zinc-200 dark:bg-zinc-800">
-                    PW変更
-                  </button>
+                </label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button type="submit" style={{ flex: 1, height: 34, background: "#059669", color: "#fff", border: "none",
+                    borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>作成</button>
+                  <button type="button" onClick={() => setShowCreate(false)} style={{ height: 34, padding: "0 10px",
+                    background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>閉じる</button>
                 </div>
               </div>
-            ))}
+            </form>
+          )}
+
+          {/* ユーザーテーブル */}
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+            <div style={{ background: "#ecfdf5", padding: "10px 16px", borderBottom: "1px solid #d1fae5",
+              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                ユーザー管理（{users.length}名）
+              </span>
+              <button onClick={() => setShowCreate((v) => !v)}
+                style={{ fontSize: 11, fontWeight: 700, background: "#059669", color: "#fff",
+                  border: "none", borderRadius: 6, padding: "5px 14px", cursor: "pointer" }}>
+                + 新規追加
+              </button>
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "22%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "17%" }} />
+              </colgroup>
+              <thead>
+                <tr style={{ background: "#ecfdf5" }}>
+                  {["氏名", "メール", "権限", "エリア", "状態", "最終ログイン", "アクション"].map((h) => (
+                    <th key={h} style={{
+                      padding: "8px 10px", fontSize: 10, fontWeight: 700,
+                      color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
+                      borderBottom: "1px solid #d1fae5", textAlign: "left",
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id} style={{ borderBottom: "1px solid #f0faf0" }}>
+                    <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, color: "#111" }}>{u.name}</td>
+                    <td style={{ padding: "10px 10px", fontSize: 11, color: "#6b7280",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</td>
+                    <td style={{ padding: "6px 10px" }}>
+                      <select value={u.role} onChange={(e) => changeRole(u, e.target.value as Role)}
+                        style={{ border: "1px solid #d1fae5", borderRadius: 6, padding: "4px 6px",
+                          fontSize: 11, fontWeight: 600, color: "#065f46", background: "#f0fdf4", width: "100%" }}>
+                        <option value="admin">役員</option>
+                        <option value="manager">部長</option>
+                        <option value="staff">内勤</option>
+                        <option value="input">事務員</option>
+                      </select>
+                    </td>
+                    <td style={{ padding: "6px 10px" }}>
+                      <select value={u.areaId ?? ""} onChange={(e) => changeArea(u, e.target.value)}
+                        style={{ border: "1px solid #d1fae5", borderRadius: 6, padding: "4px 6px",
+                          fontSize: 11, color: "#374151", background: "#fff", width: "100%" }}>
+                        <option value="">全エリア</option>
+                        {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: "10px 10px" }}>
+                      <span style={{
+                        display: "inline-block", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px",
+                        background: u.isActive ? "#d1fae5" : "#fee2e2",
+                        color: u.isActive ? "#065f46" : "#991b1b",
+                      }}>{u.isActive ? "有効" : "無効"}</span>
+                    </td>
+                    <td style={{ padding: "10px 10px", fontSize: 10, color: "#9ca3af" }}>
+                      {u.lastLoginAt
+                        ? new Date(u.lastLoginAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                        : "未"}
+                      {u.lockedUntil && <span style={{ color: "#dc2626", marginLeft: 4 }}>ロック中</span>}
+                    </td>
+                    <td style={{ padding: "6px 10px" }}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={() => toggleActive(u)}
+                          style={{ fontSize: 10, fontWeight: 700, border: "1px solid",
+                            borderRadius: 5, padding: "4px 8px", cursor: "pointer",
+                            borderColor: u.isActive ? "#fca5a5" : "#6ee7b7",
+                            color: u.isActive ? "#991b1b" : "#065f46", background: "transparent" }}>
+                          {u.isActive ? "無効化" : "有効化"}
+                        </button>
+                        <button onClick={() => resetPassword(u)}
+                          style={{ fontSize: 10, fontWeight: 700, border: "1px solid #d1fae5",
+                            borderRadius: 5, padding: "4px 8px", cursor: "pointer",
+                            color: "#065f46", background: "#f0fdf4" }}>
+                          PW変更
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       )}
