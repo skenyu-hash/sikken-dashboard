@@ -198,21 +198,29 @@ export default function Dashboard() {
       .then((j: { targets: Targets }) => setTargets(j.targets));
   }, [activeTab, viewYear, viewMonth, isGroup]);
 
+  const [groupMonthlySummaries, setGroupMonthlySummaries] = useState<Record<string, Record<string, unknown> | null>>({});
+
   // ============ データ読込: グループタブ ============
   useEffect(() => {
     if (!isGroup) return;
     let cancelled = false;
     Promise.all(
-      AREAS.map(async (a) => [a.id, await fetchEntries(a.id, viewYear, viewMonth)] as const)
+      AREAS.map(async (a) => {
+        const [eRes, sRes] = await Promise.all([
+          fetch(`/api/entries?area=${a.id}&year=${viewYear}&month=${viewMonth}`).then(r => r.ok ? r.json() : { entries: [] }),
+          fetch(`/api/monthly-summary?area=${a.id}&year=${viewYear}&month=${viewMonth}`).then(r => r.ok ? r.json() : { summary: null }),
+        ]);
+        return [a.id, eRes.entries ?? [], sRes.summary] as const;
+      })
     ).then((pairs) => {
       if (cancelled) return;
-      const map: Record<string, DailyEntry[]> = {};
-      for (const [id, rows] of pairs) map[id] = rows;
-      setGroupEntriesByArea(map);
+      const eMap: Record<string, DailyEntry[]> = {};
+      const sMap: Record<string, Record<string, unknown> | null> = {};
+      for (const [id, entries, ms] of pairs) { eMap[id] = entries; sMap[id] = ms; }
+      setGroupEntriesByArea(eMap);
+      setGroupMonthlySummaries(sMap);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [isGroup, viewYear, viewMonth]);
 
   // ============ 過去月サマリー取得 ============
@@ -361,16 +369,27 @@ export default function Dashboard() {
   // 各エリアサマリー(グループ表示用)
   const perAreaSummaries = useMemo(() => {
     if (!isGroup) return [];
-    return AREAS.map((a) => ({
-      area: a,
-      summary: calculateDashboard(
-        groupEntriesByArea[a.id] ?? [],
-        viewYear,
-        viewMonth,
-        summaryToday
-      ),
-    }));
-  }, [isGroup, groupEntriesByArea, viewYear, viewMonth, summaryToday]);
+    return AREAS.map((a) => {
+      const entries = groupEntriesByArea[a.id] ?? [];
+      const ms = groupMonthlySummaries[a.id];
+      const raw = calculateDashboard(entries, viewYear, viewMonth, summaryToday);
+      if (ms && entries.length === 0) {
+        const dim = getDaysInMonth(viewYear, viewMonth);
+        return {
+          area: a,
+          summary: { ...raw,
+            totalRevenue: Number(ms.total_revenue ?? 0), totalProfit: Number(ms.total_profit ?? 0),
+            totalCount: Number(ms.total_count ?? 0), totalAdCost: Number(ms.ad_cost ?? 0),
+            companyUnitPrice: Number(ms.unit_price ?? 0), vehicleCount: Number(ms.vehicle_count ?? 0),
+            help: { revenue: Number(ms.help_revenue ?? 0), profit: 0, count: Number(ms.help_count ?? 0),
+              unitPrice: Number(ms.help_count) > 0 ? Math.round(Number(ms.help_revenue) / Number(ms.help_count)) : 0 },
+            daysElapsed: dim, daysInMonth: dim, grossMargin: Number(ms.profit_rate ?? 0),
+          },
+        };
+      }
+      return { area: a, summary: raw };
+    });
+  }, [isGroup, groupEntriesByArea, groupMonthlySummaries, viewYear, viewMonth, summaryToday]);
 
   // ============ 月切替 ============
   function gotoPrevMonth() {
@@ -758,138 +777,92 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* ============ グループ: トップ/リスクハイライト ============ */}
+      {/* ============ グループ: エリア別実績テーブル ============ */}
       {isGroup && perAreaSummaries.length > 0 && (() => {
-        const sorted = [...perAreaSummaries].sort(
-          (a, b) => b.summary.totalProfit - a.summary.totalProfit
-        );
-        const top = sorted[0];
-        const risk = sorted[sorted.length - 1];
+        const gTotal = perAreaSummaries.reduce((acc, { summary: s }) => ({
+          revenue: acc.revenue + s.totalRevenue, profit: acc.profit + s.totalProfit,
+          count: acc.count + s.totalCount, adCost: acc.adCost + s.totalAdCost,
+        }), { revenue: 0, profit: 0, count: 0, adCost: 0 });
+        const sorted = [...perAreaSummaries].sort((a, b) => b.summary.totalProfit - a.summary.totalProfit);
+        const topId = sorted[0]?.area.id;
         return (
-          <section className="px-4 mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-emerald-600 text-white p-3">
-              <p className="text-[10px] opacity-90">🏆 利益貢献トップ</p>
-              <p className="text-base font-bold mt-1">{top.area.name}</p>
-              <p className="text-xs tabular-nums">{yen(top.summary.totalProfit)}</p>
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden", marginBottom: 16 }}>
+            <div style={{ background: "#ecfdf5", padding: "10px 16px", borderBottom: "1px solid #d1fae5",
+              fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+              エリア別実績
             </div>
-            <div className="rounded-xl bg-red-600 text-white p-3">
-              <p className="text-[10px] opacity-90">⚠️ 要注意エリア</p>
-              <p className="text-base font-bold mt-1">{risk.area.name}</p>
-              <p className="text-xs tabular-nums">{yen(risk.summary.totalProfit)}</p>
-            </div>
-          </section>
-        );
-      })()}
-
-      {/* ============ グループ: エリア別ブレイクダウン ============ */}
-      {isGroup && (
-        <section className="px-4 mt-6">
-          <h2 className="text-base font-semibold mb-2">エリア別 実績 / 予測</h2>
-          <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-            <table className="min-w-full text-sm">
-              <thead className="bg-zinc-100 dark:bg-zinc-800 text-xs">
-                <tr>
-                  <th className="p-2 text-left">エリア</th>
-                  <th className="p-2 text-right">利益(実績)</th>
-                  <th className="p-2 text-right">利益(予測)</th>
-                  <th className="p-2 text-right">売上</th>
-                  <th className="p-2 text-right">件数</th>
+            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "12%" }} /><col style={{ width: "16%" }} /><col style={{ width: "10%" }} />
+                <col style={{ width: "16%" }} /><col style={{ width: "10%" }} /><col style={{ width: "12%" }} />
+                <col style={{ width: "12%" }} /><col style={{ width: "12%" }} />
+              </colgroup>
+              <thead>
+                <tr style={{ background: "#f8fdf8" }}>
+                  {["エリア", "売上", "売上比", "粗利", "粗利率", "広告費", "件数", "状態"].map((h, i) => (
+                    <th key={h} style={{ padding: "7px 10px", fontSize: 9, fontWeight: 700, color: "#6b7280",
+                      textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #d1fae5",
+                      textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="tabular-nums">
-                {[...perAreaSummaries]
-                  .sort((x, y) => y.summary.forecastProfit - x.summary.forecastProfit)
-                  .map(({ area, summary: s }, idx) => (
-                  <tr
-                    key={area.id}
-                    className="border-t border-zinc-100 dark:border-zinc-800"
-                  >
-                    <td className="p-2">
-                      {idx === 0 && <span className="mr-1">🏆</span>}
-                      {area.name}
-                    </td>
-                    <td className="p-2 text-right">{yen(s.totalProfit)}</td>
-                    <td className="p-2 text-right text-emerald-700 dark:text-emerald-400">
-                      {yen(s.forecastProfit)}
-                    </td>
-                    <td className="p-2 text-right">{yen(s.totalRevenue)}</td>
-                    <td className="p-2 text-right">{s.totalCount}</td>
-                  </tr>
-                ))}
-                <tr className="font-bold bg-amber-50 dark:bg-amber-950/40 border-t border-zinc-200 dark:border-zinc-700">
-                  <td className="p-2">グループ合計</td>
-                  <td className="p-2 text-right">{yen(displaySummary.totalProfit)}</td>
-                  <td className="p-2 text-right text-amber-700 dark:text-amber-400">
-                    {yen(displaySummary.forecastProfit)}
+              <tbody>
+                {sorted.map(({ area, summary: s }) => {
+                  const hasData = s.totalRevenue > 0;
+                  const profitRate = hasData ? s.totalProfit / s.totalRevenue * 100 : 0;
+                  const shareRatio = gTotal.revenue > 0 ? (s.totalRevenue / gTotal.revenue * 100).toFixed(1) : "0.0";
+                  const isTop = area.id === topId;
+                  return (
+                    <tr key={area.id} style={{ borderBottom: "1px solid #f0faf0", background: isTop ? "#f0fdf4" : "transparent" }}>
+                      <td style={{ padding: "9px 10px", fontSize: 13, fontWeight: 700, color: "#111",
+                        borderLeft: isTop ? "3px solid #059669" : "3px solid transparent" }}>
+                        {isTop && "🏆 "}{area.name}
+                      </td>
+                      <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: hasData ? "#111" : "#d1d5db" }}>
+                        {hasData ? yen(s.totalRevenue) : "\u2014"}
+                      </td>
+                      <td style={{ padding: "9px 10px", fontSize: 11, textAlign: "right", color: "#6b7280" }}>{hasData ? `${shareRatio}%` : "\u2014"}</td>
+                      <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: hasData ? "#059669" : "#d1d5db" }}>
+                        {hasData ? yen(s.totalProfit) : "\u2014"}
+                      </td>
+                      <td style={{ padding: "9px 10px", fontSize: 11, textAlign: "right",
+                        color: profitRate >= 25 ? "#059669" : profitRate >= 15 ? "#d97706" : "#dc2626" }}>
+                        {hasData ? `${profitRate.toFixed(1)}%` : "\u2014"}
+                      </td>
+                      <td style={{ padding: "9px 10px", fontSize: 11, textAlign: "right", color: "#d97706" }}>{hasData ? yen(s.totalAdCost) : "\u2014"}</td>
+                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>{hasData ? `${s.totalCount}件` : "\u2014"}</td>
+                      <td style={{ padding: "9px 10px", textAlign: "right" }}>
+                        {hasData ? (
+                          <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px",
+                            background: profitRate >= 25 ? "#d1fae5" : profitRate >= 15 ? "#fef9c3" : "#fee2e2",
+                            color: profitRate >= 25 ? "#065f46" : profitRate >= 15 ? "#854d0e" : "#991b1b" }}>
+                            {profitRate >= 25 ? "良好" : profitRate >= 15 ? "注意" : "要改善"}
+                          </span>
+                        ) : <span style={{ color: "#d1d5db", fontSize: 11 }}>未入力</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+                <tr style={{ background: "#f0fdf4", borderTop: "2px solid #d1fae5" }}>
+                  <td style={{ padding: "10px", fontSize: 13, fontWeight: 800, color: "#065f46", borderLeft: "3px solid #059669" }}>グループ合計</td>
+                  <td style={{ padding: "10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#065f46" }}>{yen(gTotal.revenue)}</td>
+                  <td style={{ padding: "10px", fontSize: 11, textAlign: "right", color: "#9ca3af" }}>100%</td>
+                  <td style={{ padding: "10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#059669" }}>{yen(gTotal.profit)}</td>
+                  <td style={{ padding: "10px", fontSize: 12, fontWeight: 700, textAlign: "right",
+                    color: gTotal.revenue > 0 && gTotal.profit / gTotal.revenue * 100 >= 25 ? "#059669" : "#d97706" }}>
+                    {gTotal.revenue > 0 ? `${(gTotal.profit / gTotal.revenue * 100).toFixed(1)}%` : "\u2014"}
                   </td>
-                  <td className="p-2 text-right">{yen(displaySummary.totalRevenue)}</td>
-                  <td className="p-2 text-right">{displaySummary.totalCount}</td>
+                  <td style={{ padding: "10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#d97706" }}>{yen(gTotal.adCost)}</td>
+                  <td style={{ padding: "10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#065f46" }}>{gTotal.count}件</td>
+                  <td style={{ padding: "10px", textAlign: "right" }}>
+                    <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", background: "#d1fae5", color: "#065f46" }}>総合計</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
-
-          {/* 部門別グループ集計 */}
-          {(() => {
-            const dept = (sel: "self" | "newSales" | "help") => {
-              let revenue = 0, profit = 0, count = 0;
-              for (const { summary: s } of perAreaSummaries) {
-                revenue += s[sel].revenue;
-                profit += s[sel].profit;
-                count += s[sel].count;
-              }
-              const unit = count > 0 ? Math.round(revenue / count) : 0;
-              return { revenue, profit, count, unit };
-            };
-            const self = dept("self");
-            const ns = dept("newSales");
-            const help = dept("help");
-            const total = {
-              revenue: self.revenue + ns.revenue + help.revenue,
-              profit: self.profit + ns.profit + help.profit,
-              count: self.count + ns.count + help.count,
-            };
-            const totalUnit = total.count > 0 ? Math.round(total.revenue / total.count) : 0;
-            const Row = ({ name, d }: { name: string; d: ReturnType<typeof dept> }) => (
-              <tr className="border-t border-zinc-100 dark:border-zinc-800">
-                <td className="p-2">{name}</td>
-                <td className="p-2 text-right">{yen(d.revenue)}</td>
-                <td className="p-2 text-right">{yen(d.profit)}</td>
-                <td className="p-2 text-right">{d.count}</td>
-                <td className="p-2 text-right">{yen(d.unit)}</td>
-              </tr>
-            );
-            return (
-              <div className="mt-4 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-                <h3 className="text-sm font-semibold p-2 bg-zinc-100 dark:bg-zinc-800">部門別グループ集計</h3>
-                <table className="min-w-full text-sm">
-                  <thead className="bg-zinc-50 dark:bg-zinc-800/60 text-xs">
-                    <tr>
-                      <th className="p-2 text-left">部門</th>
-                      <th className="p-2 text-right">合計売上</th>
-                      <th className="p-2 text-right">合計粗利</th>
-                      <th className="p-2 text-right">合計件数</th>
-                      <th className="p-2 text-right">客単価</th>
-                    </tr>
-                  </thead>
-                  <tbody className="tabular-nums">
-                    <Row name="自社施工" d={self} />
-                    <Row name="新規営業" d={ns} />
-                    <Row name="ヘルプ" d={help} />
-                    <tr className="font-bold bg-amber-50 dark:bg-amber-950/40 border-t border-zinc-200 dark:border-zinc-700">
-                      <td className="p-2">合計</td>
-                      <td className="p-2 text-right">{yen(total.revenue)}</td>
-                      <td className="p-2 text-right">{yen(total.profit)}</td>
-                      <td className="p-2 text-right">{total.count}</td>
-                      <td className="p-2 text-right">{yen(totalUnit)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            );
-          })()}
-        </section>
-      )}
+        );
+      })()}
 
       {/* ============ 部門別 実績・月末予測 ============ */}
       <section style={{ marginBottom: 16 }}>
