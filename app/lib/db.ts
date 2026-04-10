@@ -16,7 +16,10 @@ let schemaReady: Promise<void> | null = null;
 export function ensureSchema(): Promise<void> {
   if (!schemaReady) {
     schemaReady = (async () => {
-      await getSql()`
+      const sql = getSql();
+      const safe = async (q: Promise<unknown>) => { try { await q; } catch (e) { console.error("Schema error:", e); } };
+
+      await safe(sql`
         CREATE TABLE IF NOT EXISTS entries (
           area_id TEXT NOT NULL,
           entry_date DATE NOT NULL,
@@ -24,8 +27,8 @@ export function ensureSchema(): Promise<void> {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           PRIMARY KEY (area_id, entry_date)
         )
-      `;
-      await getSql()`
+      `);
+      await safe(sql`
         CREATE TABLE IF NOT EXISTS fixed_costs (
           area_id TEXT NOT NULL,
           year INT NOT NULL,
@@ -36,8 +39,8 @@ export function ensureSchema(): Promise<void> {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           PRIMARY KEY (area_id, year, month)
         )
-      `;
-      await getSql()`
+      `);
+      await safe(sql`
         CREATE TABLE IF NOT EXISTS targets (
           area_id TEXT NOT NULL,
           year INT NOT NULL,
@@ -51,32 +54,36 @@ export function ensureSchema(): Promise<void> {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           PRIMARY KEY (area_id, year, month)
         )
-      `;
+      `);
       // 旧スキーマからのマイグレーション(列が無ければ追加)
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_cpa INT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_conversion_rate NUMERIC NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_sales BIGINT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_count INT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_unit_price INT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_self_sales BIGINT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_self_profit BIGINT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_self_count INT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_new_sales BIGINT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_new_profit BIGINT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_new_count INT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_ad_cost BIGINT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_ad_rate NUMERIC NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_labor_rate NUMERIC NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_material_rate NUMERIC NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_vehicle_count INT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_call_count INT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_construction_rate NUMERIC NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_pass_rate NUMERIC NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_unit_price INT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_call_unit_price INT NOT NULL DEFAULT 0`;
-      await getSql()`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_rate NUMERIC NOT NULL DEFAULT 0`;
-      await getSql()`
+      const migrations = [
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_cpa INT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_conversion_rate NUMERIC NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_sales BIGINT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_count INT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_unit_price INT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_self_sales BIGINT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_self_profit BIGINT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_self_count INT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_new_sales BIGINT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_new_profit BIGINT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_new_count INT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_ad_cost BIGINT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_ad_rate NUMERIC NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_labor_rate NUMERIC NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_material_rate NUMERIC NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_vehicle_count INT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_call_count INT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_construction_rate NUMERIC NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_pass_rate NUMERIC NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_unit_price INT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_call_unit_price INT NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_rate NUMERIC NOT NULL DEFAULT 0`,
+      ];
+      for (const m of migrations) await safe(m);
+
+      await safe(sql`
         CREATE TABLE IF NOT EXISTS cashflow_entries (
           id BIGSERIAL PRIMARY KEY,
           area_id TEXT NOT NULL,
@@ -92,9 +99,10 @@ export function ensureSchema(): Promise<void> {
           notes TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
-      `;
-      await getSql()`CREATE INDEX IF NOT EXISTS idx_cf_area_ym ON cashflow_entries(area_id, year, month)`;
-      await getSql()`
+      `);
+      await safe(sql`CREATE INDEX IF NOT EXISTS idx_cf_area_ym ON cashflow_entries(area_id, year, month)`);
+
+      await safe(sql`
         CREATE TABLE IF NOT EXISTS monthly_summaries (
           id SERIAL PRIMARY KEY,
           area_id TEXT NOT NULL,
@@ -118,8 +126,9 @@ export function ensureSchema(): Promise<void> {
           created_at TIMESTAMPTZ DEFAULT NOW(),
           UNIQUE(area_id, year, month)
         )
-      `;
-      await getSql()`
+      `);
+
+      await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,
           user_id TEXT NOT NULL,
@@ -131,7 +140,7 @@ export function ensureSchema(): Promise<void> {
           ip_address TEXT,
           created_at TIMESTAMPTZ DEFAULT NOW()
         )
-      `;
+      `);
     })().catch((e) => {
       schemaReady = null;
       throw e;
