@@ -190,6 +190,7 @@ export function buildMetricRows(
     cpa?: number;
     callUnitPrice?: number;
     convRate?: number;
+    vehicleCount?: number;
   }
 ): { left: MetricRow[]; right: MetricRow[] } {
   const dayRatioPct = (actual: number, target: number): number | null => {
@@ -236,9 +237,10 @@ export function buildMetricRows(
 
   const leftRows: MetricRow[] = [
     (() => {
-      const pct = targets.targetVehicleCount > 0 ? Math.round(12 / targets.targetVehicleCount * 1000) / 10 : null;
+      const vc = overrides?.vehicleCount ?? 0;
+      const pct = targets.targetVehicleCount > 0 && vc > 0 ? Math.round(vc / targets.targetVehicleCount * 1000) / 10 : null;
       return {
-        name: "車両数", value: "12台", salesRatio: null,
+        name: "車両数", value: vc > 0 ? `${vc}台` : "\u2014", salesRatio: null,
         targetRatio: pct, status: statusStr(pct), statusLevel: statusLevelFromPct(pct), lineColor: "#6b7280",
         landingValue: 0, landingRate: null,
       };

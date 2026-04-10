@@ -346,6 +346,7 @@ export default function Dashboard() {
         cpa: Number(monthlySummary.cpa ?? 0),
         callUnitPrice: Number(monthlySummary.call_unit_price ?? 0),
         convRate: Number(monthlySummary.conv_rate ?? 0),
+        vehicleCount: Number(monthlySummary.vehicle_count ?? 0),
       } : undefined
     ),
     [displaySummary, aggregateEntries, targets, monthlySummary, isCurrentMonth]

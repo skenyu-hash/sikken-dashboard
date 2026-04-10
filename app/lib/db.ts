@@ -128,6 +128,8 @@ export function ensureSchema(): Promise<void> {
         )
       `);
 
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS vehicle_count INT NOT NULL DEFAULT 0`);
+
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,
