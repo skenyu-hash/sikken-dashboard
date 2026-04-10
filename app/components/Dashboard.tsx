@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   calculateDashboard, calculateBreakeven, calculateAchievement,
-  forecastWeekday, forecastRecent7,
+  forecastWeekday, forecastRecent7, getDaysInMonth,
   buildMetricRows, type MetricRow,
   type DashboardSummary,
   DailyEntry, FixedCosts, Targets, emptyTargets,
@@ -241,25 +241,32 @@ export default function Dashboard() {
     [aggregateEntries, viewYear, viewMonth, summaryToday]
   );
 
-  const displaySummary = monthlySummary ? {
-    ...summary,
-    totalRevenue: Number(monthlySummary.total_revenue ?? 0),
-    totalProfit: Number(monthlySummary.total_profit ?? 0),
-    totalCount: Number(monthlySummary.total_count ?? 0),
-    totalAdCost: Number(monthlySummary.ad_cost ?? 0),
-    companyUnitPrice: Number(monthlySummary.unit_price ?? 0),
-    constructionRate: 0,
-    help: {
-      revenue: Number(monthlySummary.help_revenue ?? 0),
-      profit: 0,
-      count: Number(monthlySummary.help_count ?? 0),
-      unitPrice: Number(monthlySummary.help_count) > 0
-        ? Math.round(Number(monthlySummary.help_revenue) / Number(monthlySummary.help_count))
-        : 0,
-    },
-    totalLaborCost: 0,
-    totalMaterialCost: 0,
-  } : summary;
+  const displaySummary = useMemo(() => {
+    if (!monthlySummary) return summary;
+    const dim = getDaysInMonth(viewYear, viewMonth);
+    return {
+      ...summary,
+      totalRevenue: Number(monthlySummary.total_revenue ?? 0),
+      totalProfit: Number(monthlySummary.total_profit ?? 0),
+      totalCount: Number(monthlySummary.total_count ?? 0),
+      totalAdCost: Number(monthlySummary.ad_cost ?? 0),
+      companyUnitPrice: Number(monthlySummary.unit_price ?? 0),
+      constructionRate: Number(monthlySummary.construction_rate ?? 0),
+      help: {
+        revenue: Number(monthlySummary.help_revenue ?? 0),
+        profit: 0,
+        count: Number(monthlySummary.help_count ?? 0),
+        unitPrice: Number(monthlySummary.help_count) > 0
+          ? Math.round(Number(monthlySummary.help_revenue) / Number(monthlySummary.help_count))
+          : 0,
+      },
+      totalLaborCost: 0,
+      totalMaterialCost: 0,
+      daysElapsed: dim,
+      daysInMonth: dim,
+      grossMargin: Number(monthlySummary.profit_rate ?? 0),
+    };
+  }, [summary, monthlySummary, viewYear, viewMonth]);
 
   // 前日比(当月かつ会社タブ or グループでも有効)
   const yesterdaySummary = useMemo(() => {
