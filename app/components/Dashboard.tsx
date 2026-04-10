@@ -282,8 +282,8 @@ export default function Dashboard() {
     [aggregateEntries, viewYear, viewMonth, summaryToday]
   );
   const metricRowsResult = useMemo(
-    () => buildMetricRows(summary, aggregateEntries, targets, summary.daysElapsed, summary.daysInMonth),
-    [summary, aggregateEntries, targets]
+    () => buildMetricRows(displaySummary, aggregateEntries, targets, displaySummary.daysElapsed, displaySummary.daysInMonth),
+    [displaySummary, aggregateEntries, targets]
   );
   // 異常アラート: 前日比 -20% 以上
   const profitDropRate = yesterdaySummary.forecastProfit > 0
