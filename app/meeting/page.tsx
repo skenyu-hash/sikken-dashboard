@@ -31,6 +31,7 @@ export default function MeetingPage() {
   const [period, setPeriod] = useState<Period>("10日");
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [targets, setTargets] = useState<Targets>(emptyTargets());
+  const [monthlySummary, setMonthlySummary] = useState<Record<string, unknown> | null>(null);
 
   const now = useMemo(() => new Date(), []);
   const year = now.getFullYear();
@@ -48,6 +49,9 @@ export default function MeetingPage() {
     fetch(`/api/targets?area=${areaId}&year=${year}&month=${month}`)
       .then((r) => (r.ok ? r.json() : { targets: emptyTargets() }))
       .then((j) => setTargets({ ...emptyTargets(), ...j.targets }));
+    fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${month}`)
+      .then((r) => (r.ok ? r.json() : { summary: null }))
+      .then((j) => setMonthlySummary(j.summary ?? null));
   }, [areaId, year, month]);
 
   const filteredEntries = useMemo(() => {
@@ -59,10 +63,39 @@ export default function MeetingPage() {
     });
   }, [entries, period]);
 
-  const summary = useMemo(
+  const rawSummary = useMemo(
     () => calculateDashboard(filteredEntries, year, month, new Date(year, month - 1, daysElapsed)),
     [filteredEntries, year, month, daysElapsed]
   );
+
+  const summary = useMemo(() => {
+    if (!monthlySummary || rawSummary.totalRevenue > 0) return rawSummary;
+    const ms = monthlySummary;
+    const dim = getDaysInMonth(year, month);
+    return {
+      ...rawSummary,
+      totalRevenue: Number(ms.total_revenue ?? 0),
+      totalProfit: Number(ms.total_profit ?? 0),
+      totalCount: Number(ms.total_count ?? 0),
+      totalAdCost: Number(ms.ad_cost ?? 0),
+      companyUnitPrice: Number(ms.unit_price ?? 0),
+      constructionRate: Number(ms.construction_rate ?? 0),
+      helpRate: 0,
+      help: {
+        revenue: Number(ms.help_revenue ?? 0),
+        profit: 0,
+        count: Number(ms.help_count ?? 0),
+        unitPrice: Number(ms.help_count) > 0
+          ? Math.round(Number(ms.help_revenue) / Number(ms.help_count))
+          : 0,
+      },
+      totalLaborCost: 0,
+      totalMaterialCost: 0,
+      daysElapsed: dim,
+      daysInMonth: dim,
+      grossMargin: Number(ms.profit_rate ?? 0),
+    };
+  }, [rawSummary, monthlySummary, year, month]);
 
   // ============ 共通計算 ============
   const forecastVal = (actual: number) =>
@@ -184,12 +217,21 @@ export default function MeetingPage() {
     },
   ];
 
-  const callCount = filteredEntries.reduce(
-    (s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0
-  );
-  const callUnitPrice = callCount > 0 ? Math.round(summary.totalAdCost / callCount) : 0;
-  const cpa = summary.totalCount > 0 ? Math.round(summary.totalAdCost / summary.totalCount) : 0;
-  const convRate = callCount > 0 ? (summary.totalCount / callCount) * 100 : 0;
+  const callCount = monthlySummary && rawSummary.totalRevenue === 0
+    ? Number(monthlySummary.call_count ?? 0)
+    : filteredEntries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
+  const acquisitionCount = monthlySummary && rawSummary.totalRevenue === 0
+    ? Number(monthlySummary.acquisition_count ?? 0)
+    : summary.totalCount;
+  const callUnitPrice = monthlySummary && rawSummary.totalRevenue === 0
+    ? Number(monthlySummary.call_unit_price ?? 0)
+    : (callCount > 0 ? Math.round(summary.totalAdCost / callCount) : 0);
+  const cpa = monthlySummary && rawSummary.totalRevenue === 0
+    ? Number(monthlySummary.cpa ?? 0)
+    : (acquisitionCount > 0 ? Math.round(summary.totalAdCost / acquisitionCount) : 0);
+  const convRate = monthlySummary && rawSummary.totalRevenue === 0
+    ? Number(monthlySummary.conv_rate ?? 0)
+    : (callCount > 0 ? (acquisitionCount / callCount) * 100 : 0);
 
   const section3Rows: MeetingRow[] = [
     {
