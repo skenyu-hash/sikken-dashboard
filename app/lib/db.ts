@@ -94,6 +94,31 @@ export function ensureSchema(): Promise<void> {
         )
       `;
       await getSql()`CREATE INDEX IF NOT EXISTS idx_cf_area_ym ON cashflow_entries(area_id, year, month)`;
+      await getSql()`
+        CREATE TABLE IF NOT EXISTS monthly_summaries (
+          id SERIAL PRIMARY KEY,
+          area_id TEXT NOT NULL,
+          year INT NOT NULL,
+          month INT NOT NULL,
+          total_revenue BIGINT NOT NULL DEFAULT 0,
+          total_profit BIGINT NOT NULL DEFAULT 0,
+          total_count INT NOT NULL DEFAULT 0,
+          unit_price INT NOT NULL DEFAULT 0,
+          ad_cost BIGINT NOT NULL DEFAULT 0,
+          ad_rate NUMERIC NOT NULL DEFAULT 0,
+          acquisition_count INT NOT NULL DEFAULT 0,
+          cpa INT NOT NULL DEFAULT 0,
+          call_count INT NOT NULL DEFAULT 0,
+          call_unit_price INT NOT NULL DEFAULT 0,
+          conv_rate NUMERIC NOT NULL DEFAULT 0,
+          profit_rate NUMERIC NOT NULL DEFAULT 0,
+          help_revenue BIGINT NOT NULL DEFAULT 0,
+          help_count INT NOT NULL DEFAULT 0,
+          help_unit_price INT NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE(area_id, year, month)
+        )
+      `;
     })().catch((e) => {
       schemaReady = null;
       throw e;

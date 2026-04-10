@@ -22,6 +22,7 @@ export function NavBar() {
     { href: "/breakeven", label: "損益分岐", show: role === "admin" || role === "manager" },
     { href: "/driver", label: "ドライバー", show: role === "admin" || role === "manager" },
     { href: "/cockpit", label: "CF", show: role === "admin" },
+    { href: "/import", label: "インポート", show: role === "admin" },
     { href: "/admin", label: "管理者", show: role === "admin" },
   ];
 
