@@ -64,8 +64,17 @@ function MetricRow({ label, actual, target, isEndPeriod, daysElapsed, daysInMont
           </span>
         ) : <span style={{ color: "#d1d5db", fontSize: 11 }}>未設定</span>}
       </td>
-      <td style={{ ...td, fontWeight: 700, color: gapColor }}>
-        {gap === null ? "\u2014" : `${gap >= 0 ? "+" : ""}${format(Math.abs(gap))}${gap < 0 ? "不足" : "超過"}`}
+      <td style={td}>
+        {gap === null ? "\u2014" : (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: gapColor, fontWeight: 700 }}>
+            <span>{gap >= 0 ? "+" : "\u2212"}{format(Math.abs(gap))}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, borderRadius: 3, padding: "1px 5px",
+              background: gapPositive ? "#d1fae5" : "#fee2e2",
+              color: gapPositive ? "#065f46" : "#991b1b" }}>
+              {gapPositive ? "超過" : "不足"}
+            </span>
+          </span>
+        )}
       </td>
       <td style={{ ...td, color: "#9ca3af" }}>
         {daily > 0 && !isRate ? format(daily) : "\u2014"}
@@ -259,46 +268,58 @@ export default function MeetingPage() {
           </SectionTable>
 
           {/* 部門別実績 */}
-          <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #d1fae5", overflow: "hidden" }}>
-            <div style={{ background: "#ecfdf5", padding: "7px 12px", borderBottom: "1px solid #d1fae5",
-              fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-              部門別実績
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+            <div style={{ background: "#ecfdf5", padding: "10px 14px", borderBottom: "1px solid #d1fae5" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>部門別実績</span>
             </div>
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "18%" }} /><col style={{ width: "20%" }} /><col style={{ width: "16%" }} />
+                <col style={{ width: "20%" }} /><col style={{ width: "13%" }} /><col style={{ width: "13%" }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: "#f8fdf8" }}>
-                  {["部門", "売上", ...(showLanding ? ["売上(予測)"] : []), "粗利", ...(showLanding ? ["粗利(予測)"] : []), "客単価", "件数", "粗利率"].map((h) => (
-                    <th key={h} style={{ padding: "6px 6px", fontSize: 9, fontWeight: 700, color: "#9ca3af",
-                      textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #f0faf0",
-                      textAlign: h === "部門" ? "left" : "right" }}>{h}</th>
+                  {["部門", "売上", "粗利", "客単価", "件数", "粗利率"].map((h, i) => (
+                    <th key={h} style={{ padding: "7px 10px", fontSize: 9, fontWeight: 700, color: "#6b7280",
+                      textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #d1fae5",
+                      textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {depts.map(({ name, color, d }) => {
-                  const margin = d.revenue > 0 ? ((d.profit / d.revenue) * 100).toFixed(1) : "0.0";
+                  const margin = d.revenue > 0 ? (d.profit / d.revenue * 100) : 0;
                   return (
-                    <tr key={name} style={{ borderBottom: "1px solid #f5faf5" }}>
-                      <td style={{ padding: "7px 6px", fontSize: 11, fontWeight: 700, borderLeft: `3px solid ${color}`, paddingLeft: 8 }}>{name}</td>
-                      <td style={{ padding: "7px 6px", fontSize: 11, textAlign: "right" }}>{yen(d.revenue)}</td>
-                      {showLanding && <td style={{ padding: "7px 6px", fontSize: 11, textAlign: "right", color: "#059669", fontWeight: 700 }}>{yen(Math.round(d.revenue * ratio))}</td>}
-                      <td style={{ padding: "7px 6px", fontSize: 11, textAlign: "right" }}>{yen(d.profit)}</td>
-                      {showLanding && <td style={{ padding: "7px 6px", fontSize: 11, textAlign: "right", color: "#059669", fontWeight: 700 }}>{yen(Math.round(d.profit * ratio))}</td>}
-                      <td style={{ padding: "7px 6px", fontSize: 11, textAlign: "right" }}>{yen(d.unitPrice)}</td>
-                      <td style={{ padding: "7px 6px", fontSize: 11, textAlign: "right" }}>{d.count}件</td>
-                      <td style={{ padding: "7px 6px", fontSize: 11, textAlign: "right" }}>{margin}%</td>
+                    <tr key={name} style={{ borderBottom: "1px solid #f0faf0" }}>
+                      <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, borderLeft: `3px solid ${color}`, color: "#111" }}>{name}</td>
+                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#111", fontWeight: 600 }}>
+                        {d.revenue > 0 ? yen(d.revenue) : <span style={{ color: "#d1d5db" }}>&yen;0</span>}
+                      </td>
+                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#059669", fontWeight: 600 }}>
+                        {d.profit > 0 ? yen(d.profit) : <span style={{ color: "#d1d5db" }}>&yen;0</span>}
+                      </td>
+                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>
+                        {d.unitPrice > 0 ? yen(d.unitPrice) : "\u2014"}
+                      </td>
+                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>{d.count}件</td>
+                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right",
+                        color: margin >= 25 ? "#059669" : margin >= 15 ? "#d97706" : "#dc2626" }}>
+                        {d.revenue > 0 ? `${margin.toFixed(1)}%` : "\u2014"}
+                      </td>
                     </tr>
                   );
                 })}
                 <tr style={{ background: "#f0fdf4" }}>
-                  <td style={{ padding: "7px 6px", fontSize: 11, fontWeight: 700, color: "#065f46", borderLeft: "3px solid #059669", paddingLeft: 8 }}>合計</td>
-                  <td style={{ padding: "7px 6px", fontSize: 11, fontWeight: 700, color: "#065f46", textAlign: "right" }}>{yen(deptTotal.revenue)}</td>
-                  {showLanding && <td style={{ padding: "7px 6px", fontSize: 11, fontWeight: 700, color: "#059669", textAlign: "right" }}>{yen(Math.round(deptTotal.revenue * ratio))}</td>}
-                  <td style={{ padding: "7px 6px", fontSize: 11, fontWeight: 700, color: "#065f46", textAlign: "right" }}>{yen(deptTotal.profit)}</td>
-                  {showLanding && <td style={{ padding: "7px 6px", fontSize: 11, fontWeight: 700, color: "#059669", textAlign: "right" }}>{yen(Math.round(deptTotal.profit * ratio))}</td>}
-                  <td style={{ padding: "7px 6px", fontSize: 11, fontWeight: 700, textAlign: "right" }}>{yen(deptTotal.count > 0 ? Math.round(deptTotal.revenue / deptTotal.count) : 0)}</td>
-                  <td style={{ padding: "7px 6px", fontSize: 11, fontWeight: 700, textAlign: "right" }}>{deptTotal.count}件</td>
-                  <td style={{ padding: "7px 6px", fontSize: 11, fontWeight: 700, textAlign: "right" }}>{deptTotal.revenue > 0 ? ((deptTotal.profit / deptTotal.revenue) * 100).toFixed(1) : "0.0"}%</td>
+                  <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, borderLeft: "3px solid #059669", color: "#065f46" }}>合計</td>
+                  <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#065f46" }}>{yen(displaySummary.totalRevenue)}</td>
+                  <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#059669" }}>{yen(displaySummary.totalProfit)}</td>
+                  <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{yen(displaySummary.companyUnitPrice)}</td>
+                  <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{displaySummary.totalCount}件</td>
+                  <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right",
+                    color: displaySummary.totalRevenue > 0
+                      ? (displaySummary.totalProfit / displaySummary.totalRevenue * 100 >= 25 ? "#059669" : "#d97706") : "#d1d5db" }}>
+                    {displaySummary.totalRevenue > 0 ? `${(displaySummary.totalProfit / displaySummary.totalRevenue * 100).toFixed(1)}%` : "\u2014"}
+                  </td>
                 </tr>
               </tbody>
             </table>
