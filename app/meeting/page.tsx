@@ -48,11 +48,11 @@ function MetricRow({ label, actual, target, isEndPeriod, daysElapsed, daysInMont
   const gapPositive = invertGap ? (gap !== null && gap <= 0) : (gap !== null && gap >= 0);
   const gapColor = gap === null ? "#9ca3af" : gapPositive ? "#059669" : "#dc2626";
 
-  const td: React.CSSProperties = { padding: "9px 12px", fontSize: 12, textAlign: "right", color: "#374151", borderBottom: "1px solid #f0faf0" };
+  const td: React.CSSProperties = { padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151", borderBottom: "1px solid #f0faf0" };
 
   return (
     <tr>
-      <td style={{ ...td, textAlign: "left", fontWeight: 600, fontSize: 13 }}>{label}</td>
+      <td style={{ ...td, textAlign: "left", fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</td>
       <td style={{ ...td, fontWeight: 700, color: "#111" }}>{format(actual)}</td>
       <td style={{ ...td, color: "#059669", fontWeight: 700 }}>
         {isEndPeriod || isRate ? "\u2014" : format(landing)}
@@ -64,11 +64,13 @@ function MetricRow({ label, actual, target, isEndPeriod, daysElapsed, daysInMont
           </span>
         ) : <span style={{ color: "#d1d5db", fontSize: 11 }}>未設定</span>}
       </td>
-      <td style={td}>
-        {gap === null ? "\u2014" : (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: gapColor, fontWeight: 700 }}>
-            <span>{gap >= 0 ? "+" : "\u2212"}{format(Math.abs(gap))}</span>
-            <span style={{ fontSize: 10, fontWeight: 600, borderRadius: 3, padding: "1px 5px",
+      <td style={{ ...td, whiteSpace: "nowrap" }}>
+        {gap === null ? <span style={{ color: "#d1d5db", fontSize: 11 }}>{"\u2014"}</span> : (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: gapPositive ? "#059669" : "#dc2626" }}>
+              {gap >= 0 ? "+" : "\u2212"}{format(Math.abs(gap))}
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 600, borderRadius: 3, padding: "1px 5px", flexShrink: 0,
               background: gapPositive ? "#d1fae5" : "#fee2e2",
               color: gapPositive ? "#065f46" : "#991b1b" }}>
               {gapPositive ? "超過" : "不足"}
@@ -87,24 +89,24 @@ function MetricRow({ label, actual, target, isEndPeriod, daysElapsed, daysInMont
 function SectionTable({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #d1fae5", overflow: "hidden" }}>
-      <div style={{ background: "#ecfdf5", padding: "7px 12px", borderBottom: "1px solid #d1fae5",
+      <div style={{ background: "#ecfdf5", padding: "8px 14px", borderBottom: "1px solid #d1fae5",
         fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>
         {title}
       </div>
       <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <colgroup>
-          <col style={{ width: "20%" }} />
-          <col style={{ width: "15%" }} />
-          <col style={{ width: "15%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "17%" }} />
           <col style={{ width: "14%" }} />
-          <col style={{ width: "18%" }} />
-          <col style={{ width: "18%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "24%" }} />
+          <col style={{ width: "15%" }} />
         </colgroup>
         <thead>
           <tr style={{ background: "#ecfdf5" }}>
             {["指標", "実績", "着地予測", "見込み", "目標差", "1日の目安"].map((h, i) => (
               <th key={h} style={{
-                padding: "8px 12px", fontSize: 10, fontWeight: 700, color: "#6b7280",
+                padding: "8px 10px", fontSize: 10, fontWeight: 700, color: "#6b7280",
                 textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #d1fae5",
                 textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap",
               }}>{h}</th>
