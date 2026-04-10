@@ -289,8 +289,18 @@ export default function Dashboard() {
     [aggregateEntries, viewYear, viewMonth, summaryToday]
   );
   const metricRowsResult = useMemo(
-    () => buildMetricRows(displaySummary, aggregateEntries, targets, displaySummary.daysElapsed, displaySummary.daysInMonth),
-    [displaySummary, aggregateEntries, targets]
+    () => buildMetricRows(
+      displaySummary, aggregateEntries, targets,
+      displaySummary.daysElapsed, displaySummary.daysInMonth,
+      monthlySummary ? {
+        callCount: Number(monthlySummary.call_count ?? 0),
+        acquisitionCount: Number(monthlySummary.acquisition_count ?? 0),
+        cpa: Number(monthlySummary.cpa ?? 0),
+        callUnitPrice: Number(monthlySummary.call_unit_price ?? 0),
+        convRate: Number(monthlySummary.conv_rate ?? 0),
+      } : undefined
+    ),
+    [displaySummary, aggregateEntries, targets, monthlySummary]
   );
   // 異常アラート: 前日比 -20% 以上
   const profitDropRate = yesterdaySummary.forecastProfit > 0

@@ -181,7 +181,14 @@ export function buildMetricRows(
   entries: DailyEntry[],
   targets: Targets,
   daysElapsed: number,
-  daysInMonth: number
+  daysInMonth: number,
+  overrides?: {
+    callCount?: number;
+    acquisitionCount?: number;
+    cpa?: number;
+    callUnitPrice?: number;
+    convRate?: number;
+  }
 ): { left: MetricRow[]; right: MetricRow[] } {
   const dayRatioPct = (actual: number, target: number): number | null => {
     if (target <= 0 || daysElapsed <= 0) return null;
@@ -203,13 +210,16 @@ export function buildMetricRows(
     return "#991b1b";
   };
 
-  const callCount = entries.reduce(
-    (s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0
-  );
-  const cpa = summary.totalCount > 0 ? Math.round(summary.totalAdCost / summary.totalCount) : 0;
-  const callUnitPrice = callCount > 0 ? Math.round(summary.totalAdCost / callCount) : 0;
+  const callCount = overrides?.callCount
+    ?? entries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
+  const acquisitionCount = overrides?.acquisitionCount ?? summary.totalCount;
+  const cpa = overrides?.cpa
+    ?? (acquisitionCount > 0 ? Math.round(summary.totalAdCost / acquisitionCount) : 0);
+  const callUnitPrice = overrides?.callUnitPrice
+    ?? (callCount > 0 ? Math.round(summary.totalAdCost / callCount) : 0);
   const helpRate = summary.totalCount > 0 ? (summary.help.count / summary.totalCount) * 100 : 0;
-  const convRate = callCount > 0 ? (summary.totalCount / callCount) * 100 : 0;
+  const convRate = overrides?.convRate
+    ?? (callCount > 0 ? (acquisitionCount / callCount) * 100 : 0);
   const constructionCount = Math.round(summary.totalCount * summary.constructionRate / 100);
   const outsourceCost = entries.reduce((s, e) => s + (e.outsourceCost ?? 0), 0);
 
