@@ -31,6 +31,7 @@ export type DailyEntry = {
   laborCost?: number;       // 職人費(全体)
   materialCost?: number;    // 材料費(全体)
   outsourceCost?: number;   // 営業外注費
+  vehicleCount?: number;    // 車両数
 };
 
 export type DepartmentSummary = {
@@ -64,6 +65,7 @@ export type DashboardSummary = {
   totalLaborCost: number;
   totalMaterialCost: number;
   grossMargin: number;      // 粗利率(%)
+  vehicleCount: number;     // 車両数
 };
 
 export function getDaysInMonth(year: number, month: number): number {
@@ -158,6 +160,7 @@ export function calculateDashboard(
     insourceCount, outsourceCount, insourceRate, outsourceRate,
     reviewCount, totalAdCost, totalLaborCost, totalMaterialCost,
     grossMargin,
+    vehicleCount: entries.length > 0 ? Math.max(...entries.map(e => e.vehicleCount ?? 0), 0) : 0,
   };
 }
 
@@ -237,7 +240,7 @@ export function buildMetricRows(
 
   const leftRows: MetricRow[] = [
     (() => {
-      const vc = overrides?.vehicleCount ?? 0;
+      const vc = overrides?.vehicleCount ?? summary.vehicleCount;
       const pct = targets.targetVehicleCount > 0 && vc > 0 ? Math.round(vc / targets.targetVehicleCount * 1000) / 10 : null;
       return {
         name: "車両数", value: vc > 0 ? `${vc}台` : "\u2014", salesRatio: null,
@@ -430,6 +433,7 @@ export function emptyEntry(date: string): DailyEntry {
     insourceCount: 0, outsourceCount: 0, reviewCount: 0,
     helpRevenue: 0, helpCount: 0,
     adCost: 0, laborCost: 0, materialCost: 0, outsourceCost: 0,
+    vehicleCount: 0,
   };
 }
 

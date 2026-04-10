@@ -275,6 +275,7 @@ export default function Dashboard() {
       totalCount: Number(monthlySummary.total_count ?? 0),
       totalAdCost: Number(monthlySummary.ad_cost ?? 0),
       companyUnitPrice: Number(monthlySummary.unit_price ?? 0),
+      vehicleCount: Number(monthlySummary.vehicle_count ?? 0),
       constructionRate: Number(monthlySummary.construction_rate ?? 0),
       help: {
         revenue: Number(monthlySummary.help_revenue ?? 0),
