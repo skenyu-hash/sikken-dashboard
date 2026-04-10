@@ -169,6 +169,8 @@ export default function Dashboard() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [inputOpen, setInputOpen] = useState(false);
   const [monthlySummary, setMonthlySummary] = useState<Record<string, unknown> | null>(null);
+  const [prevMonthlySummary, setPrevMonthlySummary] = useState<Record<string, unknown> | null>(null);
+  const [prevEntries, setPrevEntries] = useState<DailyEntry[]>([]);
 
   // ============ データ読込: エリアタブ ============
   useEffect(() => {
@@ -224,6 +226,21 @@ export default function Dashboard() {
     }
   }, [entries, activeTab, viewYear, viewMonth, isGroup]);
 
+  // ============ 前月データ取得 ============
+  const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1;
+  const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear;
+
+  useEffect(() => {
+    if (!isGroup && activeTab) {
+      fetch(`/api/monthly-summary?area=${activeTab}&year=${prevYear}&month=${prevMonth}`)
+        .then((r) => r.ok ? r.json() : { summary: null })
+        .then((j) => setPrevMonthlySummary(j.summary ?? null));
+      fetch(`/api/entries?area=${activeTab}&year=${prevYear}&month=${prevMonth}`)
+        .then((r) => r.ok ? r.json() : { entries: [] })
+        .then((j) => setPrevEntries(j.entries ?? []));
+    }
+  }, [activeTab, prevYear, prevMonth, isGroup]);
+
   // ============ 集計 ============
   const summaryToday = useMemo(
     () => (isCurrentMonth ? now : new Date(viewYear, viewMonth, 0)),
@@ -267,6 +284,30 @@ export default function Dashboard() {
       grossMargin: Number(monthlySummary.profit_rate ?? 0),
     };
   }, [summary, monthlySummary, viewYear, viewMonth]);
+
+  // ============ 前月比 ============
+  const prevSummaryCalc = useMemo(() => {
+    if (prevMonthlySummary) {
+      return {
+        totalRevenue: Number(prevMonthlySummary.total_revenue ?? 0),
+        totalProfit: Number(prevMonthlySummary.total_profit ?? 0),
+        totalAdCost: Number(prevMonthlySummary.ad_cost ?? 0),
+        totalCount: Number(prevMonthlySummary.total_count ?? 0),
+      };
+    }
+    const s = calculateDashboard(prevEntries, prevYear, prevMonth,
+      new Date(prevYear, prevMonth - 1, getDaysInMonth(prevYear, prevMonth)));
+    return { totalRevenue: s.totalRevenue, totalProfit: s.totalProfit, totalAdCost: s.totalAdCost, totalCount: s.totalCount };
+  }, [prevMonthlySummary, prevEntries, prevYear, prevMonth]);
+
+  const mom = (current: number, prev: number): number | null => {
+    if (prev <= 0) return null;
+    return Math.round((current - prev) / prev * 1000) / 10;
+  };
+  const momRevenue = mom(displaySummary.totalRevenue, prevSummaryCalc.totalRevenue);
+  const momProfit = mom(displaySummary.totalProfit, prevSummaryCalc.totalProfit);
+  const momAdCost = mom(displaySummary.totalAdCost, prevSummaryCalc.totalAdCost);
+  const momCount = mom(displaySummary.totalCount, prevSummaryCalc.totalCount);
 
   // 前日比(当月かつ会社タブ or グループでも有効)
   const yesterdaySummary = useMemo(() => {
@@ -537,25 +578,27 @@ export default function Dashboard() {
                 label: "売上", val: yen(displaySummary.totalRevenue),
                 targetRatio: targets.targetSales > 0 ? Math.round(displaySummary.totalRevenue / targets.targetSales * 1000) / 10 : null,
                 dayRatio: targets.targetSales > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalRevenue / daysElapsed * daysInMonth / targets.targetSales * 1000) / 10 : null,
-                salesRatio: null,
+                salesRatio: null, momVal: momRevenue, momInvert: false,
               },
               {
                 label: "粗利", val: yen(displaySummary.totalProfit),
                 targetRatio: targets.targetProfit > 0 ? Math.round(displaySummary.totalProfit / targets.targetProfit * 1000) / 10 : null,
                 dayRatio: targets.targetProfit > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalProfit / daysElapsed * daysInMonth / targets.targetProfit * 1000) / 10 : null,
                 salesRatio: displaySummary.totalRevenue > 0 ? `${Math.round(displaySummary.totalProfit / displaySummary.totalRevenue * 1000) / 10}%` : null,
+                momVal: momProfit, momInvert: false,
               },
               {
                 label: "広告費", val: yen(displaySummary.totalAdCost),
                 targetRatio: targets.targetAdCost > 0 ? Math.round(displaySummary.totalAdCost / targets.targetAdCost * 1000) / 10 : null,
                 dayRatio: targets.targetAdCost > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalAdCost / daysElapsed * daysInMonth / targets.targetAdCost * 1000) / 10 : null,
                 salesRatio: displaySummary.totalRevenue > 0 ? `${Math.round(displaySummary.totalAdCost / displaySummary.totalRevenue * 1000) / 10}%` : null,
+                momVal: momAdCost, momInvert: true,
               },
               {
                 label: "合計件数", val: `${displaySummary.totalCount}件`,
                 targetRatio: targets.targetCount > 0 ? Math.round(displaySummary.totalCount / targets.targetCount * 1000) / 10 : null,
                 dayRatio: targets.targetCount > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalCount / daysElapsed * daysInMonth / targets.targetCount * 1000) / 10 : null,
-                salesRatio: null,
+                salesRatio: null, momVal: momCount, momInvert: false,
               },
             ];
             return (
@@ -582,6 +625,12 @@ export default function Dashboard() {
                       {kpi.salesRatio && (
                         <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)" }}>売上比 {kpi.salesRatio}</span>
                       )}
+                    </div>
+                    <div style={{ fontSize: 10, fontWeight: 700, marginTop: 3,
+                      color: kpi.momVal === null ? "rgba(255,255,255,0.4)"
+                        : (kpi.momInvert ? kpi.momVal <= 0 : kpi.momVal >= 0) ? "#86efac" : "#fca5a5" }}>
+                      {kpi.momVal === null ? "前月比 —"
+                        : `前月比 ${kpi.momVal >= 0 ? "+" : ""}${kpi.momVal}%`}
                     </div>
                   </div>
                 ))}
