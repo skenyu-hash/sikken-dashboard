@@ -163,7 +163,7 @@ export default function Dashboard() {
   const isCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
   const isGroup = activeTab === GROUP_TAB;
   const isAreaEditable = !lockedAreaId || lockedAreaId === activeTab;
-  const canEdit = isCurrentMonth && !isGroup && isAreaEditable;
+  const canEdit = !isGroup && isAreaEditable;
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -450,11 +450,6 @@ export default function Dashboard() {
                     borderRadius: 6, padding: "3px 10px",
                     cursor: isCurrentMonth ? "default" : "pointer", fontSize: 14,
                   }}>▶</button>
-                {!isCurrentMonth && (
-                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", padding: "1px 6px", background: "rgba(255,255,255,0.15)", borderRadius: 4 }}>
-                    読み取り専用
-                  </span>
-                )}
               </div>
               <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>
                 {headerLabel}{!isGroup && "エリア"}
@@ -538,7 +533,7 @@ export default function Dashboard() {
       )}
 
       {/* 1日あたりの目安 */}
-      {!isGroup && isCurrentMonth && targets.targetSales > 0 && (() => {
+      {!isGroup && targets.targetSales > 0 && (() => {
         const remain = summary.daysInMonth - summary.daysElapsed;
         const cards = [
           { label: "全体売上",
@@ -752,7 +747,7 @@ export default function Dashboard() {
       </section>
 
       {/* ============ 入力フォーム (折りたたみ式) ============ */}
-      {canEdit && !isManager && isCurrentMonth && !isGroup && (
+      {canEdit && !isManager && !isGroup && (
         <section style={{ marginBottom: 16 }}>
           <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
             <div
