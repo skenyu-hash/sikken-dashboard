@@ -274,6 +274,36 @@ export default function Dashboard() {
   );
 
   const displaySummary = useMemo(() => {
+    // グループ全体: 全エリアのmonthlySummariesから集計（エントリがない過去月対応）
+    if (isGroup) {
+      const allEntries = Object.values(groupEntriesByArea).flat();
+      const hasEntries = allEntries.length > 0;
+      const summaries = Object.values(groupMonthlySummaries).filter(Boolean) as Record<string, unknown>[];
+      if (!hasEntries && summaries.length > 0) {
+        const dim = getDaysInMonth(viewYear, viewMonth);
+        const totalRevenue = summaries.reduce((s, ms) => s + Number(ms.total_revenue ?? 0), 0);
+        const totalProfit = summaries.reduce((s, ms) => s + Number(ms.total_profit ?? 0), 0);
+        const totalCount = summaries.reduce((s, ms) => s + Number(ms.total_count ?? 0), 0);
+        const totalAdCost = summaries.reduce((s, ms) => s + Number(ms.ad_cost ?? 0), 0);
+        const helpRevenue = summaries.reduce((s, ms) => s + Number(ms.help_revenue ?? 0), 0);
+        const helpCount = summaries.reduce((s, ms) => s + Number(ms.help_count ?? 0), 0);
+        return {
+          ...summary,
+          totalRevenue, totalProfit, totalCount, totalAdCost,
+          companyUnitPrice: totalCount > 0 ? Math.round(totalRevenue / totalCount) : 0,
+          vehicleCount: summaries.reduce((s, ms) => s + Number(ms.vehicle_count ?? 0), 0),
+          constructionRate: 0,
+          help: {
+            revenue: helpRevenue, profit: 0, count: helpCount,
+            unitPrice: helpCount > 0 ? Math.round(helpRevenue / helpCount) : 0,
+          },
+          totalLaborCost: 0, totalMaterialCost: 0,
+          daysElapsed: dim, daysInMonth: dim,
+          grossMargin: totalRevenue > 0 ? Math.round(totalProfit / totalRevenue * 1000) / 10 : 0,
+        };
+      }
+      return summary;
+    }
     if (!monthlySummary) return summary;
     const dim = getDaysInMonth(viewYear, viewMonth);
     return {
@@ -299,7 +329,7 @@ export default function Dashboard() {
       daysInMonth: dim,
       grossMargin: Number(monthlySummary.profit_rate ?? 0),
     };
-  }, [summary, monthlySummary, viewYear, viewMonth]);
+  }, [summary, monthlySummary, viewYear, viewMonth, isGroup, groupEntriesByArea, groupMonthlySummaries]);
 
   // ============ 前月比 ============
   const prevSummaryCalc = useMemo(() => {
@@ -576,17 +606,18 @@ export default function Dashboard() {
                 {headerLabel}{!isGroup && "エリア"}
               </h1>
               <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
-                {viewYear}年{viewMonth}月 / {isCurrentMonth ? now.getDate() : displaySummary.daysInMonth}日時点 ｜ 月末着地予測 {yen(
-                  isCurrentMonth && now.getDate() > 0
+                {viewYear}年{viewMonth}月 / {isCurrentMonth ? now.getDate() : displaySummary.daysInMonth}日時点 ｜ 月末着地予測 {(() => {
+                  const forecastRevenue = isCurrentMonth && now.getDate() > 0
                     ? Math.round(displaySummary.totalRevenue / now.getDate() * displaySummary.daysInMonth)
-                    : displaySummary.totalRevenue
-                )} ｜ 達成率{" "}
+                    : displaySummary.totalRevenue;
+                  return forecastRevenue > 0 ? yen(forecastRevenue) : "¥0";
+                })()} ｜ 達成率{" "}
                 <strong style={{ color: "#86efac" }}>
                   {targets.targetSales > 0 ? (
                     isCurrentMonth && now.getDate() > 0
                       ? Math.round(displaySummary.totalRevenue / now.getDate() * displaySummary.daysInMonth / targets.targetSales * 100)
                       : Math.round(displaySummary.totalRevenue / Math.max(targets.targetSales, 1) * 100)
-                  ) : "\u2014"}%
+                  ) + "%" : "未設定"}
                 </strong>
                 {monthlySummary && (
                   <span style={{
