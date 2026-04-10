@@ -133,6 +133,12 @@ export async function ensureAuthSchema(): Promise<void> {
   await getSql()`CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC)`;
   await getSql()`CREATE INDEX IF NOT EXISTS idx_audit_area ON audit_logs(area_id)`;
 
+  // 既存テーブルへのカラム追加（テーブルが先に作られていた場合）
+  try { await getSql()`ALTER TABLE users ADD COLUMN IF NOT EXISTS area_id TEXT`; } catch { /* ignore */ }
+  try { await getSql()`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`; } catch { /* ignore */ }
+  try { await getSql()`ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_attempts INT NOT NULL DEFAULT 0`; } catch { /* ignore */ }
+  try { await getSql()`ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ`; } catch { /* ignore */ }
+
   // roleのCHECK制約を更新（staff追加）
   try {
     await getSql()`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`;
