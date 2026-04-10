@@ -168,6 +168,7 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [inputOpen, setInputOpen] = useState(false);
+  const [monthlySummary, setMonthlySummary] = useState<Record<string, unknown> | null>(null);
 
   // ============ データ読込: エリアタブ ============
   useEffect(() => {
@@ -212,6 +213,17 @@ export default function Dashboard() {
     };
   }, [isGroup, viewYear, viewMonth]);
 
+  // ============ 過去月サマリー取得 ============
+  useEffect(() => {
+    if (entries.length === 0 && !isGroup && activeTab) {
+      fetch(`/api/monthly-summary?area=${activeTab}&year=${viewYear}&month=${viewMonth}`)
+        .then((r) => r.ok ? r.json() : { summary: null })
+        .then((j) => setMonthlySummary(j.summary ?? null));
+    } else {
+      setMonthlySummary(null);
+    }
+  }, [entries, activeTab, viewYear, viewMonth, isGroup]);
+
   // ============ 集計 ============
   const summaryToday = useMemo(
     () => (isCurrentMonth ? now : new Date(viewYear, viewMonth, 0)),
@@ -228,6 +240,26 @@ export default function Dashboard() {
     () => calculateDashboard(aggregateEntries, viewYear, viewMonth, summaryToday),
     [aggregateEntries, viewYear, viewMonth, summaryToday]
   );
+
+  const displaySummary = monthlySummary ? {
+    ...summary,
+    totalRevenue: Number(monthlySummary.total_revenue ?? 0),
+    totalProfit: Number(monthlySummary.total_profit ?? 0),
+    totalCount: Number(monthlySummary.total_count ?? 0),
+    totalAdCost: Number(monthlySummary.ad_cost ?? 0),
+    companyUnitPrice: Number(monthlySummary.unit_price ?? 0),
+    constructionRate: 0,
+    help: {
+      revenue: Number(monthlySummary.help_revenue ?? 0),
+      profit: 0,
+      count: Number(monthlySummary.help_count ?? 0),
+      unitPrice: Number(monthlySummary.help_count) > 0
+        ? Math.round(Number(monthlySummary.help_revenue) / Number(monthlySummary.help_count))
+        : 0,
+    },
+    totalLaborCost: 0,
+    totalMaterialCost: 0,
+  } : summary;
 
   // 前日比(当月かつ会社タブ or グループでも有効)
   const yesterdaySummary = useMemo(() => {
@@ -455,49 +487,57 @@ export default function Dashboard() {
                 {headerLabel}{!isGroup && "エリア"}
               </h1>
               <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
-                {viewYear}年{viewMonth}月 / {summary.daysElapsed}日時点 ｜ 月末着地予測 {yen(isCurrentMonth ? summary.forecastProfit : summary.totalProfit)} ｜ 達成率{" "}
+                {viewYear}年{viewMonth}月 / {displaySummary.daysElapsed}日時点 ｜ 月末着地予測 {yen(isCurrentMonth ? displaySummary.forecastProfit : displaySummary.totalProfit)} ｜ 達成率{" "}
                 <strong style={{ color: "#86efac" }}>
-                  {targets.targetProfit > 0 ? (summary.totalProfit / targets.targetProfit * 100).toFixed(1) : "—"}%
+                  {targets.targetProfit > 0 ? (displaySummary.totalProfit / targets.targetProfit * 100).toFixed(1) : "—"}%
                 </strong>
+                {monthlySummary && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,0.2)",
+                    color: "#fff", borderRadius: 4, padding: "2px 8px", marginLeft: 8,
+                  }}>
+                    過去データ
+                  </span>
+                )}
               </p>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)" }}>残り</div>
               <div style={{ fontSize: 38, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
-                {summary.daysInMonth - summary.daysElapsed}日
+                {displaySummary.daysInMonth - displaySummary.daysElapsed}日
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>
-                経過 {summary.daysElapsed} / {summary.daysInMonth}日
+                経過 {displaySummary.daysElapsed} / {displaySummary.daysInMonth}日
               </div>
             </div>
           </div>
 
           {/* KPIストリップ */}
           {!isGroup && (() => {
-            const { daysElapsed, daysInMonth } = summary;
+            const { daysElapsed, daysInMonth } = displaySummary;
             const kpis = [
               {
-                label: "売上", val: yen(summary.totalRevenue),
-                targetRatio: targets.targetSales > 0 ? Math.round(summary.totalRevenue / targets.targetSales * 1000) / 10 : null,
-                dayRatio: targets.targetSales > 0 && daysElapsed > 0 ? Math.round(summary.totalRevenue / daysElapsed * daysInMonth / targets.targetSales * 1000) / 10 : null,
+                label: "売上", val: yen(displaySummary.totalRevenue),
+                targetRatio: targets.targetSales > 0 ? Math.round(displaySummary.totalRevenue / targets.targetSales * 1000) / 10 : null,
+                dayRatio: targets.targetSales > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalRevenue / daysElapsed * daysInMonth / targets.targetSales * 1000) / 10 : null,
                 salesRatio: null,
               },
               {
-                label: "粗利", val: yen(summary.totalProfit),
-                targetRatio: targets.targetProfit > 0 ? Math.round(summary.totalProfit / targets.targetProfit * 1000) / 10 : null,
-                dayRatio: targets.targetProfit > 0 && daysElapsed > 0 ? Math.round(summary.totalProfit / daysElapsed * daysInMonth / targets.targetProfit * 1000) / 10 : null,
-                salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalProfit / summary.totalRevenue * 1000) / 10}%` : null,
+                label: "粗利", val: yen(displaySummary.totalProfit),
+                targetRatio: targets.targetProfit > 0 ? Math.round(displaySummary.totalProfit / targets.targetProfit * 1000) / 10 : null,
+                dayRatio: targets.targetProfit > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalProfit / daysElapsed * daysInMonth / targets.targetProfit * 1000) / 10 : null,
+                salesRatio: displaySummary.totalRevenue > 0 ? `${Math.round(displaySummary.totalProfit / displaySummary.totalRevenue * 1000) / 10}%` : null,
               },
               {
-                label: "広告費", val: yen(summary.totalAdCost),
-                targetRatio: targets.targetAdCost > 0 ? Math.round(summary.totalAdCost / targets.targetAdCost * 1000) / 10 : null,
-                dayRatio: targets.targetAdCost > 0 && daysElapsed > 0 ? Math.round(summary.totalAdCost / daysElapsed * daysInMonth / targets.targetAdCost * 1000) / 10 : null,
-                salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalAdCost / summary.totalRevenue * 1000) / 10}%` : null,
+                label: "広告費", val: yen(displaySummary.totalAdCost),
+                targetRatio: targets.targetAdCost > 0 ? Math.round(displaySummary.totalAdCost / targets.targetAdCost * 1000) / 10 : null,
+                dayRatio: targets.targetAdCost > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalAdCost / daysElapsed * daysInMonth / targets.targetAdCost * 1000) / 10 : null,
+                salesRatio: displaySummary.totalRevenue > 0 ? `${Math.round(displaySummary.totalAdCost / displaySummary.totalRevenue * 1000) / 10}%` : null,
               },
               {
-                label: "合計件数", val: `${summary.totalCount}件`,
-                targetRatio: targets.targetCount > 0 ? Math.round(summary.totalCount / targets.targetCount * 1000) / 10 : null,
-                dayRatio: targets.targetCount > 0 && daysElapsed > 0 ? Math.round(summary.totalCount / daysElapsed * daysInMonth / targets.targetCount * 1000) / 10 : null,
+                label: "合計件数", val: `${displaySummary.totalCount}件`,
+                targetRatio: targets.targetCount > 0 ? Math.round(displaySummary.totalCount / targets.targetCount * 1000) / 10 : null,
+                dayRatio: targets.targetCount > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalCount / daysElapsed * daysInMonth / targets.targetCount * 1000) / 10 : null,
                 salesRatio: null,
               },
             ];
@@ -544,7 +584,7 @@ export default function Dashboard() {
           padding: "10px 14px", fontSize: 12, fontWeight: 700,
         }}>
           🚨 利益予測が前日比 {profitDropRate.toFixed(1)}% 急落しています
-          {" "}（前日 {yen(yesterdaySummary.forecastProfit)} → 現在 {yen(summary.forecastProfit)}, 差 {diff >= 0 ? "+" : ""}{yen(diff)}）
+          {" "}（前日 {yen(yesterdaySummary.forecastProfit)} → 現在 {yen(displaySummary.forecastProfit)}, 差 {diff >= 0 ? "+" : ""}{yen(diff)}）
           {" "}残追加見積必要 {!isGroup && breakeven.fixedTotal > 0 && breakeven.remainingCount > 0 && `あと ${breakeven.remainingCount} 件`}
           {!isGroup && targets.targetCount > 0 && achievement.remainingCount > 0 && ` / 目標達成まで ${achievement.remainingCount} 件`}
           {weekdayForecast.forecastProfit + recent7Forecast.forecastProfit > 0 && ""}
@@ -553,32 +593,32 @@ export default function Dashboard() {
 
       {/* 1日あたりの目安 */}
       {!isGroup && targets.targetSales > 0 && (() => {
-        const remain = summary.daysInMonth - summary.daysElapsed;
+        const remain = displaySummary.daysInMonth - displaySummary.daysElapsed;
         const cards = [
           { label: "全体売上",
-            val: remain > 0 ? yen(Math.round((targets.targetSales - summary.totalRevenue) / remain)) + "/日" : "—",
-            sub: `残り ${yen(Math.max(0, targets.targetSales - summary.totalRevenue))}`,
-            type: summary.totalRevenue / Math.max(1, summary.daysElapsed) * summary.daysInMonth >= targets.targetSales * 0.9 ? "g" : "y" },
+            val: remain > 0 ? yen(Math.round((targets.targetSales - displaySummary.totalRevenue) / remain)) + "/日" : "—",
+            sub: `残り ${yen(Math.max(0, targets.targetSales - displaySummary.totalRevenue))}`,
+            type: displaySummary.totalRevenue / Math.max(1, displaySummary.daysElapsed) * displaySummary.daysInMonth >= targets.targetSales * 0.9 ? "g" : "y" },
           { label: "全体粗利",
-            val: remain > 0 ? yen(Math.round((targets.targetProfit - summary.totalProfit) / remain)) + "/日" : "—",
-            sub: `残り ${yen(Math.max(0, targets.targetProfit - summary.totalProfit))}`,
-            type: summary.totalProfit / Math.max(1, summary.daysElapsed) * summary.daysInMonth >= targets.targetProfit * 0.9 ? "g" : "y" },
+            val: remain > 0 ? yen(Math.round((targets.targetProfit - displaySummary.totalProfit) / remain)) + "/日" : "—",
+            sub: `残り ${yen(Math.max(0, targets.targetProfit - displaySummary.totalProfit))}`,
+            type: displaySummary.totalProfit / Math.max(1, displaySummary.daysElapsed) * displaySummary.daysInMonth >= targets.targetProfit * 0.9 ? "g" : "y" },
           { label: "獲得件数",
-            val: remain > 0 ? `${Math.ceil((targets.targetCount - summary.totalCount) / remain)}件/日` : "—",
-            sub: `残り ${Math.max(0, targets.targetCount - summary.totalCount)}件`,
-            type: summary.totalCount >= targets.targetCount ? "g" : "y" },
+            val: remain > 0 ? `${Math.ceil((targets.targetCount - displaySummary.totalCount) / remain)}件/日` : "—",
+            sub: `残り ${Math.max(0, targets.targetCount - displaySummary.totalCount)}件`,
+            type: displaySummary.totalCount >= targets.targetCount ? "g" : "y" },
           { label: "HELP売上",
-            val: remain > 0 && targets.targetHelpSales > 0 ? yen(Math.round((targets.targetHelpSales - summary.help.revenue) / remain)) + "/日" : "—",
-            sub: targets.targetHelpSales > 0 ? `残り ${yen(Math.max(0, targets.targetHelpSales - summary.help.revenue))}` : "目標未設定",
+            val: remain > 0 && targets.targetHelpSales > 0 ? yen(Math.round((targets.targetHelpSales - displaySummary.help.revenue) / remain)) + "/日" : "—",
+            sub: targets.targetHelpSales > 0 ? `残り ${yen(Math.max(0, targets.targetHelpSales - displaySummary.help.revenue))}` : "目標未設定",
             type: "y" },
           { label: "HELP件数",
-            val: remain > 0 && targets.targetHelpCount > 0 ? `${Math.ceil((targets.targetHelpCount - summary.help.count) / remain)}件/日` : "—",
-            sub: targets.targetHelpCount > 0 ? `残り ${Math.max(0, targets.targetHelpCount - summary.help.count)}件` : "目標未設定",
+            val: remain > 0 && targets.targetHelpCount > 0 ? `${Math.ceil((targets.targetHelpCount - displaySummary.help.count) / remain)}件/日` : "—",
+            sub: targets.targetHelpCount > 0 ? `残り ${Math.max(0, targets.targetHelpCount - displaySummary.help.count)}件` : "目標未設定",
             type: "y" },
           { label: "工事取得率",
-            val: `${summary.constructionRate.toFixed(1)}%`,
+            val: `${displaySummary.constructionRate.toFixed(1)}%`,
             sub: `目標 ${targets.targetConstructionRate > 0 ? targets.targetConstructionRate.toFixed(1) : "—"}%`,
-            type: targets.targetConstructionRate > 0 && summary.constructionRate < targets.targetConstructionRate * 0.9 ? "r" : "y" },
+            type: targets.targetConstructionRate > 0 && displaySummary.constructionRate < targets.targetConstructionRate * 0.9 ? "r" : "y" },
         ];
         return (
           <div style={{ marginBottom: 18 }}>
@@ -681,12 +721,12 @@ export default function Dashboard() {
                 ))}
                 <tr className="font-bold bg-amber-50 dark:bg-amber-950/40 border-t border-zinc-200 dark:border-zinc-700">
                   <td className="p-2">グループ合計</td>
-                  <td className="p-2 text-right">{yen(summary.totalProfit)}</td>
+                  <td className="p-2 text-right">{yen(displaySummary.totalProfit)}</td>
                   <td className="p-2 text-right text-amber-700 dark:text-amber-400">
-                    {yen(summary.forecastProfit)}
+                    {yen(displaySummary.forecastProfit)}
                   </td>
-                  <td className="p-2 text-right">{yen(summary.totalRevenue)}</td>
-                  <td className="p-2 text-right">{summary.totalCount}</td>
+                  <td className="p-2 text-right">{yen(displaySummary.totalRevenue)}</td>
+                  <td className="p-2 text-right">{displaySummary.totalCount}</td>
                 </tr>
               </tbody>
             </table>
@@ -758,10 +798,10 @@ export default function Dashboard() {
       <section style={{ marginBottom: 16 }}>
         <SectionLabel>部門別 実績・月末予測</SectionLabel>
         <DeptTable
-          summary={summary}
+          summary={displaySummary}
           targets={targets}
-          daysElapsed={summary.daysElapsed}
-          daysInMonth={summary.daysInMonth}
+          daysElapsed={displaySummary.daysElapsed}
+          daysInMonth={displaySummary.daysInMonth}
         />
       </section>
 
