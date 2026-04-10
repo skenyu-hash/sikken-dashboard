@@ -97,7 +97,7 @@ export async function ensureAuthSchema(): Promise<void> {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       name TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('admin','manager','input')),
+      role TEXT NOT NULL CHECK (role IN ('admin','manager','staff','input')),
       area_id TEXT,
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
       failed_attempts INT NOT NULL DEFAULT 0,
@@ -132,6 +132,12 @@ export async function ensureAuthSchema(): Promise<void> {
   `;
   await getSql()`CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC)`;
   await getSql()`CREATE INDEX IF NOT EXISTS idx_audit_area ON audit_logs(area_id)`;
+
+  // roleのCHECK制約を更新（staff追加）
+  try {
+    await getSql()`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`;
+    await getSql()`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','manager','staff','input'))`;
+  } catch { /* constraint already correct */ }
 
   await seedInitialAdmin();
 }
