@@ -592,102 +592,74 @@ export default function Dashboard() {
 
           {/* KPIストリップ */}
           {!isGroup && (() => {
-            const daysInMonth = displaySummary.daysInMonth;
-            const actualElapsed = isCurrentMonth ? now.getDate() : displaySummary.daysInMonth;
-            const land = (v: number) => isCurrentMonth && actualElapsed > 0 ? Math.round(v / actualElapsed * daysInMonth) : v;
-            const landRate = (v: number, t: number) => t > 0 && v > 0 ? Math.round(land(v) / t * 1000) / 10 : null;
-            const lRevenue = land(displaySummary.totalRevenue);
-            const lProfit = land(displaySummary.totalProfit);
-            const lAdCost = land(displaySummary.totalAdCost);
-            const lCount = land(displaySummary.totalCount);
+            const dim = displaySummary.daysInMonth;
+            const elapsed = isCurrentMonth ? now.getDate() : dim;
+            const landing = (v: number) => isCurrentMonth && elapsed > 0 ? Math.round(v / elapsed * dim) : v;
+            const lRate = (landVal: number, target: number) => target > 0 && landVal > 0 ? Math.round(landVal / target * 1000) / 10 : null;
+            const lRevenue = landing(displaySummary.totalRevenue);
+            const lProfit = landing(displaySummary.totalProfit);
+            const lAdCost = landing(displaySummary.totalAdCost);
+            const lCount = landing(displaySummary.totalCount);
             const kpis = [
-              {
-                label: "売上", val: yen(displaySummary.totalRevenue),
+              { label: "売上", val: yen(displaySummary.totalRevenue),
                 targetRatio: targets.targetSales > 0 ? Math.round(displaySummary.totalRevenue / targets.targetSales * 1000) / 10 : null,
-                landingRate: landRate(lRevenue, targets.targetSales), landingLabel: lRevenue > 0 ? yen(lRevenue) : null,
-                landingInvert: false,
-                salesRatio: null, momVal: momRevenue, momInvert: false,
+                landRate: lRate(lRevenue, targets.targetSales), landLabel: lRevenue > 0 ? yen(lRevenue) : null, landInvert: false,
+                momVal: momRevenue, momInvert: false,
                 momDiff: momRevenue !== null ? `${displaySummary.totalRevenue - prevSummaryCalc.totalRevenue >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalRevenue - prevSummaryCalc.totalRevenue).toLocaleString()}` : null,
               },
-              {
-                label: "粗利", val: yen(displaySummary.totalProfit),
+              { label: "粗利", val: yen(displaySummary.totalProfit),
                 targetRatio: targets.targetProfit > 0 ? Math.round(displaySummary.totalProfit / targets.targetProfit * 1000) / 10 : null,
-                landingRate: landRate(lProfit, targets.targetProfit), landingLabel: lProfit > 0 ? yen(lProfit) : null,
-                landingInvert: false,
-                salesRatio: displaySummary.totalRevenue > 0 ? `${Math.round(displaySummary.totalProfit / displaySummary.totalRevenue * 1000) / 10}%` : null,
+                landRate: lRate(lProfit, targets.targetProfit), landLabel: lProfit > 0 ? yen(lProfit) : null, landInvert: false,
                 momVal: momProfit, momInvert: false,
                 momDiff: momProfit !== null ? `${displaySummary.totalProfit - prevSummaryCalc.totalProfit >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalProfit - prevSummaryCalc.totalProfit).toLocaleString()}` : null,
               },
-              {
-                label: "広告費", val: yen(displaySummary.totalAdCost),
+              { label: "広告費", val: yen(displaySummary.totalAdCost),
                 targetRatio: targets.targetAdCost > 0 ? Math.round(displaySummary.totalAdCost / targets.targetAdCost * 1000) / 10 : null,
-                landingRate: landRate(lAdCost, targets.targetAdCost), landingLabel: lAdCost > 0 ? yen(lAdCost) : null,
-                landingInvert: true,
-                salesRatio: displaySummary.totalRevenue > 0 ? `${Math.round(displaySummary.totalAdCost / displaySummary.totalRevenue * 1000) / 10}%` : null,
+                landRate: lRate(lAdCost, targets.targetAdCost), landLabel: lAdCost > 0 ? yen(lAdCost) : null, landInvert: true,
                 momVal: momAdCost, momInvert: true,
                 momDiff: momAdCost !== null ? `${displaySummary.totalAdCost - prevSummaryCalc.totalAdCost >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalAdCost - prevSummaryCalc.totalAdCost).toLocaleString()}` : null,
               },
-              {
-                label: "合計件数", val: `${displaySummary.totalCount}件`,
+              { label: "合計件数", val: `${displaySummary.totalCount}件`,
                 targetRatio: targets.targetCount > 0 ? Math.round(displaySummary.totalCount / targets.targetCount * 1000) / 10 : null,
-                landingRate: landRate(lCount, targets.targetCount), landingLabel: lCount > 0 ? `${lCount}件` : null,
-                landingInvert: false,
-                salesRatio: null, momVal: momCount, momInvert: false,
+                landRate: lRate(lCount, targets.targetCount), landLabel: lCount > 0 ? `${lCount}件` : null, landInvert: false,
+                momVal: momCount, momInvert: false,
                 momDiff: momCount !== null ? `${displaySummary.totalCount - prevSummaryCalc.totalCount >= 0 ? "+" : ""}${displaySummary.totalCount - prevSummaryCalc.totalCount}件` : null,
               },
             ];
             return (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
                 {kpis.map((kpi) => (
-                  <div key={kpi.label} style={{ padding: "12px 18px", borderRight: "1px solid rgba(255,255,255,0.1)" }}>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 5 }}>{kpi.label}</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 5 }}>{kpi.val}</div>
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                  <div key={kpi.label} style={{ padding: "14px 18px", borderRight: "1px solid rgba(255,255,255,0.12)" }}>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{kpi.label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>{kpi.val}</div>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 4 }}>
                       {kpi.targetRatio !== null && (
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
                           background: kpi.targetRatio >= 100 ? "#d1fae5" : kpi.targetRatio >= 80 ? "#fef9c3" : "#fee2e2",
                           color: kpi.targetRatio >= 100 ? "#065f46" : kpi.targetRatio >= 80 ? "#854d0e" : "#991b1b",
                         }}>目標比 {kpi.targetRatio}%</span>
                       )}
-                      {kpi.landingRate !== null ? (
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
-                          background: kpi.landingInvert
-                            ? (kpi.landingRate <= 100 ? "#d1fae5" : kpi.landingRate <= 120 ? "#fef9c3" : "#fee2e2")
-                            : (kpi.landingRate >= 100 ? "#d1fae5" : kpi.landingRate >= 80 ? "#fef9c3" : "#fee2e2"),
-                          color: kpi.landingInvert
-                            ? (kpi.landingRate <= 100 ? "#065f46" : kpi.landingRate <= 120 ? "#854d0e" : "#991b1b")
-                            : (kpi.landingRate >= 100 ? "#065f46" : kpi.landingRate >= 80 ? "#854d0e" : "#991b1b"),
-                        }}>着地 {kpi.landingRate}%</span>
-                      ) : kpi.landingLabel ? (
+                      {kpi.landRate !== null ? (
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                          background: kpi.landInvert
+                            ? (kpi.landRate <= 100 ? "#d1fae5" : kpi.landRate <= 120 ? "#fef9c3" : "#fee2e2")
+                            : (kpi.landRate >= 100 ? "#d1fae5" : kpi.landRate >= 80 ? "#fef9c3" : "#fee2e2"),
+                          color: kpi.landInvert
+                            ? (kpi.landRate <= 100 ? "#065f46" : kpi.landRate <= 120 ? "#854d0e" : "#991b1b")
+                            : (kpi.landRate >= 100 ? "#065f46" : kpi.landRate >= 80 ? "#854d0e" : "#991b1b"),
+                        }}>着地 {kpi.landRate}%</span>
+                      ) : kpi.landLabel ? (
                         <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
-                          background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }}>
-                          着地 {kpi.landingLabel}
-                        </span>
+                          background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }}>着地 {kpi.landLabel}</span>
                       ) : null}
-                      {kpi.landingRate !== null && kpi.landingLabel && (
-                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.55)" }}>({kpi.landingLabel})</span>
-                      )}
-                      {kpi.salesRatio && (
-                        <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 4,
-                          background: "rgba(255,255,255,0.25)", color: "#fff", letterSpacing: "0.02em" }}>売上比 {kpi.salesRatio}</span>
-                      )}
                     </div>
                     {kpi.momVal === null ? (
-                      <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3, color: "rgba(255,255,255,0.4)" }}>前月比 —</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)" }}>前月比 \u2014</div>
                     ) : (
-                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700,
-                          color: (kpi.momInvert ? kpi.momVal <= 0 : kpi.momVal >= 0) ? "#86efac" : "#fca5a5" }}>
-                          {kpi.momVal >= 0 ? "\u2191" : "\u2193"} 前月比 {kpi.momVal >= 0 ? "+" : ""}{kpi.momVal}%
-                        </span>
-                        {kpi.momDiff && (
-                          <span style={{ fontSize: 11, fontWeight: 700,
-                            color: (kpi.momInvert ? kpi.momVal <= 0 : kpi.momVal >= 0) ? "#86efac" : "#fca5a5" }}>
-                            ({kpi.momDiff})
-                          </span>
-                        )}
+                      <div style={{ fontSize: 11, fontWeight: 700,
+                        color: (kpi.momInvert ? kpi.momVal <= 0 : kpi.momVal >= 0) ? "#86efac" : "#fca5a5" }}>
+                        {kpi.momVal >= 0 ? "\u2191" : "\u2193"} 前月比 {kpi.momVal >= 0 ? "+" : ""}{kpi.momVal}%
+                        {kpi.momDiff && ` (${kpi.momDiff})`}
                       </div>
                     )}
                   </div>
@@ -717,16 +689,17 @@ export default function Dashboard() {
 
       {/* 1日あたりの目安 */}
       {!isGroup && targets.targetSales > 0 && (() => {
-        const remain = displaySummary.daysInMonth - displaySummary.daysElapsed;
+        const todayElapsed = isCurrentMonth ? now.getDate() : displaySummary.daysInMonth;
+        const remain = displaySummary.daysInMonth - todayElapsed;
         const cards = [
           { label: "全体売上",
             val: remain > 0 ? yen(Math.round((targets.targetSales - displaySummary.totalRevenue) / remain)) + "/日" : "—",
             sub: `残り ${yen(Math.max(0, targets.targetSales - displaySummary.totalRevenue))}`,
-            type: displaySummary.totalRevenue / Math.max(1, displaySummary.daysElapsed) * displaySummary.daysInMonth >= targets.targetSales * 0.9 ? "g" : "y" },
+            type: displaySummary.totalRevenue / Math.max(1, todayElapsed) * displaySummary.daysInMonth >= targets.targetSales * 0.9 ? "g" : "y" },
           { label: "全体粗利",
-            val: remain > 0 ? yen(Math.round((targets.targetProfit - displaySummary.totalProfit) / remain)) + "/日" : "—",
+            val: remain > 0 ? yen(Math.round((targets.targetProfit - displaySummary.totalProfit) / remain)) + "/日" : "\u2014",
             sub: `残り ${yen(Math.max(0, targets.targetProfit - displaySummary.totalProfit))}`,
-            type: displaySummary.totalProfit / Math.max(1, displaySummary.daysElapsed) * displaySummary.daysInMonth >= targets.targetProfit * 0.9 ? "g" : "y" },
+            type: displaySummary.totalProfit / Math.max(1, todayElapsed) * displaySummary.daysInMonth >= targets.targetProfit * 0.9 ? "g" : "y" },
           { label: "獲得件数",
             val: remain > 0 ? `${Math.ceil((targets.targetCount - displaySummary.totalCount) / remain)}件/日` : "—",
             sub: `残り ${Math.max(0, targets.targetCount - displaySummary.totalCount)}件`,
