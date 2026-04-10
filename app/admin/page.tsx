@@ -289,6 +289,9 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
+          <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 8, paddingLeft: 4 }}>
+            ※ 役員以外はエリア列で設定したエリアのデータのみ編集可能（閲覧は全エリア可）
+          </div>
         </section>
       )}
 

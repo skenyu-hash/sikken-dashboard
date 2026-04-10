@@ -264,14 +264,18 @@ export async function logAudit(opts: {
 }
 
 // ============ エリアアクセス制御 ============
-export function canAccessArea(user: SessionUser, areaId: string): boolean {
-  if (user.role === "admin" || user.role === "manager" || user.role === "staff") return true;
-  // input: 自分のareaIdのみ。areaId未設定の場合は全エリア入力可とみなす
-  return user.areaId == null || user.areaId === areaId;
+// 閲覧は全員OK（ページ権限のみで制御）
+export function canAccessArea(_user: SessionUser, _areaId: string): boolean {
+  return true;
 }
-export function canEditArea(user: SessionUser, areaId: string): boolean {
-  if (user.role === "manager" || user.role === "staff") return false;
+// 編集はロール＋エリアで制御
+export function canEditArea(user: SessionUser, targetAreaId: string): boolean {
   if (user.role === "admin") return true;
-  // input
-  return user.areaId == null || user.areaId === areaId;
+  if (user.role === "staff") return false;
+  // manager / input: エリア未設定→全エリア編集可、設定あり→担当のみ
+  if (user.role === "manager" || user.role === "input") {
+    if (!user.areaId) return true;
+    return user.areaId === targetAreaId;
+  }
+  return false;
 }

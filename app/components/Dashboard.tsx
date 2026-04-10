@@ -138,8 +138,7 @@ export default function Dashboard() {
   const session = useSession();
   const isInputOnly = role === "input";
   const canEditDashboard = role === "admin" || role === "manager" || role === "input";
-  // 事務員で担当エリアが指定されている場合、そのエリアのみ編集可
-  const lockedAreaId = isInputOnly && session?.areaId ? session.areaId : null;
+  const userAreaId = session?.areaId ?? null;
   const formSections = isInputOnly ? FORM_SECTIONS_SIMPLE : FORM_SECTIONS_FULL;
 
   const now = useMemo(() => new Date(), []);
@@ -162,7 +161,7 @@ export default function Dashboard() {
 
   const isCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
   const isGroup = activeTab === GROUP_TAB;
-  const isAreaEditable = !lockedAreaId || lockedAreaId === activeTab;
+  const isAreaEditable = !userAreaId || userAreaId === activeTab;
   const canEdit = canEditDashboard && !isGroup && isAreaEditable;
 
   const [saving, setSaving] = useState(false);
@@ -513,16 +512,18 @@ export default function Dashboard() {
               {a.name}
             </button>
           ))}
-          <button type="button" onClick={() => setActiveTab(GROUP_TAB)}
-            style={{
-              padding: "8px 16px", borderRadius: "8px 8px 0 0",
-              fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
-              background: isGroup ? "rgba(255,255,255,0.18)" : "transparent",
-              color: isGroup ? "#fff" : "rgba(255,255,255,0.65)",
-              whiteSpace: "nowrap",
-            }}>
-            グループ全体
-          </button>
+          {role === "admin" && (
+            <button type="button" onClick={() => setActiveTab(GROUP_TAB)}
+              style={{
+                padding: "8px 16px", borderRadius: "8px 8px 0 0",
+                fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
+                background: isGroup ? "rgba(255,255,255,0.18)" : "transparent",
+                color: isGroup ? "#fff" : "rgba(255,255,255,0.65)",
+                whiteSpace: "nowrap",
+              }}>
+              グループ全体
+            </button>
+          )}
         </div>
 
         {/* ヒーロー */}
@@ -871,6 +872,16 @@ export default function Dashboard() {
           daysInMonth={displaySummary.daysInMonth}
         />
       </section>
+
+      {/* 編集不可エリアの表示 */}
+      {!canEdit && !isGroup && (
+        <div style={{
+          margin: "12px 0", padding: "10px 16px", background: "#fef9c3",
+          borderRadius: 8, border: "1px solid #fde68a", fontSize: 12, color: "#854d0e", fontWeight: 600,
+        }}>
+          このエリアは閲覧のみ可能です（編集権限がありません）
+        </div>
+      )}
 
       {/* ============ 入力フォーム (折りたたみ式) ============ */}
       {canEdit && !isGroup && (
