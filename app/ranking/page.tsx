@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
-  calculateDashboard, getDaysElapsed, yen, type DailyEntry,
+  calculateDashboard, getDaysElapsed, yen,
+  type DailyEntry, type DashboardSummary, type Targets, emptyTargets,
 } from "../lib/calculations";
 
 const AREAS = [
@@ -13,15 +14,16 @@ const AREAS = [
 
 type MetricKey = "revenue" | "profit" | "profitRate" | "count" | "unitPrice" | "constructionRate" | "adRate" | "helpRate" | "convRate";
 
-const METRICS: { key: MetricKey; label: string }[] = [
-  { key: "profitRate", label: "粗利率" },
-  { key: "constructionRate", label: "工事取得率" },
-  { key: "helpRate", label: "HELP率" },
-  { key: "convRate", label: "成約率" },
-  { key: "adRate", label: "広告費率" },
-  { key: "unitPrice", label: "客単価" },
-  { key: "revenue", label: "売上" },
-];
+type AreaSummary = {
+  area: { id: string; name: string };
+  summary: DashboardSummary;
+  values: Record<MetricKey, number>;
+  targetValues: Partial<Record<MetricKey, number | null>>;
+  profitRate: number;
+  adRate: number;
+  helpRate: number;
+  convRate: number;
+};
 
 export default function RankingPage() {
   const now = useMemo(() => new Date(), []);
@@ -29,8 +31,8 @@ export default function RankingPage() {
   const month = now.getMonth() + 1;
   const daysElapsed = getDaysElapsed(now, year, month);
 
-  const [metric, setMetric] = useState<MetricKey>("profitRate");
   const [allEntries, setAllEntries] = useState<Record<string, DailyEntry[]>>({});
+  const [allTargets, setAllTargets] = useState<Record<string, Targets>>({});
 
   useEffect(() => {
     Promise.all(
@@ -44,246 +46,217 @@ export default function RankingPage() {
       for (const [id, entries] of pairs) map[id] = entries;
       setAllEntries(map);
     });
+
+    Promise.all(
+      AREAS.map(async (a) => {
+        const res = await fetch(`/api/targets?area=${a.id}&year=${year}&month=${month}`);
+        const json = res.ok ? await res.json() : { targets: emptyTargets() };
+        return [a.id, { ...emptyTargets(), ...json.targets }] as const;
+      })
+    ).then((pairs) => {
+      const map: Record<string, Targets> = {};
+      for (const [id, t] of pairs) map[id] = t;
+      setAllTargets(map);
+    });
   }, [year, month]);
 
-  const areaSummaries = useMemo(() => {
+  const areaSummaries: AreaSummary[] = useMemo(() => {
     return AREAS.map((a) => {
       const entries = allEntries[a.id] ?? [];
+      const tgts = allTargets[a.id] ?? emptyTargets();
       const summary = calculateDashboard(entries, year, month, now);
-      const adRate = summary.totalRevenue > 0
-        ? (summary.totalAdCost / summary.totalRevenue) * 100 : 0;
-      const profitRate = summary.totalRevenue > 0
-        ? (summary.totalProfit / summary.totalRevenue) * 100 : 0;
+      const adRate = summary.totalRevenue > 0 ? (summary.totalAdCost / summary.totalRevenue) * 100 : 0;
+      const profitRate = summary.totalRevenue > 0 ? (summary.totalProfit / summary.totalRevenue) * 100 : 0;
       const callCount = entries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
       const helpRate = summary.totalCount > 0 ? (summary.help.count / summary.totalCount) * 100 : 0;
       const convRate = callCount > 0 ? (summary.totalCount / callCount) * 100 : 0;
-      return {
-        area: a,
-        summary,
-        adRate,
-        profitRate,
-        values: {
-          revenue: summary.totalRevenue,
-          profit: summary.totalProfit,
-          profitRate,
-          count: summary.totalCount,
-          unitPrice: summary.companyUnitPrice,
-          constructionRate: summary.constructionRate,
-          adRate,
-          helpRate,
-          convRate,
-        } as Record<MetricKey, number>,
+      const values: Record<MetricKey, number> = {
+        revenue: summary.totalRevenue, profit: summary.totalProfit,
+        profitRate, count: summary.totalCount, unitPrice: summary.companyUnitPrice,
+        constructionRate: summary.constructionRate, adRate, helpRate, convRate,
       };
+      const targetValues: Partial<Record<MetricKey, number | null>> = {
+        revenue: tgts.targetSales > 0 ? Math.round(summary.totalRevenue / tgts.targetSales * 1000) / 10 : null,
+        profit: tgts.targetProfit > 0 ? Math.round(summary.totalProfit / tgts.targetProfit * 1000) / 10 : null,
+        profitRate: tgts.targetProfit > 0 && tgts.targetSales > 0 ? Math.round(profitRate / (tgts.targetProfit / tgts.targetSales * 100) * 1000) / 10 : null,
+        count: tgts.targetCount > 0 ? Math.round(summary.totalCount / tgts.targetCount * 1000) / 10 : null,
+        unitPrice: tgts.targetUnitPrice > 0 ? Math.round(summary.companyUnitPrice / tgts.targetUnitPrice * 1000) / 10 : null,
+        constructionRate: tgts.targetConstructionRate > 0 ? Math.round(summary.constructionRate / tgts.targetConstructionRate * 1000) / 10 : null,
+        adRate: tgts.targetAdRate > 0 ? Math.round(adRate / tgts.targetAdRate * 1000) / 10 : null,
+        helpRate: tgts.targetHelpRate > 0 ? Math.round(helpRate / tgts.targetHelpRate * 1000) / 10 : null,
+        convRate: tgts.targetConversionRate > 0 ? Math.round(convRate / tgts.targetConversionRate * 1000) / 10 : null,
+      };
+      return { area: a, summary, values, targetValues, profitRate, adRate, helpRate, convRate };
     });
-  }, [allEntries, year, month, now]);
+  }, [allEntries, allTargets, year, month, now]);
 
-  const ranked = useMemo(() => {
-    return [...areaSummaries].sort((a, b) => {
-      if (metric === "adRate") return a.values[metric] - b.values[metric];
-      return b.values[metric] - a.values[metric];
-    });
-  }, [areaSummaries, metric]);
+  const badge = (ratio: number | null) => {
+    if (ratio === null) return <span style={{ color: "#d1d5db", fontSize: 9 }}>未設定</span>;
+    const level = ratio >= 100 ? "good" : ratio >= 80 ? "warn" : "bad";
+    const s = { good: { bg: "#d1fae5", color: "#065f46" }, warn: { bg: "#fef9c3", color: "#854d0e" }, bad: { bg: "#fee2e2", color: "#991b1b" } }[level];
+    return <span style={{ display: "inline-block", fontSize: 9, fontWeight: 700, borderRadius: 3, padding: "1px 5px", background: s.bg, color: s.color }}>{ratio.toFixed(1)}%</span>;
+  };
 
-  const maxVal = ranked[0]?.values[metric] ?? 1;
-
-  function formatVal(key: MetricKey, val: number): string {
-    if (key === "revenue" || key === "profit" || key === "unitPrice") return yen(val);
-    if (key === "count") return `${val}件`;
-    return `${val.toFixed(1)}%`;
-  }
+  const sorted = (metric: MetricKey, invert = false) =>
+    [...areaSummaries].sort((a, b) => invert
+      ? a.values[metric] - b.values[metric]
+      : b.values[metric] - a.values[metric]);
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
-      {/* ============ ヘッダー ============ */}
-      <div style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "16px 24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
-          <div>
-            <h1 style={{ fontSize: "20px", fontWeight: 800, color: "#fff" }}>エリアランキング</h1>
-            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.65)", marginTop: "3px" }}>
-              {year}年{month}月 ／ 経過{daysElapsed}日時点
-            </p>
-          </div>
-        </div>
-        <div style={{ padding: "6px 0 10px", fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
-          割合指標（粗利率・工事率等）はエリア規模に依存しない実力値です
-        </div>
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-          {METRICS.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => setMetric(m.key)}
-              style={{
-                padding: "5px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: 700,
-                border: "2px solid",
-                borderColor: metric === m.key ? "#fff" : "rgba(255,255,255,0.35)",
-                background: metric === m.key ? "#fff" : "transparent",
-                color: metric === m.key ? "#059669" : "rgba(255,255,255,0.85)",
-                cursor: "pointer",
-              }}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+      <div style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "16px 20px 14px" }}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>エリアランキング</h1>
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
+          {year}年{month}月 ／ 経過{daysElapsed}日時点 ／ スクロールで全指標を確認
+        </p>
       </div>
 
-      {/* ============ ボディ ============ */}
       <div style={{ padding: "16px 20px" }}>
-        {/* TOP3 カード */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "16px" }}>
-          {ranked.slice(0, 3).map((item, i) => {
-            const medals = ["🥇", "🥈", "🥉"];
-            const borderColors = ["#fbbf24", "#94a3b8", "#d97706"];
-            const barColors = ["#fbbf24", "#94a3b8", "#d97706"];
-            const barWidth = maxVal > 0 ? (item.values[metric] / maxVal) * 100 : 0;
-            const valueColor = i === 0 ? "#d97706" : i === 1 ? "#475569" : "#d97706";
-            return (
-              <div
-                key={item.area.id}
-                style={{
-                  background: "#fff", borderRadius: "12px",
-                  border: `2px solid ${borderColors[i]}`, overflow: "hidden",
-                }}
-              >
-                <div style={{ padding: "12px 14px 8px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <div style={{ fontSize: "20px" }}>{medals[i]}</div>
-                    <div style={{ fontSize: "16px", fontWeight: 800, color: "#111", marginTop: "2px" }}>{item.area.name}</div>
-                  </div>
-                  <div style={{ fontSize: "10px", fontWeight: 700, color: borderColors[i] }}>{i + 1}位</div>
-                </div>
-                <div
-                  style={{
-                    fontSize: "22px", fontWeight: 800, color: valueColor,
-                    padding: "2px 14px 6px",
-                  }}
-                >
-                  {formatVal(metric, item.values[metric])}
-                </div>
-                <div style={{ padding: "0 14px 6px" }}>
-                  <div style={{ height: "4px", background: "#f3f4f6", borderRadius: "2px" }}>
-                    <div style={{ height: "4px", borderRadius: "2px", background: barColors[i], width: `${barWidth}%` }} />
-                  </div>
-                </div>
-                <div
-                  style={{
-                    padding: "6px 14px 10px", display: "flex", justifyContent: "space-between",
-                    alignItems: "center", borderTop: "1px solid #f0faf0",
-                  }}
-                >
-                  <span style={{ fontSize: "11px", color: "#9ca3af" }}>
-                    粗利率 {item.profitRate.toFixed(1)}%
-                  </span>
-                  <span style={{ fontSize: "11px", color: "#9ca3af" }}>
-                    件数 {item.summary.totalCount}件
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <RankingSection title="粗利率ランキング" metric="profitRate"
+          ranked={sorted("profitRate")} formatVal={(v) => `${v.toFixed(1)}%`} badgeFn={badge}
+          subCol={{ label: "売上", fn: (a) => yen(a.values.revenue) }} />
 
-        {/* 4〜8位テーブル */}
-        <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #d1fae5", overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-            <colgroup>
-              <col style={{ width: "7%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "16%" }} />
-              <col style={{ width: "20%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "13%" }} />
-            </colgroup>
-            <thead>
-              <tr style={{ background: "#ecfdf5" }}>
-                {["順位", "エリア", "実績", "相対比率", "件数", "客単価", "粗利率", "広告費率"].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "8px 10px", fontSize: "9px", fontWeight: 700, color: "#6b7280",
-                      textTransform: "uppercase", letterSpacing: "0.07em",
-                      borderBottom: "1px solid #d1fae5",
-                      textAlign: h === "順位" ? "center" : h === "エリア" ? "left" : "right",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ranked.slice(3).map((item, i) => {
-                const rank = i + 4;
-                const barWidth = maxVal > 0 ? (item.values[metric] / maxVal) * 100 : 0;
-                const isLow = rank >= 7;
-                return (
-                  <tr key={item.area.id} style={{ borderBottom: "1px solid #f0faf0" }}>
-                    <td style={{ padding: "10px 10px", textAlign: "center" }}>
-                      <div
-                        style={{
-                          width: "24px", height: "24px", borderRadius: "50%", margin: "0 auto",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: "11px", fontWeight: 800,
-                          background: isLow ? "#fef2f2" : "#ecfdf5",
-                          color: isLow ? "#dc2626" : "#059669",
-                        }}
-                      >
-                        {rank}
-                      </div>
-                    </td>
-                    <td style={{ padding: "10px 10px", fontSize: "12px", fontWeight: 700, color: "#111" }}>{item.area.name}</td>
-                    <td style={{ padding: "10px 10px", fontSize: "12px", fontWeight: 700, color: "#111", textAlign: "right" }}>
-                      {formatVal(metric, item.values[metric])}
-                    </td>
-                    <td style={{ padding: "10px 10px" }}>
-                      <div style={{ height: "6px", background: "#f3f4f6", borderRadius: "3px" }}>
-                        <div
-                          style={{
-                            height: "6px", borderRadius: "3px", width: `${barWidth}%`,
-                            background: isLow ? "#dc2626" : "#059669",
-                          }}
-                        />
-                      </div>
-                    </td>
-                    <td style={{ padding: "10px 10px", fontSize: "11px", color: "#374151", textAlign: "right" }}>
-                      {item.summary.totalCount}件
-                    </td>
-                    <td style={{ padding: "10px 10px", fontSize: "11px", color: "#374151", textAlign: "right" }}>
-                      {yen(item.summary.companyUnitPrice)}
-                    </td>
-                    <td style={{ padding: "10px 10px", textAlign: "right" }}>
-                      <span
-                        style={{
-                          fontSize: "10px", fontWeight: 700, borderRadius: "3px", padding: "1px 6px",
-                          background: item.profitRate >= 25 ? "#d1fae5" : item.profitRate >= 15 ? "#fef9c3" : "#fee2e2",
-                          color: item.profitRate >= 25 ? "#064e3b" : item.profitRate >= 15 ? "#713f12" : "#7f1d1d",
-                        }}
-                      >
-                        {item.profitRate.toFixed(1)}%
-                      </span>
-                    </td>
-                    <td style={{ padding: "10px 10px", textAlign: "right" }}>
-                      <span
-                        style={{
-                          fontSize: "10px", fontWeight: 700, borderRadius: "3px", padding: "1px 6px",
-                          background: item.adRate <= 20 ? "#d1fae5" : item.adRate <= 30 ? "#fef9c3" : "#fee2e2",
-                          color: item.adRate <= 20 ? "#064e3b" : item.adRate <= 30 ? "#713f12" : "#7f1d1d",
-                        }}
-                      >
-                        {item.adRate.toFixed(1)}%
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <RankingSection title="工事取得率ランキング" metric="constructionRate"
+          ranked={sorted("constructionRate")} formatVal={(v) => `${v.toFixed(1)}%`} badgeFn={badge}
+          subCol={{ label: "工事件数", fn: (a) => `${Math.round(a.values.count * a.values.constructionRate / 100)}件` }} />
+
+        <RankingSection title="HELP率ランキング" metric="helpRate"
+          ranked={sorted("helpRate")} formatVal={(v) => `${v.toFixed(1)}%`} badgeFn={badge}
+          subCol={{ label: "HELP件数", fn: (a) => `${a.summary.help.count}件` }} />
+
+        <RankingSection title="成約率ランキング" metric="convRate"
+          ranked={sorted("convRate")} formatVal={(v) => `${v.toFixed(1)}%`} badgeFn={badge}
+          subCol={{ label: "件数", fn: (a) => `${a.values.count}件` }} />
+
+        <RankingSection title="広告費率ランキング" subtitle="※ 低いほど優秀" metric="adRate"
+          ranked={sorted("adRate", true)} formatVal={(v) => `${v.toFixed(1)}%`} badgeFn={badge}
+          subCol={{ label: "広告費", fn: (a) => yen(a.summary.totalAdCost) }} />
+
+        <RankingSection title="客単価ランキング" metric="unitPrice"
+          ranked={sorted("unitPrice")} formatVal={(v) => yen(v)} badgeFn={badge}
+          subCol={{ label: "件数", fn: (a) => `${a.values.count}件` }} />
+
+        <RankingSection title="売上ランキング" subtitle="※ 規模依存指標" metric="revenue"
+          ranked={sorted("revenue")} formatVal={(v) => yen(v)} badgeFn={badge}
+          subCol={{ label: "粗利率", fn: (a) => `${a.profitRate.toFixed(1)}%` }} />
       </div>
     </div>
   );
 }
 
+function RankingSection({
+  title, subtitle, metric, ranked, formatVal, badgeFn, subCol,
+}: {
+  title: string;
+  subtitle?: string;
+  metric: MetricKey;
+  ranked: AreaSummary[];
+  formatVal: (v: number) => string;
+  badgeFn: (ratio: number | null) => React.ReactNode;
+  subCol: { label: string; fn: (a: AreaSummary) => string };
+}) {
+  const top3 = ranked.slice(0, 3);
+  const rest = ranked.slice(3);
+  const maxVal = ranked[0]?.values[metric] ?? 1;
+  const medals = ["🥇", "🥈", "🥉"];
+  const borderColors = ["#fbbf24", "#94a3b8", "#d97706"];
+
+  return (
+    <section style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase",
+        letterSpacing: "0.1em", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+        {title}
+        {subtitle && <span style={{ fontSize: 9, color: "#9ca3af", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{subtitle}</span>}
+        <div style={{ flex: 1, height: 1, background: "#d1fae5" }} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+        {top3.map((item, i) => {
+          const barWidth = maxVal > 0 ? (item.values[metric] / maxVal) * 100 : 0;
+          const ratio = item.targetValues?.[metric] ?? null;
+          return (
+            <div key={item.area.id} style={{ background: "#fff", borderRadius: 10,
+              border: `${i === 0 ? 2 : 1.5}px solid ${borderColors[i]}`, padding: "12px 14px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                <span style={{ fontSize: 18 }}>{medals[i]}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: borderColors[i] }}>{i + 1}位</span>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#111", marginBottom: 4 }}>{item.area.name}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: i === 0 ? "#d97706" : i === 1 ? "#475569" : "#d97706", marginBottom: 6 }}>
+                {formatVal(item.values[metric])}
+              </div>
+              <div style={{ height: 4, background: "#f3f4f6", borderRadius: 2, marginBottom: 6 }}>
+                <div style={{ height: 4, borderRadius: 2, background: borderColors[i], width: `${barWidth}%` }} />
+              </div>
+              <div style={{ fontSize: 10, color: "#9ca3af", display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {badgeFn(ratio)}
+                <span>{subCol.label} {subCol.fn(item)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #d1fae5", overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "8%" }} /><col style={{ width: "12%" }} />
+            <col style={{ width: "14%" }} /><col style={{ width: "20%" }} />
+            <col style={{ width: "12%" }} /><col style={{ width: "14%" }} />
+          </colgroup>
+          <thead>
+            <tr style={{ background: "#ecfdf5" }}>
+              {["順位", "エリア", "実績", "相対比率", "目標比", subCol.label].map((h) => (
+                <th key={h} style={{
+                  padding: "7px 10px", fontSize: 9, fontWeight: 700,
+                  color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
+                  borderBottom: "1px solid #d1fae5",
+                  textAlign: h === "順位" ? "center" : h === "エリア" ? "left" : "right",
+                }}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rest.map((item, i) => {
+              const rank = i + 4;
+              const barWidth = maxVal > 0 ? (item.values[metric] / maxVal) * 100 : 0;
+              const isLow = rank >= 7;
+              const ratio = item.targetValues?.[metric] ?? null;
+              return (
+                <tr key={item.area.id} style={{ borderBottom: "1px solid #f0faf0" }}>
+                  <td style={{ padding: "9px 10px", textAlign: "center" }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: "50%", margin: "0 auto",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 10, fontWeight: 800,
+                      background: isLow ? "#fee2e2" : rank <= 5 ? "#d1fae5" : "#fef9c3",
+                      color: isLow ? "#991b1b" : rank <= 5 ? "#065f46" : "#854d0e",
+                    }}>{rank}</div>
+                  </td>
+                  <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, color: "#111" }}>{item.area.name}</td>
+                  <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, color: "#111", textAlign: "right" }}>
+                    {formatVal(item.values[metric])}
+                  </td>
+                  <td style={{ padding: "9px 10px" }}>
+                    <div style={{ height: 5, background: "#f3f4f6", borderRadius: 3 }}>
+                      <div style={{
+                        height: 5, borderRadius: 3, width: `${barWidth}%`,
+                        background: isLow ? "#dc2626" : rank <= 5 ? "#059669" : "#d97706",
+                      }} />
+                    </div>
+                  </td>
+                  <td style={{ padding: "9px 10px", textAlign: "right" }}>{badgeFn(ratio)}</td>
+                  <td style={{ padding: "9px 10px", fontSize: 11, color: "#6b7280", textAlign: "right" }}>
+                    {subCol.fn(item)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
