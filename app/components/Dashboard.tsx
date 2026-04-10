@@ -589,6 +589,7 @@ export default function Dashboard() {
                 targetRatio: targets.targetSales > 0 ? Math.round(displaySummary.totalRevenue / targets.targetSales * 1000) / 10 : null,
                 dayRatio: targets.targetSales > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalRevenue / daysElapsed * daysInMonth / targets.targetSales * 1000) / 10 : null,
                 salesRatio: null, momVal: momRevenue, momInvert: false,
+                momDiff: momRevenue !== null ? `${displaySummary.totalRevenue - prevSummaryCalc.totalRevenue >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalRevenue - prevSummaryCalc.totalRevenue).toLocaleString()}` : null,
               },
               {
                 label: "粗利", val: yen(displaySummary.totalProfit),
@@ -596,6 +597,7 @@ export default function Dashboard() {
                 dayRatio: targets.targetProfit > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalProfit / daysElapsed * daysInMonth / targets.targetProfit * 1000) / 10 : null,
                 salesRatio: displaySummary.totalRevenue > 0 ? `${Math.round(displaySummary.totalProfit / displaySummary.totalRevenue * 1000) / 10}%` : null,
                 momVal: momProfit, momInvert: false,
+                momDiff: momProfit !== null ? `${displaySummary.totalProfit - prevSummaryCalc.totalProfit >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalProfit - prevSummaryCalc.totalProfit).toLocaleString()}` : null,
               },
               {
                 label: "広告費", val: yen(displaySummary.totalAdCost),
@@ -603,12 +605,14 @@ export default function Dashboard() {
                 dayRatio: targets.targetAdCost > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalAdCost / daysElapsed * daysInMonth / targets.targetAdCost * 1000) / 10 : null,
                 salesRatio: displaySummary.totalRevenue > 0 ? `${Math.round(displaySummary.totalAdCost / displaySummary.totalRevenue * 1000) / 10}%` : null,
                 momVal: momAdCost, momInvert: true,
+                momDiff: momAdCost !== null ? `${displaySummary.totalAdCost - prevSummaryCalc.totalAdCost >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalAdCost - prevSummaryCalc.totalAdCost).toLocaleString()}` : null,
               },
               {
                 label: "合計件数", val: `${displaySummary.totalCount}件`,
                 targetRatio: targets.targetCount > 0 ? Math.round(displaySummary.totalCount / targets.targetCount * 1000) / 10 : null,
                 dayRatio: targets.targetCount > 0 && daysElapsed > 0 ? Math.round(displaySummary.totalCount / daysElapsed * daysInMonth / targets.targetCount * 1000) / 10 : null,
                 salesRatio: null, momVal: momCount, momInvert: false,
+                momDiff: momCount !== null ? `${displaySummary.totalCount - prevSummaryCalc.totalCount >= 0 ? "+" : ""}${displaySummary.totalCount - prevSummaryCalc.totalCount}件` : null,
               },
             ];
             return (
@@ -637,12 +641,22 @@ export default function Dashboard() {
                           background: "rgba(255,255,255,0.25)", color: "#fff", letterSpacing: "0.02em" }}>売上比 {kpi.salesRatio}</span>
                       )}
                     </div>
-                    <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3,
-                      color: kpi.momVal === null ? "rgba(255,255,255,0.4)"
-                        : (kpi.momInvert ? kpi.momVal <= 0 : kpi.momVal >= 0) ? "#86efac" : "#fca5a5" }}>
-                      {kpi.momVal === null ? "前月比 —"
-                        : `前月比 ${kpi.momVal >= 0 ? "+" : ""}${kpi.momVal}%`}
-                    </div>
+                    {kpi.momVal === null ? (
+                      <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3, color: "rgba(255,255,255,0.4)" }}>前月比 —</div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700,
+                          color: (kpi.momInvert ? kpi.momVal <= 0 : kpi.momVal >= 0) ? "#86efac" : "#fca5a5" }}>
+                          {kpi.momVal >= 0 ? "\u2191" : "\u2193"} 前月比 {kpi.momVal >= 0 ? "+" : ""}{kpi.momVal}%
+                        </span>
+                        {kpi.momDiff && (
+                          <span style={{ fontSize: 11, fontWeight: 700,
+                            color: (kpi.momInvert ? kpi.momVal <= 0 : kpi.momVal >= 0) ? "#86efac" : "#fca5a5" }}>
+                            ({kpi.momDiff})
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
