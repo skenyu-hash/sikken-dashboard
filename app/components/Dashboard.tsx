@@ -339,7 +339,7 @@ export default function Dashboard() {
   const metricRowsResult = useMemo(
     () => buildMetricRows(
       displaySummary, aggregateEntries, targets,
-      displaySummary.daysElapsed, displaySummary.daysInMonth,
+      isCurrentMonth ? now.getDate() : displaySummary.daysInMonth, displaySummary.daysInMonth,
       monthlySummary ? {
         callCount: Number(monthlySummary.call_count ?? 0),
         acquisitionCount: Number(monthlySummary.acquisition_count ?? 0),
@@ -555,9 +555,17 @@ export default function Dashboard() {
                 {headerLabel}{!isGroup && "エリア"}
               </h1>
               <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
-                {viewYear}年{viewMonth}月 / {displaySummary.daysElapsed}日時点 ｜ 月末着地予測 {yen(isCurrentMonth ? displaySummary.forecastProfit : displaySummary.totalProfit)} ｜ 達成率{" "}
+                {viewYear}年{viewMonth}月 / {isCurrentMonth ? now.getDate() : displaySummary.daysInMonth}日時点 ｜ 月末着地予測 {yen(
+                  isCurrentMonth && now.getDate() > 0
+                    ? Math.round(displaySummary.totalRevenue / now.getDate() * displaySummary.daysInMonth)
+                    : displaySummary.totalRevenue
+                )} ｜ 達成率{" "}
                 <strong style={{ color: "#86efac" }}>
-                  {targets.targetProfit > 0 ? (displaySummary.totalProfit / targets.targetProfit * 100).toFixed(1) : "—"}%
+                  {targets.targetSales > 0 ? (
+                    isCurrentMonth && now.getDate() > 0
+                      ? Math.round(displaySummary.totalRevenue / now.getDate() * displaySummary.daysInMonth / targets.targetSales * 100)
+                      : Math.round(displaySummary.totalRevenue / Math.max(targets.targetSales, 1) * 100)
+                  ) : "\u2014"}%
                 </strong>
                 {monthlySummary && (
                   <span style={{
@@ -582,9 +590,10 @@ export default function Dashboard() {
 
           {/* KPIストリップ */}
           {!isGroup && (() => {
-            const { daysElapsed, daysInMonth } = displaySummary;
-            const land = (v: number) => daysElapsed > 0 ? Math.round(v / daysElapsed * daysInMonth) : 0;
-            const landRate = (v: number, t: number) => t > 0 && v > 0 ? Math.round(v / t * 1000) / 10 : null;
+            const daysInMonth = displaySummary.daysInMonth;
+            const actualElapsed = isCurrentMonth ? now.getDate() : displaySummary.daysInMonth;
+            const land = (v: number) => isCurrentMonth && actualElapsed > 0 ? Math.round(v / actualElapsed * daysInMonth) : v;
+            const landRate = (v: number, t: number) => t > 0 && v > 0 ? Math.round(land(v) / t * 1000) / 10 : null;
             const lRevenue = land(displaySummary.totalRevenue);
             const lProfit = land(displaySummary.totalProfit);
             const lAdCost = land(displaySummary.totalAdCost);

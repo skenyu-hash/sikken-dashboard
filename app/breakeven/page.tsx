@@ -187,91 +187,99 @@ export default function BreakevenPage() {
 
       {/* ボディ */}
       <div style={{ padding: "16px 20px" }}>
-        {/* 上段: 2列 */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          {/* 固定費入力 */}
+        {/* 中段：2カラム */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+          {/* 左：固定費入力 */}
           <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
-            <div style={{ background: "#ecfdf5", padding: "10px 16px", borderBottom: "1px solid #d1fae5",
+            <div style={{ background: "#ecfdf5", padding: "10px 14px", borderBottom: "1px solid #d1fae5",
               display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>固定費入力</span>
               {canEdit && (
                 <button onClick={addItem} style={{ fontSize: 11, fontWeight: 700, background: "#059669", color: "#fff",
-                  border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ 項目を追加</button>
+                  border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>+ 追加</button>
               )}
             </div>
             {costItems.map((item) => {
               const pct = totalFixed > 0 ? Math.round(item.amount / totalFixed * 100) : 0;
               return (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: "1px solid #f0faf0" }}>
-                  <div onClick={() => cycleColor(item.id)} style={{ width: 10, height: 10, borderRadius: "50%", background: item.color, cursor: "pointer", flexShrink: 0 }} />
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid #f0faf0" }}>
+                  <div onClick={() => cycleColor(item.id)} style={{ width: 8, height: 8, borderRadius: "50%", background: item.color, cursor: "pointer", flexShrink: 0 }} />
                   <input value={item.name} onChange={e => updateItem(item.id, "name", e.target.value)} disabled={!canEdit}
-                    style={{ flex: 1, border: "none", outline: "none", fontSize: 12, fontWeight: 700, color: "#111", background: "transparent" }} />
-                  <div style={{ flex: 1, maxWidth: 100 }}>
-                    <div style={{ height: 6, background: "#f3f4f6", borderRadius: 3 }}>
-                      <div style={{ height: 6, borderRadius: 3, background: item.color, width: `${pct}%`, transition: "width 0.3s" }} />
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 10, color: "#9ca3af", minWidth: 32, textAlign: "right" }}>{pct}%</span>
+                    style={{ flex: 1, border: "none", outline: "none", fontSize: 12, fontWeight: 600, color: "#111", background: "transparent", minWidth: 0 }} />
+                  <span style={{ fontSize: 10, color: "#9ca3af", minWidth: 28, textAlign: "right" }}>{pct}%</span>
                   <input type="number" value={item.amount || ""} onChange={e => updateItem(item.id, "amount", Number(e.target.value))}
                     disabled={!canEdit} placeholder="0"
-                    style={{ width: 110, height: 32, border: "1px solid #d1fae5", borderRadius: 6, padding: "0 8px", fontSize: 12, fontWeight: 600, textAlign: "right" }} />
+                    style={{ width: 90, height: 28, border: "1px solid #d1fae5", borderRadius: 5, padding: "0 6px", fontSize: 11, fontWeight: 600, textAlign: "right" }} />
                   {canEdit && costItems.length > 1 && (
-                    <button onClick={() => removeItem(item.id)} style={{ fontSize: 12, color: "#d1d5db", background: "none", border: "none", cursor: "pointer" }}>✕</button>
+                    <button onClick={() => removeItem(item.id)} style={{ fontSize: 11, color: "#d1d5db", background: "none", border: "none", cursor: "pointer", padding: "0 2px" }}>✕</button>
                   )}
                 </div>
               );
             })}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", background: "#f0fdf4", borderTop: "1px solid #d1fae5" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#065f46" }}>固定費合計</span>
-              <span style={{ fontSize: 18, fontWeight: 800, color: "#065f46" }}>&yen;{totalFixed.toLocaleString()}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "#f0fdf4", borderTop: "1px solid #d1fae5" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#065f46" }}>合計</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: "#065f46" }}>&yen;{totalFixed.toLocaleString()}</span>
             </div>
             {canEdit && (
-              <div style={{ padding: "10px 16px" }}>
+              <div style={{ padding: "10px 14px", borderTop: "1px solid #f0faf0" }}>
                 <button onClick={save} disabled={saving}
-                  style={{ width: "100%", height: 40, background: "#059669", color: "#fff", border: "none",
-                    borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+                  style={{ width: "100%", padding: 8, borderRadius: 8, border: "none",
+                    background: "#059669", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
                   {saving ? "保存中..." : "固定費を保存"}
                 </button>
               </div>
             )}
-            {!canEdit && <p style={{ padding: "10px 16px", fontSize: 11, color: "#9ca3af", textAlign: "center" }}>固定費の編集は役員のみ可能です</p>}
+            {!canEdit && <p style={{ padding: "10px 14px", fontSize: 11, color: "#9ca3af", textAlign: "center" }}>固定費の編集は役員のみ可能です</p>}
           </div>
 
-          {/* 損益分岐 自動算出 */}
-          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
-            <div style={{ background: "#ecfdf5", padding: "8px 14px", fontSize: 11, fontWeight: 700, color: "#065f46",
-              textTransform: "uppercase", letterSpacing: "0.07em", borderBottom: "1px solid #d1fae5" }}>
-              損益分岐 自動算出
-            </div>
-            <div style={{ padding: "6px 14px 10px" }}>
-              <BERow label="固定費合計" value={yen(be.fixedTotal)} />
-              <BERow label="現在の粗利率" value={`${be.grossMarginPct.toFixed(1)}%`} />
-              <BERow label="損益分岐売上" value={yen(be.breakevenSales)} big highlight />
-              <BERow label="損益分岐件数" value={`${be.breakevenCount} 件`} big highlight />
-              <BERow label="残必要件数" value={`${be.remainingCount} 件`} />
-              <BERow label="1日あたり必要" value={`${be.perDayCount.toFixed(1)} 件`} />
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f5faf5" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>達成率</span>
-                <span style={{ fontSize: 12, fontWeight: 700, borderRadius: 4, padding: "2px 7px", background: ab.bg, color: ab.color }}>
-                  {be.achievementPct.toFixed(1)}%
-                </span>
+          {/* 右：損益分岐結果 + 現状サマリー */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {/* 損益分岐 自動算出 */}
+            <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+              <div style={{ background: "#ecfdf5", padding: "10px 14px", borderBottom: "1px solid #d1fae5" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>損益分岐 自動算出</span>
               </div>
-              <BERow label="残営業日数" value={`${be.remainingDays} 日`} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+                {[
+                  { label: "固定費合計", value: yen(be.fixedTotal) },
+                  { label: "現在の粗利率", value: `${be.grossMarginPct.toFixed(1)}%` },
+                  { label: "損益分岐売上", value: yen(be.breakevenSales), hl: true },
+                  { label: "損益分岐件数", value: `${be.breakevenCount}件`, hl: true },
+                ].map((item, i) => (
+                  <div key={i} style={{ padding: "12px 14px",
+                    borderBottom: i < 2 ? "1px solid #f0faf0" : "none",
+                    borderRight: i % 2 === 0 ? "1px solid #f0faf0" : "none" }}>
+                    <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600, marginBottom: 4 }}>{item.label}</div>
+                    <div style={{ fontSize: item.hl ? 18 : 16, fontWeight: 800, color: item.hl ? "#059669" : "#111" }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* 現状サマリー */}
-        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden", marginBottom: 20 }}>
-          <div style={{ background: "#ecfdf5", padding: "8px 14px", fontSize: 11, fontWeight: 700, color: "#065f46",
-            textTransform: "uppercase", letterSpacing: "0.07em", borderBottom: "1px solid #d1fae5" }}>
-            現状サマリー
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", padding: 14, gap: 12 }}>
-            <SummaryCard label="現在の売上" value={yen(displayRevenue)} color="#059669" />
-            <SummaryCard label="現在の粗利" value={yen(displayProfit)} color="#059669" />
-            <SummaryCard label="現在の件数" value={`${displayCount} 件`} color="#3b82f6" />
-            <SummaryCard label="現在の客単価" value={yen(displayUnitPrice)} color="#3b82f6" />
+            {/* 現状サマリー */}
+            <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+              <div style={{ background: "#ecfdf5", padding: "10px 14px", borderBottom: "1px solid #d1fae5" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>現状サマリー</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+                {[
+                  { label: "達成率", value: `${be.achievementPct.toFixed(1)}%`, color: be.achievementPct >= 100 ? "#059669" : be.achievementPct >= 80 ? "#d97706" : "#dc2626" },
+                  { label: "残営業日数", value: `${be.remainingDays}日` },
+                  { label: "残必要件数", value: `${be.remainingCount}件`, color: be.remainingCount <= 0 ? "#059669" : "#dc2626" },
+                  { label: "1日あたり必要", value: `${be.perDayCount.toFixed(1)}件` },
+                  { label: "現在の売上", value: yen(displayRevenue) },
+                  { label: "現在の粗利", value: yen(displayProfit) },
+                  { label: "現在の件数", value: `${displayCount}件` },
+                  { label: "客単価", value: yen(displayUnitPrice) },
+                ].map((item, i) => (
+                  <div key={i} style={{ padding: "10px 14px",
+                    borderBottom: i < 6 ? "1px solid #f0faf0" : "none",
+                    borderRight: i % 2 === 0 ? "1px solid #f0faf0" : "none" }}>
+                    <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600, marginBottom: 3 }}>{item.label}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: (item as { color?: string }).color ?? "#111" }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 

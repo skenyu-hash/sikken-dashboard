@@ -33,55 +33,75 @@ export default function RankingPage() {
 
   const [allEntries, setAllEntries] = useState<Record<string, DailyEntry[]>>({});
   const [allTargets, setAllTargets] = useState<Record<string, Targets>>({});
+  const [allMonthlySummaries, setAllMonthlySummaries] = useState<Record<string, Record<string, unknown>>>({});
 
   useEffect(() => {
     Promise.all(AREAS.map(async (a) => {
-      const [eRes, tRes] = await Promise.all([
+      const [eRes, tRes, sRes] = await Promise.all([
         fetch(`/api/entries?area=${a.id}&year=${year}&month=${month}`),
         fetch(`/api/targets?area=${a.id}&year=${year}&month=${month}`),
+        fetch(`/api/monthly-summary?area=${a.id}&year=${year}&month=${month}`),
       ]);
       const eJson = eRes.ok ? await eRes.json() : { entries: [] };
       const tJson = tRes.ok ? await tRes.json() : { targets: emptyTargets() };
-      return [a.id, eJson.entries ?? [], { ...emptyTargets(), ...tJson.targets }] as const;
+      const sJson = sRes.ok ? await sRes.json() : { summary: null };
+      return [a.id, eJson.entries ?? [], { ...emptyTargets(), ...tJson.targets }, sJson.summary] as const;
     })).then((results) => {
       const em: Record<string, DailyEntry[]> = {};
       const tm: Record<string, Targets> = {};
-      for (const [id, entries, targets] of results) { em[id] = entries; tm[id] = targets; }
+      const sm: Record<string, Record<string, unknown>> = {};
+      for (const [id, entries, targets, ms] of results) { em[id] = entries; tm[id] = targets; if (ms) sm[id] = ms; }
       setAllEntries(em);
       setAllTargets(tm);
+      setAllMonthlySummaries(sm);
     });
   }, [year, month]);
 
   const areaSummaries: AreaSummary[] = useMemo(() => {
     return AREAS.map((a) => {
       const entries = allEntries[a.id] ?? [];
+      const ms = allMonthlySummaries[a.id] ?? null;
       const tgts = allTargets[a.id] ?? emptyTargets();
       const summary = calculateDashboard(entries, year, month, now);
-      const adRate = summary.totalRevenue > 0 ? summary.totalAdCost / summary.totalRevenue * 100 : 0;
-      const profitRate = summary.totalRevenue > 0 ? summary.totalProfit / summary.totalRevenue * 100 : 0;
-      const callCount = entries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
-      const helpRate = summary.totalCount > 0 ? summary.help.count / summary.totalCount * 100 : 0;
-      const convRate = callCount > 0 ? summary.totalCount / callCount * 100 : 0;
+
+      const useMonthlySummary = ms && entries.length === 0;
+      const revenue = useMonthlySummary ? Number(ms.total_revenue ?? 0) : summary.totalRevenue;
+      const profit = useMonthlySummary ? Number(ms.total_profit ?? 0) : summary.totalProfit;
+      const count = useMonthlySummary ? Number(ms.total_count ?? 0) : summary.totalCount;
+      const adCost = useMonthlySummary ? Number(ms.ad_cost ?? 0) : summary.totalAdCost;
+      const unitPrice = useMonthlySummary ? Number(ms.unit_price ?? 0) : summary.companyUnitPrice;
+      const callCount = useMonthlySummary ? Number(ms.call_count ?? 0) : entries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
+      const acquisitionCount = useMonthlySummary ? Number(ms.acquisition_count ?? 0) : count;
+      const helpCount = useMonthlySummary ? Number(ms.help_count ?? 0) : summary.help.count;
+      const helpRevenue = useMonthlySummary ? Number(ms.help_revenue ?? 0) : summary.help.revenue;
+
+      const profitRate = revenue > 0 ? profit / revenue * 100 : 0;
+      const adRate = revenue > 0 ? adCost / revenue * 100 : 0;
+      const helpRate = count > 0 ? helpCount / count * 100 : 0;
+      const convRate = callCount > 0 ? acquisitionCount / callCount * 100 : 0;
+      const constructionRate = useMonthlySummary ? 0 : summary.constructionRate;
       const values: Record<MetricKey, number> = {
-        revenue: summary.totalRevenue, profit: summary.totalProfit, profitRate,
-        count: summary.totalCount, unitPrice: summary.companyUnitPrice,
-        constructionRate: summary.constructionRate, adRate, helpRate, convRate,
+        revenue, profit, profitRate, count, unitPrice,
+        constructionRate, adRate, helpRate, convRate,
       };
       const r = (a: number, b: number) => b > 0 ? Math.round(a / b * 1000) / 10 : null;
       const targetValues: Partial<Record<MetricKey, number | null>> = {
-        revenue: r(summary.totalRevenue, tgts.targetSales),
-        profit: r(summary.totalProfit, tgts.targetProfit),
+        revenue: r(revenue, tgts.targetSales),
+        profit: r(profit, tgts.targetProfit),
         profitRate: tgts.targetSales > 0 && tgts.targetProfit > 0 ? r(profitRate, tgts.targetProfit / tgts.targetSales * 100) : null,
-        count: r(summary.totalCount, tgts.targetCount),
-        unitPrice: r(summary.companyUnitPrice, tgts.targetUnitPrice),
-        constructionRate: r(summary.constructionRate, tgts.targetConstructionRate),
+        count: r(count, tgts.targetCount),
+        unitPrice: r(unitPrice, tgts.targetUnitPrice),
+        constructionRate: r(constructionRate, tgts.targetConstructionRate),
         adRate: r(adRate, tgts.targetAdRate),
         helpRate: r(helpRate, tgts.targetHelpRate),
         convRate: r(convRate, tgts.targetConversionRate),
       };
-      return { area: a, summary, values, targetValues, profitRate, adRate, helpRate, convRate };
+      const displaySummary = { ...summary, totalRevenue: revenue, totalProfit: profit,
+        totalCount: count, totalAdCost: adCost, companyUnitPrice: unitPrice,
+        help: { ...summary.help, count: helpCount, revenue: helpRevenue } };
+      return { area: a, summary: displaySummary, values, targetValues, profitRate, adRate, helpRate, convRate };
     });
-  }, [allEntries, allTargets, year, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allEntries, allMonthlySummaries, allTargets, year, month]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const badge = (ratio: number | null) => {
     if (ratio === null) return <span style={{ color: "#d1d5db", fontSize: 9 }}>未設定</span>;

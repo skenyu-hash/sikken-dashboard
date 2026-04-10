@@ -120,8 +120,9 @@ export default function MeetingPage() {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const daysInMonth = getDaysInMonth(year, month);
-  const daysElapsed = period === "10" ? 10 : period === "20" ? 20 : daysInMonth;
-  const isEndPeriod = period === "end";
+  const isPastData = monthlySummary !== null && entries.length === 0;
+  const daysElapsed = isPastData ? daysInMonth : (period === "10" ? 10 : period === "20" ? 20 : daysInMonth);
+  const isEndPeriod = isPastData || period === "end";
   const areaName = AREAS.find((a) => a.id === areaId)?.name ?? "";
 
   useEffect(() => {
