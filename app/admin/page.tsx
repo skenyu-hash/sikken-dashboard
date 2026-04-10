@@ -105,20 +105,28 @@ export default function AdminPage() {
   }
 
   async function changeRole(u: User, role: Role) {
-    await fetch("/api/users", {
+    const res = await fetch("/api/users", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: u.id, role }),
     });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setMsg(`権限変更エラー: ${j.error ?? "失敗"}`);
+    }
     loadUsers();
   }
 
   async function changeArea(u: User, areaId: string) {
-    await fetch("/api/users", {
+    const res = await fetch("/api/users", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: u.id, areaId: areaId || null }),
     });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setMsg(`エリア変更エラー: ${j.error ?? "失敗"}`);
+    }
     loadUsers();
   }
 
