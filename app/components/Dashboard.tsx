@@ -171,6 +171,7 @@ export default function Dashboard() {
   const [monthlySummary, setMonthlySummary] = useState<Record<string, unknown> | null>(null);
   const [prevMonthlySummary, setPrevMonthlySummary] = useState<Record<string, unknown> | null>(null);
   const [prevEntries, setPrevEntries] = useState<DailyEntry[]>([]);
+  const [yoyMonthlySummary, setYoyMonthlySummary] = useState<Record<string, unknown> | null>(null);
 
   // ============ データ読込: エリアタブ ============
   useEffect(() => {
@@ -255,6 +256,17 @@ export default function Dashboard() {
         .then((j) => setPrevEntries(j.entries ?? []));
     }
   }, [activeTab, prevYear, prevMonth, isGroup]);
+
+  // ============ 前年同月データ取得 ============
+  useEffect(() => {
+    if (!isGroup && activeTab) {
+      fetch(`/api/monthly-summary?area=${activeTab}&year=${viewYear - 1}&month=${viewMonth}`)
+        .then((r) => r.ok ? r.json() : { summary: null })
+        .then((j) => setYoyMonthlySummary(j.summary ?? null));
+    } else {
+      setYoyMonthlySummary(null);
+    }
+  }, [activeTab, viewYear, viewMonth, isGroup]);
 
   // ============ 集計 ============
   const summaryToday = useMemo(
@@ -627,15 +639,88 @@ export default function Dashboard() {
                     過去データ
                   </span>
                 )}
+                {yoyMonthlySummary && Number(yoyMonthlySummary.total_revenue ?? 0) > 0 && (() => {
+                  const yoyRevenue = Number(yoyMonthlySummary.total_revenue);
+                  const yoyRate = Math.round((displaySummary.totalRevenue - yoyRevenue) / yoyRevenue * 1000) / 10;
+                  return (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      background: yoyRate >= 0 ? "rgba(134,239,172,0.3)" : "rgba(252,165,165,0.3)",
+                      color: "#fff", borderRadius: 4, padding: "2px 8px", marginLeft: 8,
+                    }}>
+                      前年同月比: {yoyRate >= 0 ? "+" : ""}{yoyRate.toFixed(1)}%
+                    </span>
+                  );
+                })()}
               </p>
             </div>
-            <div style={{ textAlign: "right", lineHeight: 1.2 }}>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginBottom: 2 }}>残り</div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", lineHeight: 1 }}>
-                {isCurrentMonth ? getDaysInMonth(viewYear, viewMonth) - now.getDate() : 0}日
-              </div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-                経過 {isCurrentMonth ? now.getDate() : getDaysInMonth(viewYear, viewMonth)} / {getDaysInMonth(viewYear, viewMonth)}日
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const area = activeTab;
+                  const areaName = isGroup ? "グループ全体" : (AREAS.find(a => a.id === area)?.name ?? area);
+                  const currentM = new Date().getMonth() + 1;
+                  const currentY = new Date().getFullYear();
+                  const months: { y: number; m: number }[] = [];
+                  for (let y = 2025; y <= currentY; y++) {
+                    const startM = y === 2025 ? 1 : 1;
+                    const endM = y === currentY ? currentM : 12;
+                    for (let m = startM; m <= endM; m++) months.push({ y, m });
+                  }
+                  Promise.all(
+                    months.map(({ y, m }) =>
+                      fetch(`/api/monthly-summary?area=${area}&year=${y}&month=${m}`)
+                        .then(r => r.ok ? r.json() : { summary: null })
+                        .then(j => ({ y, m, s: j.summary }))
+                    )
+                  ).then(results => {
+                    const header = "エリア,年月,売上,粗利,粗利率,件数,客単価,広告費,広告費率,CPA,入電件数,成約率,HELP売上,HELP件数,車両数";
+                    const rows = results
+                      .filter(r => r.s)
+                      .map(({ y, m, s }) => {
+                        const rev = Number(s.total_revenue ?? 0);
+                        const profit = Number(s.total_profit ?? 0);
+                        const profitRate = rev > 0 ? (profit / rev * 100).toFixed(1) : "0";
+                        const count = Number(s.total_count ?? 0);
+                        const unitPrice = count > 0 ? Math.round(rev / count) : 0;
+                        const adCost = Number(s.ad_cost ?? 0);
+                        const adRate = rev > 0 ? (adCost / rev * 100).toFixed(1) : "0";
+                        const callCount = Number(s.call_count ?? 0);
+                        const cpa = count > 0 ? Math.round(adCost / count) : 0;
+                        const convRate = callCount > 0 ? (count / callCount * 100).toFixed(1) : "0";
+                        const helpRev = Number(s.help_revenue ?? 0);
+                        const helpCount = Number(s.help_count ?? 0);
+                        const vehicleCount = Number(s.vehicle_count ?? 0);
+                        return `${areaName},${y}年${m}月,${rev},${profit},${profitRate}%,${count},${unitPrice},${adCost},${adRate}%,${cpa},${callCount},${convRate}%,${helpRev},${helpCount},${vehicleCount}`;
+                      });
+                    const bom = "\uFEFF";
+                    const csv = bom + header + "\n" + rows.join("\n");
+                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${areaName}_月次サマリー.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  });
+                }}
+                style={{
+                  background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)",
+                  color: "#fff", borderRadius: 6, padding: "4px 12px", cursor: "pointer",
+                  fontSize: 11, fontWeight: 600,
+                }}
+              >
+                CSV出力
+              </button>
+              <div style={{ textAlign: "right", lineHeight: 1.2 }}>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginBottom: 2 }}>残り</div>
+                <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", lineHeight: 1 }}>
+                  {isCurrentMonth ? getDaysInMonth(viewYear, viewMonth) - now.getDate() : 0}日
+                </div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+                  経過 {isCurrentMonth ? now.getDate() : getDaysInMonth(viewYear, viewMonth)} / {getDaysInMonth(viewYear, viewMonth)}日
+                </div>
               </div>
             </div>
           </div>
