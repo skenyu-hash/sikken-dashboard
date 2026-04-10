@@ -79,6 +79,14 @@ export default function TrendsPage() {
   const maxVal = Math.max(...chartData, 1);
   const metricObj = METRICS.find((m) => m.key === metric) ?? METRICS[0];
 
+  function shortFormat(key: string, val: number): string {
+    if (key === "profitRate" || key === "adRate") return `${val.toFixed(1)}%`;
+    if (key === "count") return `${val}件`;
+    if (val >= 100000000) return `¥${(val / 100000000).toFixed(1)}億`;
+    if (val >= 10000) return `¥${Math.round(val / 10000)}万`;
+    return `¥${val.toLocaleString()}`;
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
       <div style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "16px 20px" }}>
@@ -128,18 +136,18 @@ export default function TrendsPage() {
               <div style={{ fontSize: 11, fontWeight: 700, color: "#065f46", marginBottom: 16 }}>
                 {AREAS.find((a) => a.id === areaId)?.name} — {year}年 {metricObj.label}推移
               </div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 200, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 180, marginBottom: 8 }}>
                 {chartData.map((val, i) => {
-                  const height = maxVal > 0 ? Math.round((val / maxVal) * 180) : 0;
+                  const height = maxVal > 0 ? Math.round((val / maxVal) * 135) : 0;
                   const isCurrent = year === currentYear && i + 1 === now.getMonth() + 1;
                   const hasData = val > 0;
                   return (
                     <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column",
-                      alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
+                      alignItems: "center", gap: 3, justifyContent: "flex-end" }}>
                       {hasData && (
-                        <div style={{ fontSize: 9, color: "#6b7280", whiteSpace: "nowrap",
-                          writingMode: "vertical-rl", transform: "rotate(180deg)", maxHeight: 60, overflow: "hidden" }}>
-                          {metricObj.format(val)}
+                        <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600,
+                          whiteSpace: "nowrap", textAlign: "center" }}>
+                          {shortFormat(metric, val)}
                         </div>
                       )}
                       <div style={{
