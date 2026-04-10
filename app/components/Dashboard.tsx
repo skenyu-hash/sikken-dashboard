@@ -1080,9 +1080,19 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
                 : <span style={{ color: "#d1d5db", fontSize: 10 }}>未設定</span>}
             </td>
             <td style={{ padding: "8px 10px", textAlign: "right" }}>
-              {row.status !== "—" && row.statusLevel !== "none"
-                ? badge(row.statusLevel, row.status)
-                : <span style={{ color: "#d1d5db", fontSize: 11 }}>{row.status}</span>}
+              {row.landingRate !== null ? (
+                <span style={{
+                  display: "inline-block", fontSize: 10, fontWeight: 700, borderRadius: 3, padding: "2px 7px",
+                  background: row.landingRate >= 100 ? "#d1fae5" : row.landingRate >= 80 ? "#fef9c3" : "#fee2e2",
+                  color: row.landingRate >= 100 ? "#065f46" : row.landingRate >= 80 ? "#854d0e" : "#991b1b",
+                }}>{row.landingRate}%</span>
+              ) : row.landingValue > 0 ? (
+                <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                  {row.name.includes("件") ? `${row.landingValue}件` : `¥${row.landingValue.toLocaleString()}`}
+                </span>
+              ) : (
+                <span style={{ color: "#d1d5db", fontSize: 11 }}>{"\u2014"}</span>
+              )}
             </td>
           </tr>
         ))}

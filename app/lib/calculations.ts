@@ -174,6 +174,8 @@ export type MetricRow = {
   status: string;
   statusLevel: "good" | "warn" | "bad" | "none";
   lineColor: string;
+  landingValue: number;
+  landingRate: number | null;
 };
 
 export function buildMetricRows(
@@ -223,12 +225,22 @@ export function buildMetricRows(
   const constructionCount = Math.round(summary.totalCount * summary.constructionRate / 100);
   const outsourceCost = entries.reduce((s, e) => s + (e.outsourceCost ?? 0), 0);
 
+  const calcLanding = (actual: number): number => {
+    if (daysElapsed <= 0 || actual <= 0) return 0;
+    return Math.round(actual / daysElapsed * daysInMonth);
+  };
+  const calcLandingRate = (actual: number, target: number): number | null => {
+    if (daysElapsed <= 0 || actual <= 0 || target <= 0) return null;
+    return Math.round(actual / daysElapsed * daysInMonth / target * 1000) / 10;
+  };
+
   const leftRows: MetricRow[] = [
     (() => {
       const pct = targets.targetVehicleCount > 0 ? Math.round(12 / targets.targetVehicleCount * 1000) / 10 : null;
       return {
         name: "車両数", value: "12台", salesRatio: null,
         targetRatio: pct, status: statusStr(pct), statusLevel: statusLevelFromPct(pct), lineColor: "#6b7280",
+        landingValue: 0, landingRate: null,
       };
     })(),
     (() => {
@@ -237,6 +249,7 @@ export function buildMetricRows(
       return {
         name: "売上", value: `¥${summary.totalRevenue.toLocaleString()}`, salesRatio: "100%",
         targetRatio: tr, status: statusStr(pct), statusLevel: statusLevelFromPct(pct), lineColor: "#059669",
+        landingValue: calcLanding(summary.totalRevenue), landingRate: calcLandingRate(summary.totalRevenue, targets.targetSales),
       };
     })(),
     (() => {
@@ -244,6 +257,7 @@ export function buildMetricRows(
       return {
         name: "客単価", value: `¥${summary.companyUnitPrice.toLocaleString()}`, salesRatio: null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr), lineColor: "#059669",
+        landingValue: 0, landingRate: null,
       };
     })(),
     (() => {
@@ -252,6 +266,7 @@ export function buildMetricRows(
       return {
         name: "合計件数", value: `${summary.totalCount}件`, salesRatio: null,
         targetRatio: tr, status: statusStr(pct), statusLevel: statusLevelFromPct(pct), lineColor: "#3b82f6",
+        landingValue: calcLanding(summary.totalCount), landingRate: calcLandingRate(summary.totalCount, targets.targetCount),
       };
     })(),
     (() => {
@@ -264,6 +279,7 @@ export function buildMetricRows(
         subValueColor: subValueColor(summary.constructionRate, targets.targetConstructionRate),
         salesRatio: null, targetRatio: tr, status: statusStr(pct),
         statusLevel: statusLevelFromPct(pct), lineColor: "#3b82f6",
+        landingValue: calcLanding(constructionCount), landingRate: calcLandingRate(constructionCount, targetConstructCount),
       };
     })(),
     (() => {
@@ -271,6 +287,7 @@ export function buildMetricRows(
       return {
         name: "対応率", value: `${convRate.toFixed(1)}%`, salesRatio: null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr), lineColor: "#3b82f6",
+        landingValue: 0, landingRate: null,
       };
     })(),
     (() => {
@@ -280,6 +297,7 @@ export function buildMetricRows(
         name: "HELP売上", value: `¥${summary.help.revenue.toLocaleString()}`,
         salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.help.revenue / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: tr, status: statusStr(pct), statusLevel: statusLevelFromPct(pct), lineColor: "#0891b2",
+        landingValue: calcLanding(summary.help.revenue), landingRate: calcLandingRate(summary.help.revenue, targets.targetHelpSales),
       };
     })(),
     (() => {
@@ -287,6 +305,7 @@ export function buildMetricRows(
       return {
         name: "HELP客単価", value: `¥${summary.help.unitPrice.toLocaleString()}`, salesRatio: null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr), lineColor: "#0891b2",
+        landingValue: 0, landingRate: null,
       };
     })(),
     (() => {
@@ -298,6 +317,7 @@ export function buildMetricRows(
         subValueColor: subValueColor(helpRate, targets.targetHelpRate),
         salesRatio: null, targetRatio: tr, status: statusStr(pct),
         statusLevel: statusLevelFromPct(pct), lineColor: "#0891b2",
+        landingValue: calcLanding(summary.help.count), landingRate: calcLandingRate(summary.help.count, targets.targetHelpCount),
       };
     })(),
   ];
@@ -310,6 +330,7 @@ export function buildMetricRows(
         name: "広告費", value: `¥${summary.totalAdCost.toLocaleString()}`,
         salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalAdCost / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: tr, status: statusStr(pct), statusLevel: statusLevelFromPct(pct, true), lineColor: "#d97706",
+        landingValue: calcLanding(summary.totalAdCost), landingRate: calcLandingRate(summary.totalAdCost, targets.targetAdCost),
       };
     })(),
     (() => {
@@ -319,6 +340,7 @@ export function buildMetricRows(
         name: "職人費", value: `¥${summary.totalLaborCost.toLocaleString()}`,
         salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalLaborCost / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr, true), lineColor: "#d97706",
+        landingValue: calcLanding(summary.totalLaborCost), landingRate: null,
       };
     })(),
     (() => {
@@ -328,6 +350,7 @@ export function buildMetricRows(
         name: "材料費", value: `¥${summary.totalMaterialCost.toLocaleString()}`,
         salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalMaterialCost / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr, true), lineColor: "#d97706",
+        landingValue: calcLanding(summary.totalMaterialCost), landingRate: null,
       };
     })(),
     (() => {
@@ -335,6 +358,7 @@ export function buildMetricRows(
         name: "営業外注費", value: `¥${outsourceCost.toLocaleString()}`,
         salesRatio: summary.totalRevenue > 0 ? `${Math.round(outsourceCost / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: null, status: "—", statusLevel: "none" as const, lineColor: "#d97706",
+        landingValue: calcLanding(outsourceCost), landingRate: null,
       };
     })(),
     (() => {
@@ -343,6 +367,7 @@ export function buildMetricRows(
       return {
         name: "入電件数", value: `${callCount}件`, salesRatio: null,
         targetRatio: tr, status: statusStr(pct), statusLevel: statusLevelFromPct(pct), lineColor: "#3b82f6",
+        landingValue: calcLanding(callCount), landingRate: calcLandingRate(callCount, targets.targetCallCount),
       };
     })(),
     (() => {
@@ -350,6 +375,7 @@ export function buildMetricRows(
       return {
         name: "入電単価", value: `¥${callUnitPrice.toLocaleString()}`, salesRatio: null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr, true), lineColor: "#3b82f6",
+        landingValue: 0, landingRate: null,
       };
     })(),
     (() => {
@@ -358,6 +384,7 @@ export function buildMetricRows(
       return {
         name: "獲得件数", value: `${summary.totalCount}件`, salesRatio: null,
         targetRatio: tr, status: statusStr(pct), statusLevel: statusLevelFromPct(pct), lineColor: "#3b82f6",
+        landingValue: calcLanding(summary.totalCount), landingRate: calcLandingRate(summary.totalCount, targets.targetCount),
       };
     })(),
     (() => {
@@ -365,6 +392,7 @@ export function buildMetricRows(
       return {
         name: "獲得単価(CPA)", value: `¥${cpa.toLocaleString()}`, salesRatio: null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr, true), lineColor: "#d97706",
+        landingValue: 0, landingRate: null,
       };
     })(),
     (() => {
@@ -372,6 +400,7 @@ export function buildMetricRows(
       return {
         name: "成約率", value: `${convRate.toFixed(1)}%`, salesRatio: null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr), lineColor: "#059669",
+        landingValue: 0, landingRate: null,
       };
     })(),
     (() => {
@@ -381,6 +410,7 @@ export function buildMetricRows(
         name: "粗利", value: `¥${summary.totalProfit.toLocaleString()}`,
         salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalProfit / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: tr, status: statusStr(pct), statusLevel: statusLevelFromPct(pct), lineColor: "#059669",
+        landingValue: calcLanding(summary.totalProfit), landingRate: calcLandingRate(summary.totalProfit, targets.targetProfit),
       };
     })(),
   ];
