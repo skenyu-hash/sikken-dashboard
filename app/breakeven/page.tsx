@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  calculateBreakeven, calculateDashboard, type DailyEntry, type FixedCosts, yen,
+  calculateBreakeven, calculateDashboard, getDaysInMonth,
+  type DailyEntry, type DashboardSummary, type FixedCosts, yen,
 } from "../lib/calculations";
 import { useRole } from "../components/RoleProvider";
 
@@ -13,18 +14,15 @@ const AREAS = [
   { id: "chugoku", name: "中国" }, { id: "shizuoka", name: "静岡" },
 ];
 
-const SECTION_TITLE_STYLE: React.CSSProperties = {
-  background: "#ecfdf5", padding: "8px 14px",
-  fontSize: 11, fontWeight: 700, color: "#065f46",
-  textTransform: "uppercase", letterSpacing: "0.07em",
-  borderBottom: "1px solid #d1fae5",
-};
-const CARD_STYLE: React.CSSProperties = {
-  background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden",
-};
-
 type CostItem = { id: string; name: string; amount: number; color: string };
 const COLORS = ["#3b82f6", "#0891b2", "#d97706", "#059669", "#8b5cf6", "#ec4899", "#6b7280", "#dc2626"];
+
+type AreaBreakeven = {
+  areaId: string; areaName: string;
+  revenue: number; profitRate: number; fixedCost: number;
+  breakevenRevenue: number; achievementRate: number;
+  remainingCount: number; dailyRequired: number;
+};
 
 export default function BreakevenPage() {
   const role = useRole();
@@ -37,36 +35,93 @@ export default function BreakevenPage() {
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [fixed, setFixed] = useState<FixedCosts>({ laborCost: 0, rent: 0, other: 0 });
   const [saving, setSaving] = useState(false);
+  const [monthlySummary, setMonthlySummary] = useState<Record<string, unknown> | null>(null);
   const [costItems, setCostItems] = useState<CostItem[]>([
     { id: "1", name: "人件費", amount: 0, color: "#3b82f6" },
     { id: "2", name: "家賃・リース", amount: 0, color: "#0891b2" },
     { id: "3", name: "その他", amount: 0, color: "#6b7280" },
   ]);
+  const [areaBreakevens, setAreaBreakevens] = useState<AreaBreakeven[]>([]);
 
+  // 選択エリアのデータ取得
   useEffect(() => {
-    fetch(`/api/entries?area=${areaId}&year=${year}&month=${month}`)
-      .then((r) => (r.ok ? r.json() : { entries: [] }))
-      .then((j: { entries: DailyEntry[] }) => setEntries(j.entries ?? []));
-    fetch(`/api/fixed-costs?area=${areaId}&year=${year}&month=${month}`)
-      .then((r) => (r.ok ? r.json() : { fixedCosts: { laborCost: 0, rent: 0, other: 0 } }))
-      .then((j: { fixedCosts: FixedCosts }) => {
-        setFixed(j.fixedCosts);
-        const fc = j.fixedCosts;
-        const items: CostItem[] = [];
-        if (fc.laborCost > 0) items.push({ id: "1", name: "人件費", amount: fc.laborCost, color: "#3b82f6" });
-        else items.push({ id: "1", name: "人件費", amount: 0, color: "#3b82f6" });
-        if (fc.rent > 0) items.push({ id: "2", name: "家賃・リース", amount: fc.rent, color: "#0891b2" });
-        else items.push({ id: "2", name: "家賃・リース", amount: 0, color: "#0891b2" });
-        if (fc.other > 0) items.push({ id: "3", name: "その他", amount: fc.other, color: "#6b7280" });
-        else items.push({ id: "3", name: "その他", amount: 0, color: "#6b7280" });
-        setCostItems(items);
-      });
+    Promise.all([
+      fetch(`/api/entries?area=${areaId}&year=${year}&month=${month}`),
+      fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${month}`),
+      fetch(`/api/fixed-costs?area=${areaId}&year=${year}&month=${month}`),
+    ]).then(async ([eRes, sRes, fRes]) => {
+      const eJson = eRes.ok ? await eRes.json() : { entries: [] };
+      const sJson = sRes.ok ? await sRes.json() : { summary: null };
+      const fJson = fRes.ok ? await fRes.json() : { fixedCosts: { laborCost: 0, rent: 0, other: 0 } };
+
+      setEntries(eJson.entries ?? []);
+      setMonthlySummary(sJson.summary ?? null);
+      setFixed(fJson.fixedCosts);
+
+      const fc = fJson.fixedCosts as FixedCosts;
+      setCostItems([
+        { id: "1", name: "人件費", amount: fc.laborCost || 0, color: "#3b82f6" },
+        { id: "2", name: "家賃・リース", amount: fc.rent || 0, color: "#0891b2" },
+        { id: "3", name: "その他", amount: fc.other || 0, color: "#6b7280" },
+      ]);
+    });
   }, [areaId, year, month]);
 
-  const summary = useMemo(
+  // 全エリア達成状況取得
+  useEffect(() => {
+    const daysInMonth = getDaysInMonth(year, month);
+    const daysElapsed = now.getDate();
+    const remainingDays = daysInMonth - daysElapsed;
+
+    Promise.all(AREAS.map(async (area) => {
+      const [eRes, sRes, fRes] = await Promise.all([
+        fetch(`/api/entries?area=${area.id}&year=${year}&month=${month}`),
+        fetch(`/api/monthly-summary?area=${area.id}&year=${year}&month=${month}`),
+        fetch(`/api/fixed-costs?area=${area.id}&year=${year}&month=${month}`),
+      ]);
+      const eJson = eRes.ok ? await eRes.json() : { entries: [] };
+      const sJson = sRes.ok ? await sRes.json() : { summary: null };
+      const fJson = fRes.ok ? await fRes.json() : { fixedCosts: { laborCost: 0, rent: 0, other: 0 } };
+
+      const s = calculateDashboard(eJson.entries ?? [], year, month, now);
+      const ms = sJson.summary;
+      const revenue = ms ? Number(ms.total_revenue ?? 0) : s.totalRevenue;
+      const profit = ms ? Number(ms.total_profit ?? 0) : s.totalProfit;
+      const count = ms ? Number(ms.total_count ?? 0) : s.totalCount;
+      const unitPrice = ms ? Number(ms.unit_price ?? 0) : s.companyUnitPrice;
+
+      const profitRate = revenue > 0 ? profit / revenue * 100 : 0;
+      const fc = fJson.fixedCosts as FixedCosts;
+      const fixedCost = (fc.laborCost || 0) + (fc.rent || 0) + (fc.other || 0);
+      const breakevenRevenue = profitRate > 0 ? Math.round(fixedCost / (profitRate / 100)) : 0;
+      const achievementRate = breakevenRevenue > 0 ? Math.round(revenue / breakevenRevenue * 1000) / 10 : 0;
+      const remainingRevenue = Math.max(0, breakevenRevenue - revenue);
+      const remainingCount = unitPrice > 0 ? Math.ceil(remainingRevenue / unitPrice) : 0;
+      const dailyRequired = remainingDays > 0 ? remainingCount / remainingDays : 0;
+
+      return { areaId: area.id, areaName: area.name, revenue, profitRate, fixedCost, breakevenRevenue, achievementRate, remainingCount, dailyRequired };
+    })).then(setAreaBreakevens);
+  }, [year, month]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const rawSummary = useMemo(
     () => calculateDashboard(entries, year, month, now),
     [entries, year, month] // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  // displaySummary: monthly_summariesがある場合はその値を使用
+  const displayRevenue = monthlySummary ? Number(monthlySummary.total_revenue ?? 0) : rawSummary.totalRevenue;
+  const displayProfit = monthlySummary ? Number(monthlySummary.total_profit ?? 0) : rawSummary.totalProfit;
+  const displayCount = monthlySummary ? Number(monthlySummary.total_count ?? 0) : rawSummary.totalCount;
+  const displayUnitPrice = monthlySummary ? Number(monthlySummary.unit_price ?? 0) : rawSummary.companyUnitPrice;
+  const displayGrossMargin = displayRevenue > 0 ? displayProfit / displayRevenue * 100 : 0;
+
+  // displaySummary をベースにBE計算
+  const displaySummary: DashboardSummary = useMemo(() => {
+    if (!monthlySummary) return rawSummary;
+    const dim = getDaysInMonth(year, month);
+    return { ...rawSummary, totalRevenue: displayRevenue, totalProfit: displayProfit, totalCount: displayCount,
+      companyUnitPrice: displayUnitPrice, grossMargin: displayGrossMargin, daysElapsed: dim, daysInMonth: dim };
+  }, [rawSummary, monthlySummary, displayRevenue, displayProfit, displayCount, displayUnitPrice, displayGrossMargin, year, month]);
 
   const totalFixed = costItems.reduce((s, c) => s + c.amount, 0);
 
@@ -74,14 +129,7 @@ export default function BreakevenPage() {
     () => ({ laborCost: 0, rent: 0, other: totalFixed }),
     [totalFixed]
   );
-  const be = useMemo(() => calculateBreakeven(fixedForCalc, summary), [fixedForCalc, summary]);
-
-  // 万円<->円
-  const setManField = (k: keyof FixedCosts, raw: string) => {
-    const n = Number(raw.replace(/[^0-9.]/g, "")) || 0;
-    setFixed((f) => ({ ...f, [k]: Math.round(n * 10000) }));
-  };
-  const dispMan = (k: keyof FixedCosts) => (fixed[k] ? String(fixed[k] / 10000) : "");
+  const be = useMemo(() => calculateBreakeven(fixedForCalc, displaySummary), [fixedForCalc, displaySummary]);
 
   const addItem = () => {
     const nextColor = COLORS[costItems.length % COLORS.length];
@@ -129,15 +177,9 @@ export default function BreakevenPage() {
               {year}年{month}月 ／ 固定費から達成必要件数を逆算
             </p>
           </div>
-          <select
-            value={areaId}
-            onChange={(e) => setAreaId(e.target.value)}
-            style={{
-              background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.35)",
-              color: "#fff", borderRadius: 8, padding: "6px 12px",
-              fontSize: 13, fontWeight: 700,
-            }}
-          >
+          <select value={areaId} onChange={(e) => setAreaId(e.target.value)}
+            style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.35)",
+              color: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 700 }}>
             {AREAS.map((a) => <option key={a.id} value={a.id} style={{ color: "#111" }}>{a.name}エリア</option>)}
           </select>
         </div>
@@ -153,75 +195,54 @@ export default function BreakevenPage() {
               display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>固定費入力</span>
               {canEdit && (
-                <button onClick={addItem}
-                  style={{ fontSize: 11, fontWeight: 700, background: "#059669", color: "#fff",
-                    border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
-                  + 項目を追加
-                </button>
+                <button onClick={addItem} style={{ fontSize: 11, fontWeight: 700, background: "#059669", color: "#fff",
+                  border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ 項目を追加</button>
               )}
             </div>
             {costItems.map((item) => {
               const pct = totalFixed > 0 ? Math.round(item.amount / totalFixed * 100) : 0;
               return (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 16px", borderBottom: "1px solid #f0faf0" }}>
-                  <div style={{ position: "relative" }}>
-                    <div onClick={() => cycleColor(item.id)}
-                      style={{ width: 10, height: 10, borderRadius: "50%",
-                        background: item.color, cursor: "pointer", flexShrink: 0 }} />
-                  </div>
-                  <input value={item.name} onChange={e => updateItem(item.id, "name", e.target.value)}
-                    disabled={!canEdit}
-                    style={{ flex: 1, border: "none", outline: "none", fontSize: 12, fontWeight: 700,
-                      color: "#111", background: "transparent" }} />
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: "1px solid #f0faf0" }}>
+                  <div onClick={() => cycleColor(item.id)} style={{ width: 10, height: 10, borderRadius: "50%", background: item.color, cursor: "pointer", flexShrink: 0 }} />
+                  <input value={item.name} onChange={e => updateItem(item.id, "name", e.target.value)} disabled={!canEdit}
+                    style={{ flex: 1, border: "none", outline: "none", fontSize: 12, fontWeight: 700, color: "#111", background: "transparent" }} />
                   <div style={{ flex: 1, maxWidth: 100 }}>
                     <div style={{ height: 6, background: "#f3f4f6", borderRadius: 3 }}>
-                      <div style={{ height: 6, borderRadius: 3, background: item.color,
-                        width: `${pct}%`, transition: "width 0.3s" }} />
+                      <div style={{ height: 6, borderRadius: 3, background: item.color, width: `${pct}%`, transition: "width 0.3s" }} />
                     </div>
                   </div>
                   <span style={{ fontSize: 10, color: "#9ca3af", minWidth: 32, textAlign: "right" }}>{pct}%</span>
-                  <input type="number" value={item.amount || ""}
-                    onChange={e => updateItem(item.id, "amount", Number(e.target.value))}
-                    disabled={!canEdit}
-                    placeholder="0"
-                    style={{ width: 110, height: 32, border: "1px solid #d1fae5", borderRadius: 6,
-                      padding: "0 8px", fontSize: 12, fontWeight: 600, textAlign: "right" }} />
+                  <input type="number" value={item.amount || ""} onChange={e => updateItem(item.id, "amount", Number(e.target.value))}
+                    disabled={!canEdit} placeholder="0"
+                    style={{ width: 110, height: 32, border: "1px solid #d1fae5", borderRadius: 6, padding: "0 8px", fontSize: 12, fontWeight: 600, textAlign: "right" }} />
                   {canEdit && costItems.length > 1 && (
-                    <button onClick={() => removeItem(item.id)}
-                      style={{ fontSize: 12, color: "#d1d5db", background: "none", border: "none", cursor: "pointer" }}>✕</button>
+                    <button onClick={() => removeItem(item.id)} style={{ fontSize: 12, color: "#d1d5db", background: "none", border: "none", cursor: "pointer" }}>✕</button>
                   )}
                 </div>
               );
             })}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-              padding: "10px 16px", background: "#f0fdf4", borderTop: "1px solid #d1fae5" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", background: "#f0fdf4", borderTop: "1px solid #d1fae5" }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: "#065f46" }}>固定費合計</span>
               <span style={{ fontSize: 18, fontWeight: 800, color: "#065f46" }}>&yen;{totalFixed.toLocaleString()}</span>
             </div>
             {canEdit && (
               <div style={{ padding: "10px 16px" }}>
                 <button onClick={save} disabled={saving}
-                  style={{
-                    width: "100%", height: 40,
-                    background: "#059669", color: "#fff", border: "none",
-                    borderRadius: 8, fontSize: 13, fontWeight: 700,
-                    cursor: "pointer", opacity: saving ? 0.6 : 1,
-                  }}>
+                  style={{ width: "100%", height: 40, background: "#059669", color: "#fff", border: "none",
+                    borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
                   {saving ? "保存中..." : "固定費を保存"}
                 </button>
               </div>
             )}
-            {!canEdit && (
-              <p style={{ padding: "10px 16px", fontSize: 11, color: "#9ca3af", textAlign: "center" }}>
-                固定費の編集は役員のみ可能です
-              </p>
-            )}
+            {!canEdit && <p style={{ padding: "10px 16px", fontSize: 11, color: "#9ca3af", textAlign: "center" }}>固定費の編集は役員のみ可能です</p>}
           </div>
 
           {/* 損益分岐 自動算出 */}
-          <div style={CARD_STYLE}>
-            <div style={SECTION_TITLE_STYLE}>損益分岐 自動算出</div>
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+            <div style={{ background: "#ecfdf5", padding: "8px 14px", fontSize: 11, fontWeight: 700, color: "#065f46",
+              textTransform: "uppercase", letterSpacing: "0.07em", borderBottom: "1px solid #d1fae5" }}>
+              損益分岐 自動算出
+            </div>
             <div style={{ padding: "6px 14px 10px" }}>
               <BERow label="固定費合計" value={yen(be.fixedTotal)} />
               <BERow label="現在の粗利率" value={`${be.grossMarginPct.toFixed(1)}%`} />
@@ -231,11 +252,7 @@ export default function BreakevenPage() {
               <BERow label="1日あたり必要" value={`${be.perDayCount.toFixed(1)} 件`} />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f5faf5" }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>達成率</span>
-                <span style={{
-                  fontSize: 12, fontWeight: 700,
-                  borderRadius: 4, padding: "2px 7px",
-                  background: ab.bg, color: ab.color,
-                }}>
+                <span style={{ fontSize: 12, fontWeight: 700, borderRadius: 4, padding: "2px 7px", background: ab.bg, color: ab.color }}>
                   {be.achievementPct.toFixed(1)}%
                 </span>
               </div>
@@ -244,15 +261,90 @@ export default function BreakevenPage() {
           </div>
         </div>
 
-        {/* 下段: 現状サマリー 4枚 */}
-        <div style={CARD_STYLE}>
-          <div style={SECTION_TITLE_STYLE}>現状サマリー</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", padding: 14, gap: 12 }}>
-            <SummaryCard label="現在の売上" value={yen(summary.totalRevenue)} color="#059669" />
-            <SummaryCard label="現在の粗利" value={yen(summary.totalProfit)} color="#059669" />
-            <SummaryCard label="現在の件数" value={`${summary.totalCount} 件`} color="#3b82f6" />
-            <SummaryCard label="現在の客単価" value={yen(summary.companyUnitPrice)} color="#3b82f6" />
+        {/* 現状サマリー */}
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden", marginBottom: 20 }}>
+          <div style={{ background: "#ecfdf5", padding: "8px 14px", fontSize: 11, fontWeight: 700, color: "#065f46",
+            textTransform: "uppercase", letterSpacing: "0.07em", borderBottom: "1px solid #d1fae5" }}>
+            現状サマリー
           </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", padding: 14, gap: 12 }}>
+            <SummaryCard label="現在の売上" value={yen(displayRevenue)} color="#059669" />
+            <SummaryCard label="現在の粗利" value={yen(displayProfit)} color="#059669" />
+            <SummaryCard label="現在の件数" value={`${displayCount} 件`} color="#3b82f6" />
+            <SummaryCard label="現在の客単価" value={yen(displayUnitPrice)} color="#3b82f6" />
+          </div>
+        </div>
+
+        {/* エリア別損益分岐達成状況 */}
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase",
+          letterSpacing: "0.1em", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+          エリア別 損益分岐達成状況
+          <div style={{ flex: 1, height: 1, background: "#d1fae5" }} />
+        </div>
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "10%" }} /><col style={{ width: "13%" }} /><col style={{ width: "10%" }} />
+              <col style={{ width: "13%" }} /><col style={{ width: "13%" }} /><col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} /><col style={{ width: "11%" }} /><col style={{ width: "10%" }} />
+            </colgroup>
+            <thead>
+              <tr style={{ background: "#ecfdf5" }}>
+                {["エリア", "売上", "粗利率", "固定費", "損益分岐売上", "達成率", "残必要件数", "1日あたり", "状態"].map((h) => (
+                  <th key={h} style={{ padding: "8px 10px", fontSize: 9, fontWeight: 700, color: "#6b7280",
+                    textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #d1fae5",
+                    textAlign: h === "エリア" ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {areaBreakevens.map((ab) => {
+                const isAbove = ab.achievementRate >= 100;
+                const isNear = ab.achievementRate >= 80;
+                return (
+                  <tr key={ab.areaId} style={{ borderBottom: "1px solid #f0faf0" }}>
+                    <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, color: "#111" }}>{ab.areaName}</td>
+                    <td style={{ padding: "9px 10px", fontSize: 11, textAlign: "right", color: "#111" }}>
+                      {ab.revenue > 0 ? yen(ab.revenue) : <span style={{ color: "#d1d5db" }}>未入力</span>}
+                    </td>
+                    <td style={{ padding: "9px 10px", fontSize: 11, textAlign: "right",
+                      color: ab.profitRate >= 25 ? "#059669" : ab.profitRate >= 15 ? "#d97706" : "#dc2626" }}>
+                      {ab.revenue > 0 ? `${ab.profitRate.toFixed(1)}%` : "\u2014"}
+                    </td>
+                    <td style={{ padding: "9px 10px", fontSize: 11, textAlign: "right", color: "#374151" }}>
+                      {ab.fixedCost > 0 ? yen(ab.fixedCost) : <span style={{ color: "#d1d5db" }}>未設定</span>}
+                    </td>
+                    <td style={{ padding: "9px 10px", fontSize: 11, fontWeight: 700, textAlign: "right", color: "#374151" }}>
+                      {ab.breakevenRevenue > 0 ? yen(ab.breakevenRevenue) : "\u2014"}
+                    </td>
+                    <td style={{ padding: "9px 10px", textAlign: "right" }}>
+                      {ab.achievementRate > 0 ? (
+                        <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px",
+                          background: isAbove ? "#d1fae5" : isNear ? "#fef9c3" : "#fee2e2",
+                          color: isAbove ? "#065f46" : isNear ? "#854d0e" : "#991b1b" }}>
+                          {ab.achievementRate.toFixed(1)}%
+                        </span>
+                      ) : <span style={{ color: "#d1d5db", fontSize: 10 }}>{"\u2014"}</span>}
+                    </td>
+                    <td style={{ padding: "9px 10px", fontSize: 11, textAlign: "right", fontWeight: 700,
+                      color: ab.remainingCount <= 0 ? "#059669" : "#dc2626" }}>
+                      {ab.remainingCount > 0 ? `${ab.remainingCount}件` : "達成済"}
+                    </td>
+                    <td style={{ padding: "9px 10px", fontSize: 11, textAlign: "right", color: "#374151" }}>
+                      {ab.dailyRequired > 0 ? `${ab.dailyRequired.toFixed(1)}件` : <span style={{ color: "#059669" }}>達成済</span>}
+                    </td>
+                    <td style={{ padding: "9px 10px", textAlign: "right" }}>
+                      <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px",
+                        background: isAbove ? "#d1fae5" : isNear ? "#fef9c3" : "#fee2e2",
+                        color: isAbove ? "#065f46" : isNear ? "#854d0e" : "#991b1b" }}>
+                        {isAbove ? "達成" : isNear ? "接近" : "未達"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -263,10 +355,7 @@ function BERow({ label, value, big, highlight }: { label: string; value: string;
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f5faf5" }}>
       <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{label}</span>
-      <span style={{
-        fontSize: big ? 20 : 13, fontWeight: 800,
-        color: highlight ? "#059669" : "#111",
-      }}>{value}</span>
+      <span style={{ fontSize: big ? 20 : 13, fontWeight: 800, color: highlight ? "#059669" : "#111" }}>{value}</span>
     </div>
   );
 }
