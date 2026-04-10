@@ -137,7 +137,7 @@ export default function Dashboard() {
   const role = useRole();
   const session = useSession();
   const isInputOnly = role === "input";
-  const isManager = role === "manager";
+  const canEditDashboard = role === "admin" || role === "manager" || role === "input";
   // 事務員で担当エリアが指定されている場合、そのエリアのみ編集可
   const lockedAreaId = isInputOnly && session?.areaId ? session.areaId : null;
   const formSections = isInputOnly ? FORM_SECTIONS_SIMPLE : FORM_SECTIONS_FULL;
@@ -163,7 +163,7 @@ export default function Dashboard() {
   const isCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
   const isGroup = activeTab === GROUP_TAB;
   const isAreaEditable = !lockedAreaId || lockedAreaId === activeTab;
-  const canEdit = !isGroup && isAreaEditable;
+  const canEdit = canEditDashboard && !isGroup && isAreaEditable;
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -873,7 +873,7 @@ export default function Dashboard() {
       </section>
 
       {/* ============ 入力フォーム (折りたたみ式) ============ */}
-      {canEdit && !isManager && !isGroup && (
+      {canEdit && !isGroup && (
         <section style={{ marginBottom: 16 }}>
           <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
             <div

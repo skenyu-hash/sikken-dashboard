@@ -6,7 +6,7 @@ import { getSql, ensureSchema } from "./db";
 export const AUTH_COOKIE = "sd_session";
 export const TOKEN_TTL_SEC = 60 * 60 * 8; // 8 hours
 
-export type Role = "admin" | "manager" | "input";
+export type Role = "admin" | "manager" | "staff" | "input";
 
 export type SessionUser = {
   id: number;
@@ -265,12 +265,12 @@ export async function logAudit(opts: {
 
 // ============ エリアアクセス制御 ============
 export function canAccessArea(user: SessionUser, areaId: string): boolean {
-  if (user.role === "admin" || user.role === "manager") return true;
+  if (user.role === "admin" || user.role === "manager" || user.role === "staff") return true;
   // input: 自分のareaIdのみ。areaId未設定の場合は全エリア入力可とみなす
   return user.areaId == null || user.areaId === areaId;
 }
 export function canEditArea(user: SessionUser, areaId: string): boolean {
-  if (user.role === "manager") return false;
+  if (user.role === "manager" || user.role === "staff") return false;
   if (user.role === "admin") return true;
   // input
   return user.areaId == null || user.areaId === areaId;

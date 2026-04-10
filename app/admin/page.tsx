@@ -175,9 +175,10 @@ export default function AdminPage() {
                 <select value={form.role}
                   onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))}
                   className="w-full min-h-[48px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-base">
-                  <option value="admin">役員(admin)</option>
-                  <option value="manager">管理職(manager)</option>
-                  <option value="input">事務員(input)</option>
+                  <option value="admin">役員（全編集・全閲覧）</option>
+                  <option value="manager">部長（ダッシュボード・目標のみ編集）</option>
+                  <option value="staff">内勤・役職者（編集なし・限定閲覧）</option>
+                  <option value="input">事務員（ダッシュボードのみ編集）</option>
                 </select>
               </label>
               <label className="block">
@@ -213,7 +214,8 @@ export default function AdminPage() {
                     onChange={(e) => changeRole(u, e.target.value as Role)}
                     className="min-h-[40px] rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm px-2">
                     <option value="admin">役員</option>
-                    <option value="manager">管理職</option>
+                    <option value="manager">部長</option>
+                    <option value="staff">内勤・役職者</option>
                     <option value="input">事務員</option>
                   </select>
                   <select value={u.areaId ?? ""}

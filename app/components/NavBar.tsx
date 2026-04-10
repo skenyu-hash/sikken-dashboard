@@ -16,12 +16,11 @@ export function NavBar() {
 
   const items: { href: string; label: string; show: boolean }[] = [
     { href: "/", label: "ダッシュボード", show: true },
-    { href: "/ranking", label: "ランキング", show: role === "admin" || role === "manager" },
+    { href: "/ranking", label: "ランキング", show: true },
     { href: "/trends", label: "推移", show: true },
-    { href: "/targets", label: "目標", show: role === "admin" || role === "manager" },
-    { href: "/meeting", label: "会議", show: role === "admin" || role === "manager" },
-    { href: "/breakeven", label: "損益分岐", show: role === "admin" || role === "manager" },
-    { href: "/driver", label: "ドライバー", show: role === "admin" || role === "manager" },
+    { href: "/targets", label: "目標", show: true },
+    { href: "/meeting", label: "会議", show: true },
+    { href: "/breakeven", label: "損益分岐", show: role === "admin" },
     { href: "/cockpit", label: "CF", show: role === "admin" },
     { href: "/import", label: "インポート", show: role === "admin" },
     { href: "/admin", label: "管理者", show: role === "admin" },
@@ -71,7 +70,7 @@ export function NavBar() {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
         <span style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap" }}>
-          {session.name}（{role === "admin" ? "役員" : role === "manager" ? "管理職" : "事務員"}）
+          {session.name}（{role === "admin" ? "役員" : role === "manager" ? "部長" : role === "staff" ? "内勤・役職者" : "事務員"}）
         </span>
         <button
           type="button"
