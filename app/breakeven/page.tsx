@@ -257,22 +257,38 @@ export default function BreakevenPage() {
             </div>
             {/* 現状サマリー */}
             <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
-              <div style={{ background: "#ecfdf5", padding: "10px 14px", borderBottom: "1px solid #d1fae5" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>現状サマリー</span>
+              <div style={{ background: "#ecfdf5", padding: "9px 14px", borderBottom: "1px solid #d1fae5",
+                fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                現状サマリー
+              </div>
+              {/* 達成率バー */}
+              <div style={{ padding: "12px 14px", borderBottom: "1px solid #f0faf0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600 }}>損益分岐達成率</span>
+                  <span style={{ fontSize: 20, fontWeight: 800,
+                    color: be.achievementPct >= 100 ? "#059669" : be.achievementPct >= 80 ? "#d97706" : "#dc2626" }}>
+                    {be.achievementPct.toFixed(1)}%
+                  </span>
+                </div>
+                <div style={{ height: 8, background: "#f3f4f6", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ height: 8, borderRadius: 4, width: `${Math.min(be.achievementPct, 100)}%`,
+                    background: be.achievementPct >= 100 ? "#059669" : be.achievementPct >= 80 ? "#d97706" : "#dc2626",
+                    transition: "width 0.3s" }} />
+                </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
                 {[
-                  { label: "達成率", value: `${be.achievementPct.toFixed(1)}%`, color: be.achievementPct >= 100 ? "#059669" : be.achievementPct >= 80 ? "#d97706" : "#dc2626" },
                   { label: "残営業日数", value: `${be.remainingDays}日` },
-                  { label: "残必要件数", value: `${be.remainingCount}件`, color: be.remainingCount <= 0 ? "#059669" : "#dc2626" },
-                  { label: "1日あたり必要", value: `${be.perDayCount.toFixed(1)}件` },
+                  { label: "残必要件数", value: be.remainingCount <= 0 ? "達成済" : `${be.remainingCount}件`,
+                    color: be.remainingCount <= 0 ? "#059669" : "#dc2626" },
+                  { label: "1日あたり必要", value: be.perDayCount <= 0 ? "達成済" : `${be.perDayCount.toFixed(1)}件`,
+                    color: be.perDayCount <= 0 ? "#059669" : "#374151" },
                   { label: "現在の売上", value: yen(displayRevenue) },
                   { label: "現在の粗利", value: yen(displayProfit) },
-                  { label: "現在の件数", value: `${displayCount}件` },
                   { label: "客単価", value: yen(displayUnitPrice) },
                 ].map((item, i) => (
                   <div key={i} style={{ padding: "10px 14px",
-                    borderBottom: i < 6 ? "1px solid #f0faf0" : "none",
+                    borderBottom: i < 4 ? "1px solid #f0faf0" : "none",
                     borderRight: i % 2 === 0 ? "1px solid #f0faf0" : "none" }}>
                     <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600, marginBottom: 3 }}>{item.label}</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: (item as { color?: string }).color ?? "#111" }}>{item.value}</div>

@@ -78,8 +78,10 @@ function MetricRow({ label, actual, target, isEndPeriod, daysElapsed, daysInMont
           </span>
         )}
       </td>
-      <td style={{ ...td, color: "#9ca3af" }}>
-        {daily > 0 && !isRate ? format(daily) : "\u2014"}
+      <td style={td}>
+        {daily > 0 && !isRate ? (
+          <span style={{ color: "#d97706", fontWeight: 700, fontSize: 12 }}>{format(daily)}</span>
+        ) : <span style={{ color: "#d1d5db", fontSize: 11 }}>{"\u2014"}</span>}
       </td>
     </tr>
   );
