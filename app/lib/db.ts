@@ -119,6 +119,19 @@ export function ensureSchema(): Promise<void> {
           UNIQUE(area_id, year, month)
         )
       `;
+      await getSql()`
+        CREATE TABLE IF NOT EXISTS access_logs (
+          id SERIAL PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          user_name TEXT NOT NULL,
+          action_type TEXT NOT NULL,
+          target_area TEXT,
+          target_page TEXT,
+          detail TEXT,
+          ip_address TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `;
     })().catch((e) => {
       schemaReady = null;
       throw e;

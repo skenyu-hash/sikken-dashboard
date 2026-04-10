@@ -11,6 +11,7 @@ import {
   yen,
 } from "../lib/calculations";
 import { useRole, useSession } from "./RoleProvider";
+import { logAction } from "../lib/logger";
 
 // ============ エリア定義 ============
 type Area = { id: string; name: string };
@@ -225,6 +226,13 @@ export default function Dashboard() {
     }
   }, [entries, activeTab, viewYear, viewMonth, isGroup]);
 
+  // ============ 閲覧ログ ============
+  useEffect(() => {
+    if (activeTab) {
+      logAction("view", { targetArea: activeTab, targetPage: "/", detail: `${viewYear}年${viewMonth}月を閲覧` });
+    }
+  }, [activeTab, viewYear, viewMonth]);
+
   // ============ 前月データ取得 ============
   const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1;
   const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear;
@@ -386,6 +394,7 @@ export default function Dashboard() {
       setSaveError("保存に失敗しました。通信状況をご確認ください。");
       return;
     }
+    logAction("edit", { targetArea: activeTab, targetPage: "/", detail: `${form.date} 日次データを保存` });
     setEntries((prev) => {
       const idx = prev.findIndex((p) => p.date === form.date);
       if (idx >= 0) {

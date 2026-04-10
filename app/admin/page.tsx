@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "../components/RoleProvider";
 import type { Role } from "../lib/auth";
+import { formatJST } from "../lib/utils";
 
 const AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -36,10 +37,12 @@ type AuditLog = {
 
 export default function AdminPage() {
   const session = useSession();
-  const [tab, setTab] = useState<"users" | "audit">("users");
+  const [tab, setTab] = useState<"users" | "audit" | "logs">("users");
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [areaFilter, setAreaFilter] = useState("");
+  const [accessLogs, setAccessLogs] = useState<Record<string, unknown>[]>([]);
+  const [logFilter, setLogFilter] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<{
     email: string; password: string; name: string; role: Role; areaId: string;
@@ -59,8 +62,12 @@ export default function AdminPage() {
   useEffect(() => {
     if (session?.role !== "admin") return;
     if (tab === "users") loadUsers();
-    else loadLogs();
-  }, [tab, areaFilter, session]);
+    else if (tab === "audit") loadLogs();
+    else if (tab === "logs") {
+      const url = logFilter ? `/api/logs?type=${logFilter}&limit=200` : "/api/logs?limit=200";
+      fetch(url).then((r) => r.ok ? r.json() : { logs: [] }).then((d) => setAccessLogs(d.logs ?? []));
+    }
+  }, [tab, areaFilter, logFilter, session]);
 
   if (session && session.role !== "admin") {
     return <div className="p-8 text-center text-zinc-500">役員のみアクセス可能です</div>;
@@ -139,13 +146,13 @@ export default function AdminPage() {
       </header>
 
       <div className="px-3 mt-3 flex gap-2">
-        {(["users", "audit"] as const).map((t) => (
+        {(["users", "audit", "logs"] as const).map((t) => (
           <button
             key={t} type="button" onClick={() => setTab(t)}
             className={`min-h-[44px] px-4 rounded-lg text-sm ${
               tab === t ? "bg-emerald-600 text-white font-semibold" : "bg-zinc-200 dark:bg-zinc-800"
             }`}
-          >{t === "users" ? "ユーザー" : "操作ログ"}</button>
+          >{t === "users" ? "ユーザー" : t === "audit" ? "操作ログ" : "閲覧/編集ログ"}</button>
         ))}
       </div>
 
@@ -262,9 +269,7 @@ export default function AdminPage() {
                       }}>{u.isActive ? "有効" : "無効"}</span>
                     </td>
                     <td style={{ padding: "10px 10px", fontSize: 10, color: "#9ca3af" }}>
-                      {u.lastLoginAt
-                        ? new Date(u.lastLoginAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                        : "未"}
+                      {formatJST(u.lastLoginAt, "short")}
                       {u.lockedUntil && <span style={{ color: "#dc2626", marginLeft: 4 }}>ロック中</span>}
                     </td>
                     <td style={{ padding: "6px 10px" }}>
@@ -314,7 +319,7 @@ export default function AdminPage() {
               <div key={l.id} className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 text-xs">
                 <div className="flex justify-between">
                   <span className="font-semibold">{l.action}</span>
-                  <span className="text-zinc-500">{new Date(l.createdAt).toLocaleString("ja-JP")}</span>
+                  <span className="text-zinc-500">{formatJST(l.createdAt)}</span>
                 </div>
                 <div className="text-zinc-500 mt-1">
                   {l.userName ?? "-"} ({l.userEmail ?? "-"})
@@ -326,6 +331,72 @@ export default function AdminPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+      {tab === "logs" && (
+        <section style={{ padding: "16px 20px" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            {[
+              { key: "", label: "全て" },
+              { key: "view", label: "閲覧" },
+              { key: "edit", label: "編集" },
+              { key: "login", label: "ログイン" },
+            ].map((f) => (
+              <button key={f.key} onClick={() => setLogFilter(f.key)}
+                style={{ padding: "5px 14px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                  border: "2px solid", cursor: "pointer",
+                  borderColor: logFilter === f.key ? "#059669" : "#d1fae5",
+                  background: logFilter === f.key ? "#059669" : "#fff",
+                  color: logFilter === f.key ? "#fff" : "#6b7280" }}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#ecfdf5" }}>
+                  {["日時(JST)", "ユーザー", "アクション", "エリア", "ページ", "詳細", "IP"].map((h) => (
+                    <th key={h} style={{ padding: "7px 10px", fontSize: 9, fontWeight: 700,
+                      color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
+                      borderBottom: "1px solid #d1fae5", textAlign: "left", whiteSpace: "nowrap" }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {accessLogs.map((log, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #f0faf0" }}>
+                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#6b7280", whiteSpace: "nowrap" }}>
+                      {formatJST(log.created_at as string, "short")}
+                    </td>
+                    <td style={{ padding: "8px 10px", fontSize: 11, fontWeight: 700, color: "#111" }}>
+                      {log.user_name as string}
+                    </td>
+                    <td style={{ padding: "8px 10px" }}>
+                      <span style={{
+                        display: "inline-block", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px",
+                        background: log.action_type === "edit" ? "#fef9c3" : log.action_type === "view" ? "#e0f2fe" : log.action_type === "login" ? "#d1fae5" : "#f3f4f6",
+                        color: log.action_type === "edit" ? "#854d0e" : log.action_type === "view" ? "#0369a1" : log.action_type === "login" ? "#065f46" : "#6b7280",
+                      }}>
+                        {log.action_type === "edit" ? "編集" : log.action_type === "view" ? "閲覧" : log.action_type === "login" ? "ログイン" : String(log.action_type)}
+                      </span>
+                    </td>
+                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#374151" }}>{(log.target_area as string) ?? "\u2014"}</td>
+                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#374151" }}>{(log.target_page as string) ?? "\u2014"}</td>
+                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#374151" }}>{(log.detail as string) ?? "\u2014"}</td>
+                    <td style={{ padding: "8px 10px", fontSize: 10, color: "#9ca3af" }}>{log.ip_address as string}</td>
+                  </tr>
+                ))}
+                {accessLogs.length === 0 && (
+                  <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#9ca3af", fontSize: 12 }}>
+                    ログがありません
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
       )}
