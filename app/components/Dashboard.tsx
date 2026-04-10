@@ -473,45 +473,64 @@ export default function Dashboard() {
           </div>
 
           {/* KPIストリップ */}
-          {!isGroup && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-              {[
-                { label: "売上", val: yen(summary.totalRevenue),
-                  targetRatio: targets.targetSales > 0 ? (summary.totalRevenue / targets.targetSales * 100).toFixed(1) : null,
-                  dayRatio: targets.targetSales > 0 && summary.daysElapsed > 0 ? (summary.totalRevenue / summary.daysElapsed * summary.daysInMonth / targets.targetSales * 100).toFixed(1) : null },
-                { label: "粗利", val: yen(summary.totalProfit),
-                  targetRatio: targets.targetProfit > 0 ? (summary.totalProfit / targets.targetProfit * 100).toFixed(1) : null,
-                  dayRatio: targets.targetProfit > 0 && summary.daysElapsed > 0 ? (summary.totalProfit / summary.daysElapsed * summary.daysInMonth / targets.targetProfit * 100).toFixed(1) : null },
-                { label: "獲得件数", val: `${summary.totalCount}件`,
-                  targetRatio: targets.targetCount > 0 ? (summary.totalCount / targets.targetCount * 100).toFixed(1) : null,
-                  dayRatio: targets.targetCount > 0 && summary.daysElapsed > 0 ? (summary.totalCount / summary.daysElapsed * summary.daysInMonth / targets.targetCount * 100).toFixed(1) : null },
-                { label: "粗利率",
-                  val: `${(summary.totalRevenue > 0 ? (summary.totalProfit / summary.totalRevenue * 100) : 0).toFixed(1)}%`,
-                  targetRatio: null, dayRatio: null },
-              ].map((kpi) => (
-                <div key={kpi.label} style={{ padding: "12px 18px", borderRight: "1px solid rgba(255,255,255,0.1)" }}>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 5 }}>{kpi.label}</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", whiteSpace: "nowrap" }}>{kpi.val}</div>
-                  <div style={{ display: "flex", gap: 5, marginTop: 4, flexWrap: "wrap" }}>
-                    {kpi.targetRatio && (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(252,165,165,0.2)", color: "#fca5a5" }}>
-                        目標比 {kpi.targetRatio}%
-                      </span>
-                    )}
-                    {kpi.dayRatio && (
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 3,
-                        background: Number(kpi.dayRatio) >= 100 ? "rgba(134,239,172,0.2)" : "rgba(253,230,138,0.2)",
-                        color: Number(kpi.dayRatio) >= 100 ? "#86efac" : "#fde68a",
-                      }}>
-                        日割 {kpi.dayRatio}%
-                      </span>
-                    )}
+          {!isGroup && (() => {
+            const { daysElapsed, daysInMonth } = summary;
+            const kpis = [
+              {
+                label: "売上", val: yen(summary.totalRevenue),
+                targetRatio: targets.targetSales > 0 ? Math.round(summary.totalRevenue / targets.targetSales * 1000) / 10 : null,
+                dayRatio: targets.targetSales > 0 && daysElapsed > 0 ? Math.round(summary.totalRevenue / daysElapsed * daysInMonth / targets.targetSales * 1000) / 10 : null,
+                salesRatio: null,
+              },
+              {
+                label: "粗利", val: yen(summary.totalProfit),
+                targetRatio: targets.targetProfit > 0 ? Math.round(summary.totalProfit / targets.targetProfit * 1000) / 10 : null,
+                dayRatio: targets.targetProfit > 0 && daysElapsed > 0 ? Math.round(summary.totalProfit / daysElapsed * daysInMonth / targets.targetProfit * 1000) / 10 : null,
+                salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalProfit / summary.totalRevenue * 1000) / 10}%` : null,
+              },
+              {
+                label: "広告費", val: yen(summary.totalAdCost),
+                targetRatio: targets.targetAdCost > 0 ? Math.round(summary.totalAdCost / targets.targetAdCost * 1000) / 10 : null,
+                dayRatio: targets.targetAdCost > 0 && daysElapsed > 0 ? Math.round(summary.totalAdCost / daysElapsed * daysInMonth / targets.targetAdCost * 1000) / 10 : null,
+                salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalAdCost / summary.totalRevenue * 1000) / 10}%` : null,
+              },
+              {
+                label: "合計件数", val: `${summary.totalCount}件`,
+                targetRatio: targets.targetCount > 0 ? Math.round(summary.totalCount / targets.targetCount * 1000) / 10 : null,
+                dayRatio: targets.targetCount > 0 && daysElapsed > 0 ? Math.round(summary.totalCount / daysElapsed * daysInMonth / targets.targetCount * 1000) / 10 : null,
+                salesRatio: null,
+              },
+            ];
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                {kpis.map((kpi) => (
+                  <div key={kpi.label} style={{ padding: "12px 18px", borderRight: "1px solid rgba(255,255,255,0.1)" }}>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 5 }}>{kpi.label}</div>
+                    <div style={{ fontSize: 19, fontWeight: 800, color: "#fff", marginBottom: 5 }}>{kpi.val}</div>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                      {kpi.targetRatio !== null && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
+                          background: kpi.targetRatio >= 100 ? "#d1fae5" : kpi.targetRatio >= 80 ? "#fef9c3" : "#fee2e2",
+                          color: kpi.targetRatio >= 100 ? "#065f46" : kpi.targetRatio >= 80 ? "#854d0e" : "#991b1b",
+                        }}>目標比 {kpi.targetRatio}%</span>
+                      )}
+                      {kpi.dayRatio !== null && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
+                          background: kpi.dayRatio >= 100 ? "#d1fae5" : kpi.dayRatio >= 80 ? "#fef9c3" : "#fee2e2",
+                          color: kpi.dayRatio >= 100 ? "#065f46" : kpi.dayRatio >= 80 ? "#854d0e" : "#991b1b",
+                        }}>着地 {kpi.dayRatio}%</span>
+                      )}
+                      {kpi.salesRatio && (
+                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)" }}>売上比 {kpi.salesRatio}</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 

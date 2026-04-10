@@ -11,16 +11,16 @@ const AREAS = [
   { id: "chugoku", name: "中国" }, { id: "shizuoka", name: "静岡" },
 ];
 
-type MetricKey = "revenue" | "profit" | "profitRate" | "count" | "unitPrice" | "constructionRate" | "adRate";
+type MetricKey = "revenue" | "profit" | "profitRate" | "count" | "unitPrice" | "constructionRate" | "adRate" | "helpRate" | "convRate";
 
 const METRICS: { key: MetricKey; label: string }[] = [
-  { key: "revenue", label: "売上" },
-  { key: "profit", label: "粗利" },
   { key: "profitRate", label: "粗利率" },
-  { key: "count", label: "件数" },
-  { key: "unitPrice", label: "客単価" },
   { key: "constructionRate", label: "工事取得率" },
+  { key: "helpRate", label: "HELP率" },
+  { key: "convRate", label: "成約率" },
   { key: "adRate", label: "広告費率" },
+  { key: "unitPrice", label: "客単価" },
+  { key: "revenue", label: "売上" },
 ];
 
 export default function RankingPage() {
@@ -29,7 +29,7 @@ export default function RankingPage() {
   const month = now.getMonth() + 1;
   const daysElapsed = getDaysElapsed(now, year, month);
 
-  const [metric, setMetric] = useState<MetricKey>("revenue");
+  const [metric, setMetric] = useState<MetricKey>("profitRate");
   const [allEntries, setAllEntries] = useState<Record<string, DailyEntry[]>>({});
 
   useEffect(() => {
@@ -54,6 +54,9 @@ export default function RankingPage() {
         ? (summary.totalAdCost / summary.totalRevenue) * 100 : 0;
       const profitRate = summary.totalRevenue > 0
         ? (summary.totalProfit / summary.totalRevenue) * 100 : 0;
+      const callCount = entries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
+      const helpRate = summary.totalCount > 0 ? (summary.help.count / summary.totalCount) * 100 : 0;
+      const convRate = callCount > 0 ? (summary.totalCount / callCount) * 100 : 0;
       return {
         area: a,
         summary,
@@ -67,6 +70,8 @@ export default function RankingPage() {
           unitPrice: summary.companyUnitPrice,
           constructionRate: summary.constructionRate,
           adRate,
+          helpRate,
+          convRate,
         } as Record<MetricKey, number>,
       };
     });
@@ -98,6 +103,9 @@ export default function RankingPage() {
               {year}年{month}月 ／ 経過{daysElapsed}日時点
             </p>
           </div>
+        </div>
+        <div style={{ padding: "6px 0 10px", fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
+          割合指標（粗利率・工事率等）はエリア規模に依存しない実力値です
         </div>
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           {METRICS.map((m) => (

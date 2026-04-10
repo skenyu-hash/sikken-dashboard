@@ -23,6 +23,9 @@ const CARD_STYLE: React.CSSProperties = {
   background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden",
 };
 
+type CostItem = { id: string; name: string; amount: number; color: string };
+const COLORS = ["#3b82f6", "#0891b2", "#d97706", "#059669", "#8b5cf6", "#ec4899", "#6b7280", "#dc2626"];
+
 export default function BreakevenPage() {
   const role = useRole();
   const canEdit = role === "admin";
@@ -34,6 +37,11 @@ export default function BreakevenPage() {
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [fixed, setFixed] = useState<FixedCosts>({ laborCost: 0, rent: 0, other: 0 });
   const [saving, setSaving] = useState(false);
+  const [costItems, setCostItems] = useState<CostItem[]>([
+    { id: "1", name: "人件費", amount: 0, color: "#3b82f6" },
+    { id: "2", name: "家賃・リース", amount: 0, color: "#0891b2" },
+    { id: "3", name: "その他", amount: 0, color: "#6b7280" },
+  ]);
 
   useEffect(() => {
     fetch(`/api/entries?area=${areaId}&year=${year}&month=${month}`)
@@ -41,14 +49,32 @@ export default function BreakevenPage() {
       .then((j: { entries: DailyEntry[] }) => setEntries(j.entries ?? []));
     fetch(`/api/fixed-costs?area=${areaId}&year=${year}&month=${month}`)
       .then((r) => (r.ok ? r.json() : { fixedCosts: { laborCost: 0, rent: 0, other: 0 } }))
-      .then((j: { fixedCosts: FixedCosts }) => setFixed(j.fixedCosts));
+      .then((j: { fixedCosts: FixedCosts }) => {
+        setFixed(j.fixedCosts);
+        const fc = j.fixedCosts;
+        const items: CostItem[] = [];
+        if (fc.laborCost > 0) items.push({ id: "1", name: "人件費", amount: fc.laborCost, color: "#3b82f6" });
+        else items.push({ id: "1", name: "人件費", amount: 0, color: "#3b82f6" });
+        if (fc.rent > 0) items.push({ id: "2", name: "家賃・リース", amount: fc.rent, color: "#0891b2" });
+        else items.push({ id: "2", name: "家賃・リース", amount: 0, color: "#0891b2" });
+        if (fc.other > 0) items.push({ id: "3", name: "その他", amount: fc.other, color: "#6b7280" });
+        else items.push({ id: "3", name: "その他", amount: 0, color: "#6b7280" });
+        setCostItems(items);
+      });
   }, [areaId, year, month]);
 
   const summary = useMemo(
     () => calculateDashboard(entries, year, month, now),
     [entries, year, month] // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const be = useMemo(() => calculateBreakeven(fixed, summary), [fixed, summary]);
+
+  const totalFixed = costItems.reduce((s, c) => s + c.amount, 0);
+
+  const fixedForCalc: FixedCosts = useMemo(
+    () => ({ laborCost: 0, rent: 0, other: totalFixed }),
+    [totalFixed]
+  );
+  const be = useMemo(() => calculateBreakeven(fixedForCalc, summary), [fixedForCalc, summary]);
 
   // 万円<->円
   const setManField = (k: keyof FixedCosts, raw: string) => {
@@ -57,21 +83,33 @@ export default function BreakevenPage() {
   };
   const dispMan = (k: keyof FixedCosts) => (fixed[k] ? String(fixed[k] / 10000) : "");
 
+  const addItem = () => {
+    const nextColor = COLORS[costItems.length % COLORS.length];
+    setCostItems(prev => [...prev, { id: Date.now().toString(), name: "新規項目", amount: 0, color: nextColor }]);
+  };
+  const removeItem = (id: string) => setCostItems(prev => prev.filter(c => c.id !== id));
+  const updateItem = (id: string, field: "name" | "amount", value: string | number) => {
+    setCostItems(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
+  };
+  const cycleColor = (id: string) => {
+    setCostItems(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const idx = COLORS.indexOf(c.color);
+      return { ...c, color: COLORS[(idx + 1) % COLORS.length] };
+    }));
+  };
+
   async function save() {
     setSaving(true);
+    const fixedCosts: FixedCosts = { laborCost: 0, rent: 0, other: totalFixed };
     await fetch("/api/fixed-costs", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ areaId, year, month, fixedCosts: fixed }),
+      body: JSON.stringify({ areaId, year, month, fixedCosts }),
     });
+    setFixed(fixedCosts);
     setSaving(false);
   }
-
-  const fixedFields: { key: keyof FixedCosts; label: string; color: string }[] = [
-    { key: "laborCost", label: "人件費", color: "#d97706" },
-    { key: "rent", label: "家賃", color: "#3b82f6" },
-    { key: "other", label: "その他固定費", color: "#9ca3af" },
-  ];
 
   const achievementBadge = (pct: number) => {
     if (pct >= 100) return { bg: "#d1fae5", color: "#064e3b" };
@@ -110,49 +148,75 @@ export default function BreakevenPage() {
         {/* 上段: 2列 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           {/* 固定費入力 */}
-          <div style={CARD_STYLE}>
-            <div style={SECTION_TITLE_STYLE}>固定費 (月次)</div>
-            <div style={{ padding: "6px 14px 12px" }}>
-              {fixedFields.map((f) => (
-                <div key={f.key}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "9px 0", borderBottom: "1px solid #f5faf5" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 3, height: 14, borderRadius: 1, background: f.color }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{f.label}</span>
-                    <span style={{ fontSize: 10, color: "#9ca3af" }}>（万円）</span>
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+            <div style={{ background: "#ecfdf5", padding: "10px 16px", borderBottom: "1px solid #d1fae5",
+              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>固定費入力</span>
+              {canEdit && (
+                <button onClick={addItem}
+                  style={{ fontSize: 11, fontWeight: 700, background: "#059669", color: "#fff",
+                    border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+                  + 項目を追加
+                </button>
+              )}
+            </div>
+            {costItems.map((item) => {
+              const pct = totalFixed > 0 ? Math.round(item.amount / totalFixed * 100) : 0;
+              return (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 16px", borderBottom: "1px solid #f0faf0" }}>
+                  <div style={{ position: "relative" }}>
+                    <div onClick={() => cycleColor(item.id)}
+                      style={{ width: 10, height: 10, borderRadius: "50%",
+                        background: item.color, cursor: "pointer", flexShrink: 0 }} />
                   </div>
-                  <input
-                    type="text" inputMode="decimal" disabled={!canEdit}
-                    value={dispMan(f.key)}
-                    onChange={(e) => setManField(f.key, e.target.value)}
+                  <input value={item.name} onChange={e => updateItem(item.id, "name", e.target.value)}
+                    disabled={!canEdit}
+                    style={{ flex: 1, border: "none", outline: "none", fontSize: 12, fontWeight: 700,
+                      color: "#111", background: "transparent" }} />
+                  <div style={{ flex: 1, maxWidth: 100 }}>
+                    <div style={{ height: 6, background: "#f3f4f6", borderRadius: 3 }}>
+                      <div style={{ height: 6, borderRadius: 3, background: item.color,
+                        width: `${pct}%`, transition: "width 0.3s" }} />
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 10, color: "#9ca3af", minWidth: 32, textAlign: "right" }}>{pct}%</span>
+                  <input type="number" value={item.amount || ""}
+                    onChange={e => updateItem(item.id, "amount", Number(e.target.value))}
+                    disabled={!canEdit}
                     placeholder="0"
-                    style={{
-                      width: 120, height: 32,
-                      border: "1px solid #d1fae5", borderRadius: 6,
-                      padding: "0 10px", fontSize: 12, fontWeight: 600,
-                      textAlign: "right", color: "#111", background: "#fff",
-                      outline: "none", opacity: canEdit ? 1 : 0.6,
-                    }}
-                  />
+                    style={{ width: 110, height: 32, border: "1px solid #d1fae5", borderRadius: 6,
+                      padding: "0 8px", fontSize: 12, fontWeight: 600, textAlign: "right" }} />
+                  {canEdit && costItems.length > 1 && (
+                    <button onClick={() => removeItem(item.id)}
+                      style={{ fontSize: 12, color: "#d1d5db", background: "none", border: "none", cursor: "pointer" }}>✕</button>
+                  )}
                 </div>
-              ))}
-              {canEdit ? (
+              );
+            })}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "10px 16px", background: "#f0fdf4", borderTop: "1px solid #d1fae5" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#065f46" }}>固定費合計</span>
+              <span style={{ fontSize: 18, fontWeight: 800, color: "#065f46" }}>&yen;{totalFixed.toLocaleString()}</span>
+            </div>
+            {canEdit && (
+              <div style={{ padding: "10px 16px" }}>
                 <button onClick={save} disabled={saving}
                   style={{
-                    marginTop: 12, width: "100%", height: 40,
+                    width: "100%", height: 40,
                     background: "#059669", color: "#fff", border: "none",
                     borderRadius: 8, fontSize: 13, fontWeight: 700,
                     cursor: "pointer", opacity: saving ? 0.6 : 1,
                   }}>
                   {saving ? "保存中..." : "固定費を保存"}
                 </button>
-              ) : (
-                <p style={{ marginTop: 12, fontSize: 11, color: "#9ca3af", textAlign: "center" }}>
-                  固定費の編集は役員のみ可能です
-                </p>
-              )}
-            </div>
+              </div>
+            )}
+            {!canEdit && (
+              <p style={{ padding: "10px 16px", fontSize: 11, color: "#9ca3af", textAlign: "center" }}>
+                固定費の編集は役員のみ可能です
+              </p>
+            )}
           </div>
 
           {/* 損益分岐 自動算出 */}
