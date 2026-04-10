@@ -183,6 +183,51 @@ export default function TrendsPage() {
                     </tr>
                   </thead>
                   <tbody>
+                    {(() => {
+                      const totals = MONTHS.reduce((acc, m) => {
+                        const data = monthlyData[m];
+                        if (!data) return acc;
+                        const { entries: me, summary: ms } = data;
+                        const endDate = new Date(year, m - 1, getDaysInMonth(year, m));
+                        const s = calculateDashboard(me, year, m, endDate);
+                        const revenue = ms ? Number(ms.total_revenue ?? 0) : s.totalRevenue;
+                        const profit = ms ? Number(ms.total_profit ?? 0) : s.totalProfit;
+                        const count = ms ? Number(ms.total_count ?? 0) : s.totalCount;
+                        const adCost = ms ? Number(ms.ad_cost ?? 0) : s.totalAdCost;
+                        return {
+                          revenue: acc.revenue + revenue, profit: acc.profit + profit,
+                          count: acc.count + count, adCost: acc.adCost + adCost,
+                        };
+                      }, { revenue: 0, profit: 0, count: 0, adCost: 0 });
+                      const totalProfitRate = totals.revenue > 0 ? (totals.profit / totals.revenue * 100).toFixed(1) : "\u2014";
+                      const totalAdRate = totals.revenue > 0 ? (totals.adCost / totals.revenue * 100).toFixed(1) : "\u2014";
+                      return (
+                        <tr style={{ background: "#f0fdf4", borderBottom: "2px solid #d1fae5" }}>
+                          <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 800, color: "#065f46" }}>合計</td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 800, color: "#065f46", textAlign: "right" }}>
+                            {totals.revenue > 0 ? yen(totals.revenue) : "\u2014"}
+                          </td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 800, color: "#059669", textAlign: "right" }}>
+                            {totals.profit > 0 ? yen(totals.profit) : "\u2014"}
+                          </td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 800, textAlign: "right",
+                            color: Number(totalProfitRate) >= 25 ? "#059669" : Number(totalProfitRate) >= 15 ? "#d97706" : "#dc2626" }}>
+                            {totalProfitRate !== "\u2014" ? `${totalProfitRate}%` : "\u2014"}
+                          </td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 800, color: "#065f46", textAlign: "right" }}>
+                            {totals.count > 0 ? `${totals.count}件` : "\u2014"}
+                          </td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 800, color: "#d97706", textAlign: "right" }}>
+                            {totals.adCost > 0 ? yen(totals.adCost) : "\u2014"}
+                          </td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 800, textAlign: "right",
+                            color: Number(totalAdRate) <= 20 ? "#059669" : Number(totalAdRate) <= 30 ? "#d97706" : "#dc2626" }}>
+                            {totalAdRate !== "\u2014" ? `${totalAdRate}%` : "\u2014"}
+                          </td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, color: "#9ca3af", textAlign: "right" }}>{"\u2014"}</td>
+                        </tr>
+                      );
+                    })()}
                     {MONTHS.map((m, i) => {
                       const data = monthlyData[m];
                       if (!data) return null;

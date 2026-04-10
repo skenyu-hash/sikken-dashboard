@@ -605,28 +605,29 @@ export default function Dashboard() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
                 {kpis.map((kpi) => (
                   <div key={kpi.label} style={{ padding: "12px 18px", borderRight: "1px solid rgba(255,255,255,0.1)" }}>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 5 }}>{kpi.label}</div>
-                    <div style={{ fontSize: 19, fontWeight: 800, color: "#fff", marginBottom: 5 }}>{kpi.val}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 5 }}>{kpi.label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 5 }}>{kpi.val}</div>
                     <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
                       {kpi.targetRatio !== null && (
                         <span style={{
-                          fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
+                          fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
                           background: kpi.targetRatio >= 100 ? "#d1fae5" : kpi.targetRatio >= 80 ? "#fef9c3" : "#fee2e2",
                           color: kpi.targetRatio >= 100 ? "#065f46" : kpi.targetRatio >= 80 ? "#854d0e" : "#991b1b",
                         }}>目標比 {kpi.targetRatio}%</span>
                       )}
                       {kpi.dayRatio !== null && (
                         <span style={{
-                          fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
+                          fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
                           background: kpi.dayRatio >= 100 ? "#d1fae5" : kpi.dayRatio >= 80 ? "#fef9c3" : "#fee2e2",
                           color: kpi.dayRatio >= 100 ? "#065f46" : kpi.dayRatio >= 80 ? "#854d0e" : "#991b1b",
                         }}>着地 {kpi.dayRatio}%</span>
                       )}
                       {kpi.salesRatio && (
-                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)" }}>売上比 {kpi.salesRatio}</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 4,
+                          background: "rgba(255,255,255,0.25)", color: "#fff", letterSpacing: "0.02em" }}>売上比 {kpi.salesRatio}</span>
                       )}
                     </div>
-                    <div style={{ fontSize: 10, fontWeight: 700, marginTop: 3,
+                    <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3,
                       color: kpi.momVal === null ? "rgba(255,255,255,0.4)"
                         : (kpi.momInvert ? kpi.momVal <= 0 : kpi.momVal >= 0) ? "#86efac" : "#fca5a5" }}>
                       {kpi.momVal === null ? "前月比 —"
@@ -696,12 +697,12 @@ export default function Dashboard() {
                   background: c.type === "g" ? "#f0fdf4" : c.type === "r" ? "#fff1f2" : "#fffbeb",
                   border: `1.5px solid ${c.type === "g" ? "#bbf7d0" : c.type === "r" ? "#fecdd3" : "#fde68a"}`,
                 }}>
-                  <div style={{ fontSize: 9, color: "#9ca3af", fontWeight: 700, textAlign: "center", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.05em" }}>{c.label}</div>
+                  <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 700, textAlign: "center", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.05em" }}>{c.label}</div>
                   <div style={{
-                    fontSize: 15, fontWeight: 800, textAlign: "center", whiteSpace: "nowrap",
+                    fontSize: 17, fontWeight: 800, textAlign: "center", whiteSpace: "nowrap",
                     color: c.type === "g" ? "#16a34a" : c.type === "r" ? "#dc2626" : "#d97706",
                   }}>{c.val}</div>
-                  <div style={{ fontSize: 9, color: "#9ca3af", textAlign: "center", marginTop: 3 }}>{c.sub}</div>
+                  <div style={{ fontSize: 10, color: "#9ca3af", textAlign: "center", marginTop: 3 }}>{c.sub}</div>
                 </div>
               ))}
             </div>
@@ -979,7 +980,7 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
         <tr style={{ background: "#ecfdf5" }}>
           {["指標", "実績", "売上比", "目標比", "着地見込"].map((h) => (
             <th key={h} style={{
-              padding: "7px 10px", fontSize: 9, fontWeight: 700,
+              padding: "7px 10px", fontSize: 10, fontWeight: 700,
               color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
               borderBottom: "1px solid #d1fae5",
               textAlign: h === "指標" ? "left" : "right",
@@ -991,14 +992,14 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
         {rows.map((row, i) => (
           <tr key={i} style={{ borderBottom: "1px solid #f0faf0" }}>
             <td style={{
-              padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#111",
+              padding: "8px 10px", fontSize: 13, fontWeight: 700, color: "#111",
               borderLeft: `3px solid ${row.lineColor}`, paddingLeft: 10,
             }}>{row.name}</td>
-            <td style={{ padding: "8px 10px", fontSize: 11, fontWeight: 700, color: "#111", textAlign: "right" }}>
+            <td style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#111", textAlign: "right" }}>
               {row.value}
               {row.subValue && (
                 <span style={{
-                  fontSize: 10, fontWeight: 700,
+                  fontSize: 11, fontWeight: 700,
                   color: row.subValueColor ?? "#9ca3af",
                   marginLeft: 3,
                   background: row.subValueColor === "#065f46" ? "#d1fae5"
@@ -1010,18 +1011,18 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
                 </span>
               )}
             </td>
-            <td style={{ padding: "8px 10px", fontSize: 10, color: "#9ca3af", textAlign: "right" }}>
+            <td style={{ padding: "8px 10px", fontSize: 11, color: "#9ca3af", textAlign: "right" }}>
               {row.salesRatio ?? "—"}
             </td>
             <td style={{ padding: "8px 10px", textAlign: "right" }}>
               {row.targetRatio !== null
                 ? badge(row.targetRatio >= 100 ? "good" : row.targetRatio >= 80 ? "warn" : "bad", `${row.targetRatio.toFixed(1)}%`)
-                : <span style={{ color: "#d1d5db", fontSize: 9 }}>未設定</span>}
+                : <span style={{ color: "#d1d5db", fontSize: 10 }}>未設定</span>}
             </td>
             <td style={{ padding: "8px 10px", textAlign: "right" }}>
               {row.status !== "—" && row.statusLevel !== "none"
                 ? badge(row.statusLevel, row.status)
-                : <span style={{ color: "#d1d5db", fontSize: 10 }}>{row.status}</span>}
+                : <span style={{ color: "#d1d5db", fontSize: 11 }}>{row.status}</span>}
             </td>
           </tr>
         ))}
@@ -1084,13 +1085,13 @@ function DeptTable({ summary, targets, daysElapsed, daysInMonth }: {
   };
 
   const thStyle: React.CSSProperties = {
-    padding: "8px 10px", fontSize: 9, fontWeight: 700,
+    padding: "8px 10px", fontSize: 10, fontWeight: 700,
     color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
     borderBottom: "1px solid #d1fae5", textAlign: "right", background: "#ecfdf5",
     whiteSpace: "nowrap",
   };
   const tdStyle: React.CSSProperties = {
-    padding: "9px 10px", fontSize: 11, color: "#374151",
+    padding: "9px 10px", fontSize: 12, color: "#374151",
     borderBottom: "1px solid #f0faf0", textAlign: "right", whiteSpace: "nowrap",
   };
 
@@ -1133,7 +1134,7 @@ function DeptTable({ summary, targets, daysElapsed, daysInMonth }: {
             return (
               <tr key={d.name}>
                 <td style={{
-                  ...tdStyle, textAlign: "left", fontWeight: 700, color: "#111",
+                  ...tdStyle, textAlign: "left", fontWeight: 700, color: "#111", fontSize: 13,
                   borderLeft: `3px solid ${d.color}`, paddingLeft: 10,
                 }}>{d.name}</td>
                 <td style={{ ...tdStyle, fontWeight: 700, color: "#111" }}>¥{d.revenue.toLocaleString()}</td>
