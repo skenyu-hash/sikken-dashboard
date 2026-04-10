@@ -26,6 +26,9 @@ export default function ImportPage() {
   const [importing, setImporting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [jsonText, setJsonText] = useState("");
+  const [importingJson, setImportingJson] = useState(false);
+  const [jsonStatus, setJsonStatus] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function handleFile(file: File) {
@@ -83,6 +86,32 @@ export default function ImportPage() {
       setError(`エラー: ${String(e)}`);
     }
     setImporting(false);
+  }
+
+  async function handleJsonImport() {
+    setImportingJson(true); setJsonStatus(null);
+    try {
+      const parsed = JSON.parse(jsonText);
+      const rows = (parsed.rows ?? []).map((r: ExtractedRow) => ({
+        ...r,
+        area_id: AREA_MAP[r.area_name] ?? r.area_id ?? r.area_name,
+      }));
+      const res = await fetch("/api/import-monthly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setJsonStatus(`${json.imported}件インポートしました`);
+        setJsonText("");
+      } else {
+        setJsonStatus(`エラー: ${json.error}`);
+      }
+    } catch (e) {
+      setJsonStatus(`JSON形式が正しくありません: ${String(e)}`);
+    }
+    setImportingJson(false);
   }
 
   const yenFmt = (v: number) => v > 0 ? `\u00a5${v.toLocaleString()}` : "\u2014";
@@ -163,6 +192,34 @@ export default function ImportPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* JSON直接入力セクション */}
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", padding: 20, marginTop: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#065f46", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+            JSONを直接貼り付けてインポート
+          </div>
+          <textarea
+            value={jsonText}
+            onChange={(e) => setJsonText(e.target.value)}
+            placeholder={'{\n  "rows": [...]\n}'}
+            style={{ width: "100%", height: 160, border: "1px solid #d1fae5", borderRadius: 6,
+              padding: 10, fontSize: 11, fontFamily: "monospace", resize: "vertical", marginBottom: 10 }}
+          />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button onClick={handleJsonImport} disabled={importingJson || !jsonText.trim()}
+              style={{ padding: "8px 24px", borderRadius: 8, border: "none",
+                background: importingJson ? "#9ca3af" : "#059669", color: "#fff",
+                fontSize: 12, fontWeight: 700, cursor: importingJson ? "default" : "pointer" }}>
+              {importingJson ? "インポート中..." : "JSONインポート実行"}
+            </button>
+            {jsonStatus && (
+              <span style={{ fontSize: 12, fontWeight: 700,
+                color: jsonStatus.includes("件インポート") ? "#065f46" : "#991b1b" }}>
+                {jsonStatus}
+              </span>
+            )}
+          </div>
         </div>
 
         {error && (
