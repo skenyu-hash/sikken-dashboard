@@ -577,13 +577,13 @@ export default function Dashboard() {
                 )}
               </p>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)" }}>残り</div>
-              <div style={{ fontSize: 38, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
-                {displaySummary.daysInMonth - displaySummary.daysElapsed}日
+            <div style={{ textAlign: "right", lineHeight: 1.2 }}>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginBottom: 2 }}>残り</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", lineHeight: 1 }}>
+                {isCurrentMonth ? getDaysInMonth(viewYear, viewMonth) - now.getDate() : 0}日
               </div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>
-                経過 {displaySummary.daysElapsed} / {displaySummary.daysInMonth}日
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+                経過 {isCurrentMonth ? now.getDate() : getDaysInMonth(viewYear, viewMonth)} / {getDaysInMonth(viewYear, viewMonth)}日
               </div>
             </div>
           </div>
@@ -648,7 +648,7 @@ export default function Dashboard() {
                           color: kpi.targetRatio >= 100 ? "#065f46" : kpi.targetRatio >= 80 ? "#854d0e" : "#991b1b",
                         }}>目標比 {kpi.targetRatio}%</span>
                       )}
-                      {kpi.landingRate !== null && (
+                      {kpi.landingRate !== null ? (
                         <span style={{
                           fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
                           background: kpi.landingInvert
@@ -658,8 +658,13 @@ export default function Dashboard() {
                             ? (kpi.landingRate <= 100 ? "#065f46" : kpi.landingRate <= 120 ? "#854d0e" : "#991b1b")
                             : (kpi.landingRate >= 100 ? "#065f46" : kpi.landingRate >= 80 ? "#854d0e" : "#991b1b"),
                         }}>着地 {kpi.landingRate}%</span>
-                      )}
-                      {kpi.landingLabel && (
+                      ) : kpi.landingLabel ? (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                          background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }}>
+                          着地 {kpi.landingLabel}
+                        </span>
+                      ) : null}
+                      {kpi.landingRate !== null && kpi.landingLabel && (
                         <span style={{ fontSize: 10, color: "rgba(255,255,255,0.55)" }}>({kpi.landingLabel})</span>
                       )}
                       {kpi.salesRatio && (
