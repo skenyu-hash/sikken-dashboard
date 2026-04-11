@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { calculateDashboard, getDaysInMonth, yen } from "../lib/calculations";
 import type { DailyEntry, Targets } from "../lib/calculations";
-import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
+import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../lib/businesses";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ReferenceLine, ResponsiveContainer,
@@ -45,6 +45,70 @@ export default function TrendsPage() {
   }>>({});
   const [monthlyTargets, setMonthlyTargets] = useState<Record<number, Targets | null>>({});
   const [loading, setLoading] = useState(false);
+
+  // 全エリア×全月一覧（Summary統合）
+  type GridCell = { revenue: number; targetSales: number } | null;
+  const [gridYearFilter, setGridYearFilter] = useState<"2025" | "2026" | "all">(String(currentYear) as "2025" | "2026");
+  const [gridData, setGridData] = useState<Record<string, Record<string, GridCell>>>({});
+  const [gridLoading, setGridLoading] = useState(false);
+
+  const gridMonths = useMemo(() => {
+    const list: { y: number; m: number; key: string; label: string }[] = [];
+    const fromY = gridYearFilter === "all" ? 2025 : Number(gridYearFilter);
+    const toY = gridYearFilter === "all" ? currentYear : Number(gridYearFilter);
+    for (let y = fromY; y <= toY; y++) {
+      const endM = y === currentYear ? now.getMonth() + 1 : 12;
+      for (let m = 1; m <= endM; m++) {
+        list.push({ y, m, key: `${y}-${m}`, label: gridYearFilter === "all" ? `${y % 100}/${m}` : `${m}月` });
+      }
+    }
+    return list;
+  }, [gridYearFilter, currentYear, now]);
+
+  useEffect(() => {
+    setGridLoading(true);
+    const tasks: Promise<{ areaId: string; key: string; cell: GridCell }>[] = [];
+    for (const a of businessAreas) {
+      for (const { y, m, key } of gridMonths) {
+        tasks.push((async () => {
+          const [sumRes, tgtRes] = await Promise.all([
+            fetch(`/api/monthly-summary?area=${a.id}&year=${y}&month=${m}&category=${activeBusiness}`)
+              .then(r => r.ok ? r.json() : { summary: null }),
+            fetch(`/api/targets?area=${a.id}&year=${y}&month=${m}&category=${activeBusiness}`)
+              .then(r => r.ok ? r.json() : { targets: null }),
+          ]);
+          if (!sumRes.summary) return { areaId: a.id, key, cell: null };
+          return {
+            areaId: a.id, key,
+            cell: {
+              revenue: Number(sumRes.summary.total_revenue ?? 0),
+              targetSales: Number(tgtRes.targets?.targetSales ?? 0),
+            },
+          };
+        })());
+      }
+    }
+    Promise.all(tasks).then((results) => {
+      const map: Record<string, Record<string, GridCell>> = {};
+      for (const { areaId, key, cell } of results) {
+        if (!map[areaId]) map[areaId] = {};
+        map[areaId][key] = cell;
+      }
+      setGridData(map);
+      setGridLoading(false);
+    });
+  }, [businessAreas, gridMonths, activeBusiness]);
+
+  function fmtMan(v: number): string {
+    if (v <= 0) return "—";
+    return `${Math.round(v / 10000).toLocaleString()}万`;
+  }
+  function badgeStyle(rate: number | null): React.CSSProperties {
+    if (rate === null) return { background: "#f3f4f6", color: "#9ca3af" };
+    if (rate >= 100) return { background: "#d1fae5", color: "#065f46" };
+    if (rate >= 80) return { background: "#fef9c3", color: "#854d0e" };
+    return { background: "#fee2e2", color: "#991b1b" };
+  }
 
   // 事業切替時にエリアリセット
   useEffect(() => {
@@ -394,6 +458,106 @@ export default function TrendsPage() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            </div>
+
+            {/* 全エリア×全月一覧 */}
+            <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden", marginTop: 16 }}>
+              <div style={{ background: "#ecfdf5", padding: "10px 16px", borderBottom: "1px solid #d1fae5",
+                display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46" }}>全エリア×全月一覧</span>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {([
+                    { key: "2025" as const, label: "2025年" },
+                    { key: "2026" as const, label: "2026年" },
+                    { key: "all" as const, label: "全期間" },
+                  ]).map((y) => (
+                    <button key={y.key} type="button" onClick={() => setGridYearFilter(y.key)}
+                      style={{
+                        padding: "4px 12px", borderRadius: 4, fontSize: 10, fontWeight: 700,
+                        border: `1px solid ${gridYearFilter === y.key ? "#059669" : "#d1fae5"}`,
+                        background: gridYearFilter === y.key ? "#059669" : "#fff",
+                        color: gridYearFilter === y.key ? "#fff" : "#065f46", cursor: "pointer",
+                      }}>
+                      {y.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {gridLoading ? (
+                <div style={{ padding: 30, textAlign: "center", color: "#9ca3af", fontSize: 11 }}>データを読み込み中...</div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ borderCollapse: "collapse", minWidth: "100%" }}>
+                    <thead>
+                      <tr style={{ background: "#ecfdf5" }}>
+                        <th style={{
+                          padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#065f46",
+                          borderBottom: "1px solid #d1fae5", borderRight: "1px solid #d1fae5",
+                          textAlign: "left", position: "sticky", left: 0, background: "#ecfdf5",
+                          zIndex: 2, minWidth: 80,
+                        }}>エリア</th>
+                        {gridMonths.map((mo) => (
+                          <th key={mo.key} style={{
+                            padding: "10px 8px", fontSize: 10, fontWeight: 700, color: "#065f46",
+                            borderBottom: "1px solid #d1fae5", borderRight: "1px solid #f0faf0",
+                            textAlign: "center", whiteSpace: "nowrap", minWidth: 80,
+                          }}>{mo.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {businessAreas.map((a) => (
+                        <tr key={a.id} style={{ borderBottom: "1px solid #f5faf5" }}>
+                          <td style={{
+                            padding: "10px 12px", fontSize: 12, fontWeight: 700, color: "#374151",
+                            borderRight: "1px solid #d1fae5",
+                            position: "sticky", left: 0, background: "#fff", zIndex: 1,
+                          }}>{AREA_NAMES[a.id] ?? a.id}</td>
+                          {gridMonths.map((mo) => {
+                            const cell = gridData[a.id]?.[mo.key];
+                            if (!cell) {
+                              return (
+                                <td key={mo.key} style={{
+                                  padding: "10px 8px", fontSize: 11, textAlign: "center",
+                                  borderRight: "1px solid #f0faf0", color: "#d1d5db",
+                                }}>—</td>
+                              );
+                            }
+                            const rate = cell.targetSales > 0
+                              ? Math.round(cell.revenue / cell.targetSales * 1000) / 10
+                              : null;
+                            const bs = badgeStyle(rate);
+                            return (
+                              <td key={mo.key} style={{
+                                padding: "8px 6px", fontSize: 11, textAlign: "center",
+                                borderRight: "1px solid #f0faf0",
+                              }}>
+                                <div style={{ fontWeight: 700, color: "#111", marginBottom: 2 }}>
+                                  {fmtMan(cell.revenue)}
+                                </div>
+                                <span style={{
+                                  display: "inline-block", fontSize: 9, fontWeight: 700,
+                                  borderRadius: 3, padding: "1px 5px", ...bs,
+                                }}>
+                                  {rate !== null ? `${rate.toFixed(0)}%` : "未設定"}
+                                </span>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {/* 凡例 */}
+              <div style={{ padding: "8px 16px", borderTop: "1px solid #d1fae5",
+                display: "flex", gap: 12, flexWrap: "wrap", fontSize: 10, alignItems: "center" }}>
+                <span style={{ color: "#6b7280", fontWeight: 700 }}>達成率:</span>
+                <span style={{ background: "#d1fae5", color: "#065f46", padding: "1px 6px", borderRadius: 3, fontWeight: 700 }}>100%以上</span>
+                <span style={{ background: "#fef9c3", color: "#854d0e", padding: "1px 6px", borderRadius: 3, fontWeight: 700 }}>80〜99%</span>
+                <span style={{ background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 3, fontWeight: 700 }}>80%未満</span>
               </div>
             </div>
           </>
