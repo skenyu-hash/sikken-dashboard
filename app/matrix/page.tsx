@@ -53,7 +53,7 @@ export default function MatrixPage() {
       fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
         .then(r => r.ok ? r.json() : { summary: null }),
       fetch(`/api/fixed-costs?area=${areaId}&year=${year}&month=${month}`)
-        .then(r => r.ok ? r.json() : { fixedCosts: { laborCost: 0, rent: 0, other: 0 } }),
+        .then(r => r.ok ? r.json() : {}),
     ]).then(([sumRes, fcRes]) => {
       const s = sumRes.summary;
       if (s) {
@@ -65,9 +65,15 @@ export default function MatrixPage() {
       } else {
         setCurrentRevenue(0);
       }
-      const fc = fcRes.fixedCosts ?? { laborCost: 0, rent: 0, other: 0 };
-      const total = (Number(fc.laborCost) || 0) + (Number(fc.rent) || 0) + (Number(fc.other) || 0);
-      setFixedCostMan(Math.round(total / 10000));
+      // 固定費レスポンスは { fixedCosts: { laborCost, rent, other } } または
+      // { costs: { labor_cost, rent, other } } の両形式をサポート
+      const fcAny = fcRes as Record<string, unknown>;
+      const fc: Record<string, unknown> = ((fcAny?.fixedCosts ?? fcAny?.costs ?? {}) as Record<string, unknown>);
+      const labor = Number(fc.laborCost ?? fc.labor_cost ?? 0) || 0;
+      const rent = Number(fc.rent ?? 0) || 0;
+      const other = Number(fc.other ?? 0) || 0;
+      const total = labor + rent + other;
+      setFixedCostMan(total > 0 ? Math.round(total / 10000) : 0);
       setLoading(false);
     });
   }, [areaId, year, month, activeBusiness]);
@@ -96,10 +102,14 @@ export default function MatrixPage() {
     return list;
   }, []);
 
-  // BEP計算
-  const margin = profitRatePct - adRatePct;
-  const plBep = margin > 0 ? Math.round(fixedCostMan / (margin / 100)) : null;
-  const cfBep = margin > 0 ? Math.round((fixedCostMan + cfExtraMan) / (margin / 100)) : null;
+  // BEP計算: 分母 = 粗利率 - 広告費率（ポイント）。0以下なら計算不可
+  const marginPct = profitRatePct - adRatePct;
+  const plBep = (marginPct > 0 && fixedCostMan > 0)
+    ? Math.round(fixedCostMan / (marginPct / 100))
+    : null;
+  const cfBep = (marginPct > 0 && (fixedCostMan + cfExtraMan) > 0)
+    ? Math.round((fixedCostMan + cfExtraMan) / (marginPct / 100))
+    : null;
 
   // 現在地（行・列）
   const currentRowIdx = useMemo(() => {
@@ -201,13 +211,31 @@ export default function MatrixPage() {
             paddingTop: 12, borderTop: "1px solid #f0faf0" }}>
             <BepCard label="月末着地予測売上" value={`${forecastRevenueMan.toLocaleString()}万`} color="#374151" />
             <BepCard label="現在月次売上" value={`${Math.round(currentRevenue / 10000).toLocaleString()}万`} color="#374151" />
-            <BepCard label="PL BEP" value={plBep === null ? "—" : `${plBep.toLocaleString()}万`} color="#854d0e" />
-            <BepCard label="CF BEP" value={cfBep === null ? "—" : `${cfBep.toLocaleString()}万`} color="#065f46" />
+            <BepCard
+              label="PL BEP"
+              value={plBep !== null ? `${plBep.toLocaleString()}万`
+                : marginPct <= 0 ? "計算不可"
+                : "—"}
+              color="#854d0e"
+            />
+            <BepCard
+              label="CF BEP"
+              value={cfBep !== null ? `${cfBep.toLocaleString()}万`
+                : marginPct <= 0 ? "計算不可"
+                : "—"}
+              color="#065f46"
+            />
           </div>
-          {margin <= 0 && (
+          {marginPct <= 0 && (
             <div style={{ marginTop: 10, padding: "6px 10px", background: "#fee2e2", color: "#991b1b",
               fontSize: 10, fontWeight: 700, borderRadius: 4 }}>
               ⚠ 粗利率（{profitRatePct}%）が広告費率（{adRatePct}%）以下のため BEP が計算できません
+            </div>
+          )}
+          {marginPct > 0 && fixedCostMan <= 0 && (
+            <div style={{ marginTop: 10, padding: "6px 10px", background: "#fef9c3", color: "#854d0e",
+              fontSize: 10, fontWeight: 700, borderRadius: 4 }}>
+              💡 固定費が未設定です。上のフィールドに手動入力すると BEP が表示されます
             </div>
           )}
         </div>
