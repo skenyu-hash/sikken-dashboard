@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
+import { useRole } from "../components/RoleProvider";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -15,6 +16,9 @@ function getDaysInMonth(year: number, month: number): number {
 }
 
 export default function MatrixPage() {
+  const role = useRole();
+  const isAdmin = role === "admin";
+
   const now = useMemo(() => new Date(), []);
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
@@ -41,9 +45,9 @@ export default function MatrixPage() {
   // 取得データ
   const [currentRevenue, setCurrentRevenue] = useState(0); // 円
   const [profitRatePct, setProfitRatePct] = useState(25); // %（手動編集可）
-  const [adRatePct, setAdRatePct] = useState(20); // %（現在広告費率）
-  const [fixedCostMan, setFixedCostMan] = useState(0); // 万円（手動編集可）
-  const [cfExtraMan, setCfExtraMan] = useState(0); // 万円（手動編集可）
+  const [adRatePct, setAdRatePct] = useState(20); // %（読み取り専用・自動取得）
+  const [fixedCostMan, setFixedCostMan] = useState(0); // 万円（admin編集可）
+  const [cfExtraMan, setCfExtraMan] = useState(0); // 万円（admin編集可）
   const [loading, setLoading] = useState(false);
 
   // monthly-summary + fixed-costs を取得
@@ -61,6 +65,7 @@ export default function MatrixPage() {
         const pr = Number(s.profit_rate ?? 0);
         if (pr > 0) setProfitRatePct(pr);
         const ar = Number(s.ad_rate ?? 0);
+        // 広告費率は自動取得（読み取り専用）。データがない場合はデフォルト20%のまま
         if (ar > 0) setAdRatePct(ar);
       } else {
         setCurrentRevenue(0);
@@ -84,16 +89,24 @@ export default function MatrixPage() {
     [currentRevenue, daysElapsed, daysInMonth]
   );
   const forecastRevenueMan = Math.round(forecastRevenue / 10000);
+  const currentRevenueMan = Math.round(currentRevenue / 10000);
 
-  // 行（売上）: 着地予測の50%〜200%を100万円刻み
+  // 行（売上）: 着地予測と現在実績の両方をカバーする範囲、100万円刻み
   const rowsMan = useMemo(() => {
-    const center = forecastRevenueMan > 0 ? forecastRevenueMan : 1000;
-    const minMan = Math.max(100, Math.round((center * 0.5) / 100) * 100);
-    const maxMan = Math.max(minMan + 1000, Math.round((center * 2.0) / 100) * 100);
+    const points = [forecastRevenueMan, currentRevenueMan].filter(v => v > 0);
+    if (points.length === 0) {
+      const list: number[] = [];
+      for (let v = 500; v <= 2000; v += 100) list.push(v);
+      return list;
+    }
+    const lowest = Math.min(...points);
+    const highest = Math.max(...points);
+    const minMan = Math.max(100, Math.round((lowest * 0.5) / 100) * 100);
+    const maxMan = Math.max(minMan + 1000, Math.round((highest * 2.0) / 100) * 100);
     const list: number[] = [];
     for (let v = minMan; v <= maxMan; v += 100) list.push(v);
     return list;
-  }, [forecastRevenueMan]);
+  }, [forecastRevenueMan, currentRevenueMan]);
 
   // 列（広告費率）: 10〜35% を1%刻み
   const cols = useMemo(() => {
@@ -111,40 +124,45 @@ export default function MatrixPage() {
     ? Math.round((fixedCostMan + cfExtraMan) / (marginPct / 100))
     : null;
 
-  // 現在地（行・列）
-  const currentRowIdx = useMemo(() => {
-    if (!forecastRevenueMan) return -1;
+  // ピン位置を計算するヘルパー: 値に最も近い行/列インデックスを返す
+  function nearestIndex(values: number[], target: number): number {
+    if (target <= 0) return -1;
     let best = -1, bestDiff = Infinity;
-    rowsMan.forEach((v, i) => {
-      const d = Math.abs(v - forecastRevenueMan);
+    values.forEach((v, i) => {
+      const d = Math.abs(v - target);
       if (d < bestDiff) { bestDiff = d; best = i; }
     });
     return best;
-  }, [rowsMan, forecastRevenueMan]);
-  const currentColIdx = useMemo(() => {
-    let best = -1, bestDiff = Infinity;
-    cols.forEach((v, i) => {
-      const d = Math.abs(v - adRatePct);
-      if (d < bestDiff) { bestDiff = d; best = i; }
-    });
-    return best;
-  }, [cols, adRatePct]);
+  }
 
-  // 自動スクロール
+  // 📍 着地予測ピン
+  const forecastRowIdx = useMemo(
+    () => nearestIndex(rowsMan, forecastRevenueMan),
+    [rowsMan, forecastRevenueMan]
+  );
+  // 📌 現在実績ピン
+  const actualRowIdx = useMemo(
+    () => nearestIndex(rowsMan, currentRevenueMan),
+    [rowsMan, currentRevenueMan]
+  );
+  // 両ピンの列（同じ広告費率列）
+  const pinColIdx = useMemo(
+    () => nearestIndex(cols, adRatePct),
+    [cols, adRatePct]
+  );
+
+  // 自動スクロール: 着地予測ピンを中央へ
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const currentCellRef = useRef<HTMLTableCellElement>(null);
+  const forecastCellRef = useRef<HTMLTableCellElement>(null);
   useEffect(() => {
     if (loading) return;
-    if (!currentCellRef.current || !scrollerRef.current) return;
-    const cell = currentCellRef.current;
+    if (!forecastCellRef.current || !scrollerRef.current) return;
+    const cell = forecastCellRef.current;
     const scroller = scrollerRef.current;
-    const cellRect = cell.getBoundingClientRect();
-    const scrollerRect = scroller.getBoundingClientRect();
     const offsetLeft = cell.offsetLeft - scroller.clientWidth / 2 + cell.offsetWidth / 2;
     const offsetTop = cell.offsetTop - scroller.clientHeight / 2 + cell.offsetHeight / 2;
     scroller.scrollTo({ left: Math.max(0, offsetLeft), top: Math.max(0, offsetTop), behavior: "smooth" });
-    void cellRect; void scrollerRect;
-  }, [loading, currentRowIdx, currentColIdx]);
+  }, [loading, forecastRowIdx, actualRowIdx, pinColIdx]);
 
   // セル判定: 戻り値 { label, bg, color }
   function cellStatus(salesMan: number, adRate: number) {
@@ -180,7 +198,7 @@ export default function MatrixPage() {
             <div>
               <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>損益分岐マトリクス</h1>
               <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
-                {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {year}年{month}月 ／ 売上 × 広告費率の損益マップ
+                {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {year}年{month}月 ／ 📍着地予測（月末換算）と 📌現在実績の2軸で経営判断
               </p>
             </div>
             <select value={areaId} onChange={(e) => setAreaId(e.target.value)}
@@ -197,42 +215,66 @@ export default function MatrixPage() {
         <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", padding: 16, marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#065f46", marginBottom: 12,
             textTransform: "uppercase", letterSpacing: "0.07em" }}>
-            パラメータ入力
+            パラメータ
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
-            <ParamField label="固定費" unit="万円" value={fixedCostMan} onChange={setFixedCostMan} hint="自動取得・編集可" />
-            <ParamField label="CF追加費用" unit="万円" value={cfExtraMan} onChange={setCfExtraMan} hint="借入返済・設備投資等" />
-            <ParamField label="現在の粗利率" unit="%" value={profitRatePct} onChange={setProfitRatePct} step="0.1" hint="自動取得・編集可" />
-            <ParamField label="現在の広告費率" unit="%" value={adRatePct} onChange={setAdRatePct} step="0.1" hint="📍現在地の列" />
+          {/* 入力フィールド: admin のみ固定費・CF追加費用を表示 */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: isAdmin ? "repeat(4, 1fr)" : "repeat(2, 1fr)",
+            gap: 12, marginBottom: 12,
+          }}>
+            {isAdmin && (
+              <>
+                <ParamField label="固定費" unit="万円" value={fixedCostMan}
+                  onChange={setFixedCostMan} hint="自動取得・編集可" />
+                <ParamField label="CF追加費用" unit="万円" value={cfExtraMan}
+                  onChange={setCfExtraMan} hint="借入返済・設備投資等" />
+              </>
+            )}
+            <ParamField label="現在の粗利率" unit="%" value={profitRatePct}
+              onChange={setProfitRatePct} step="0.1" hint="自動取得・編集可" />
+            <ParamField label="現在の広告費率" unit="%" value={adRatePct}
+              onChange={setAdRatePct} step="0.1" hint="📍📌のX軸位置（自動・固定）" readOnly />
           </div>
 
-          {/* BEP表示 */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12,
-            paddingTop: 12, borderTop: "1px solid #f0faf0" }}>
-            <BepCard label="月末着地予測売上" value={`${forecastRevenueMan.toLocaleString()}万`} color="#374151" />
-            <BepCard label="現在月次売上" value={`${Math.round(currentRevenue / 10000).toLocaleString()}万`} color="#374151" />
-            <BepCard
-              label="PL BEP"
-              value={plBep !== null ? `${plBep.toLocaleString()}万`
-                : marginPct <= 0 ? "計算不可"
-                : "—"}
-              color="#854d0e"
-            />
-            <BepCard
-              label="CF BEP"
-              value={cfBep !== null ? `${cfBep.toLocaleString()}万`
-                : marginPct <= 0 ? "計算不可"
-                : "—"}
-              color="#065f46"
-            />
+          {/* BEP & 売上カード: admin は4枚（売上2 + BEP2）、非admin は2枚（売上のみ） */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: isAdmin ? "repeat(4, 1fr)" : "repeat(2, 1fr)",
+            gap: 12, paddingTop: 12, borderTop: "1px solid #f0faf0",
+          }}>
+            <BepCard label="📍 月末着地予測売上"
+              value={forecastRevenueMan > 0 ? `${forecastRevenueMan.toLocaleString()}万` : "—"}
+              color="#059669" />
+            <BepCard label="📌 現在実績売上"
+              value={currentRevenueMan > 0 ? `${currentRevenueMan.toLocaleString()}万` : "—"}
+              color="#f59e0b" />
+            {isAdmin && (
+              <>
+                <BepCard
+                  label="PL BEP"
+                  value={plBep !== null ? `${plBep.toLocaleString()}万`
+                    : marginPct <= 0 ? "計算不可"
+                    : "—"}
+                  color="#854d0e"
+                />
+                <BepCard
+                  label="CF BEP"
+                  value={cfBep !== null ? `${cfBep.toLocaleString()}万`
+                    : marginPct <= 0 ? "計算不可"
+                    : "—"}
+                  color="#065f46"
+                />
+              </>
+            )}
           </div>
-          {marginPct <= 0 && (
+          {isAdmin && marginPct <= 0 && (
             <div style={{ marginTop: 10, padding: "6px 10px", background: "#fee2e2", color: "#991b1b",
               fontSize: 10, fontWeight: 700, borderRadius: 4 }}>
               ⚠ 粗利率（{profitRatePct}%）が広告費率（{adRatePct}%）以下のため BEP が計算できません
             </div>
           )}
-          {marginPct > 0 && fixedCostMan <= 0 && (
+          {isAdmin && marginPct > 0 && fixedCostMan <= 0 && (
             <div style={{ marginTop: 10, padding: "6px 10px", background: "#fef9c3", color: "#854d0e",
               fontSize: 10, fontWeight: 700, borderRadius: 4 }}>
               💡 固定費が未設定です。上のフィールドに手動入力すると BEP が表示されます
@@ -247,7 +289,8 @@ export default function MatrixPage() {
           <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 3, fontWeight: 700 }}>✔CF黒字ゾーン</span>
           <span style={{ background: "#fef9c3", color: "#854d0e", padding: "2px 8px", borderRadius: 3, fontWeight: 700 }}>●PL黒字ゾーン</span>
           <span style={{ background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 3, fontWeight: 700 }}>●赤字ゾーン</span>
-          <span style={{ border: "2px solid #059669", padding: "1px 7px", borderRadius: 3, color: "#059669", fontWeight: 700 }}>📍 現在地</span>
+          <span style={{ border: "3px solid #059669", padding: "0px 6px", borderRadius: 3, color: "#059669", fontWeight: 700 }}>📍 月末着地予測</span>
+          <span style={{ border: "3px solid #f59e0b", padding: "0px 6px", borderRadius: 3, color: "#b45309", fontWeight: 700 }}>📌 現在実績</span>
         </div>
 
         {/* マトリクステーブル */}
@@ -271,11 +314,11 @@ export default function MatrixPage() {
                   }}>
                     売上＼広告費率
                   </th>
-                  {cols.map((c) => (
+                  {cols.map((c, ci) => (
                     <th key={c} style={{
                       padding: "6px 6px", fontSize: 10, fontWeight: 700,
-                      color: c === currentColIdx + 10 ? "#065f46" : "#6b7280",
-                      background: c === Math.round(adRatePct) ? "#d1fae5" : "#ecfdf5",
+                      color: ci === pinColIdx ? "#065f46" : "#6b7280",
+                      background: ci === pinColIdx ? "#d1fae5" : "#ecfdf5",
                       borderBottom: "1px solid #d1fae5", borderRight: "1px solid #f0faf0",
                       position: "sticky", top: 0, zIndex: 2, minWidth: 60, textAlign: "center",
                       whiteSpace: "nowrap",
@@ -290,8 +333,12 @@ export default function MatrixPage() {
                   <tr key={salesMan}>
                     <th style={{
                       padding: "4px 8px", fontSize: 10, fontWeight: 700,
-                      color: ri === currentRowIdx ? "#065f46" : "#374151",
-                      background: ri === currentRowIdx ? "#d1fae5" : "#fff",
+                      color: ri === forecastRowIdx ? "#065f46"
+                        : ri === actualRowIdx ? "#b45309"
+                        : "#374151",
+                      background: ri === forecastRowIdx ? "#d1fae5"
+                        : ri === actualRowIdx ? "#fef3c7"
+                        : "#fff",
                       borderRight: "1px solid #d1fae5", borderBottom: "1px solid #f5faf5",
                       position: "sticky", left: 0, zIndex: 1, textAlign: "right", whiteSpace: "nowrap",
                     }}>
@@ -299,19 +346,31 @@ export default function MatrixPage() {
                     </th>
                     {cols.map((adRate, ci) => {
                       const status = cellStatus(salesMan, adRate);
-                      const isCurrent = ri === currentRowIdx && ci === currentColIdx;
+                      const isForecast = ri === forecastRowIdx && ci === pinColIdx;
+                      const isActual = ri === actualRowIdx && ci === pinColIdx;
+                      // 着地と現在が同じセルに重なる場合 → 緑枠優先（着地を主役にスクロール対象にする）
+                      // ピン両方のときは prefix を 📍📌、片方なら片方のみ
+                      let pinPrefix = "";
+                      if (isForecast && isActual) pinPrefix = "📍📌";
+                      else if (isForecast) pinPrefix = "📍";
+                      else if (isActual) pinPrefix = "📌";
+                      const border = isForecast
+                        ? "3px solid #059669"
+                        : isActual
+                        ? "3px solid #f59e0b"
+                        : undefined;
                       return (
                         <td
                           key={adRate}
-                          ref={isCurrent ? currentCellRef : undefined}
+                          ref={isForecast ? forecastCellRef : undefined}
                           style={{
                             padding: "4px 6px", fontSize: 10, fontWeight: 700,
                             background: status.bg, color: status.color, textAlign: "center",
                             borderRight: "1px solid #f0faf0", borderBottom: "1px solid #f5faf5",
-                            border: isCurrent ? "3px solid #059669" : undefined,
+                            border,
                             whiteSpace: "nowrap",
                           }}>
-                          {isCurrent ? `📍${status.label}` : status.label}
+                          {pinPrefix ? `${pinPrefix}${status.label}` : status.label}
                         </td>
                       );
                     })}
@@ -330,8 +389,9 @@ export default function MatrixPage() {
   );
 }
 
-function ParamField({ label, unit, value, onChange, step = "1", hint }: {
-  label: string; unit: string; value: number; onChange: (v: number) => void; step?: string; hint?: string;
+function ParamField({ label, unit, value, onChange, step = "1", hint, readOnly }: {
+  label: string; unit: string; value: number; onChange: (v: number) => void;
+  step?: string; hint?: string; readOnly?: boolean;
 }) {
   return (
     <label style={{ display: "block" }}>
@@ -340,11 +400,15 @@ function ParamField({ label, unit, value, onChange, step = "1", hint }: {
       </div>
       <input
         type="number" step={step} value={value || ""}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        onChange={(e) => !readOnly && onChange(parseFloat(e.target.value) || 0)}
+        readOnly={readOnly}
         placeholder="0"
         style={{
           width: "100%", height: 34, border: "1px solid #d1fae5", borderRadius: 6,
-          padding: "0 10px", fontSize: 13, fontWeight: 700, textAlign: "right", color: "#111",
+          padding: "0 10px", fontSize: 13, fontWeight: 700, textAlign: "right",
+          color: readOnly ? "#6b7280" : "#111",
+          background: readOnly ? "#f3f4f6" : "#fff",
+          cursor: readOnly ? "not-allowed" : "auto",
         }}
       />
       {hint && <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 2 }}>{hint}</div>}
