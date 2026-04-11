@@ -508,16 +508,24 @@ export default function TrendsPage() {
                       border: "1px solid #059669", background: "#059669", color: "#fff",
                       cursor: gridLoading ? "default" : "pointer", opacity: gridLoading ? 0.6 : 1,
                     }}>
-                    {gridLoading ? "読込中..." : gridLoaded ? "↻ 再取得" : "一覧を表示"}
+                    {gridLoading ? "読込中..." : gridLoaded ? "↻ 再取得" : "全エリア一覧を表示"}
                   </button>
                 </div>
               </div>
               {!gridLoaded && !gridLoading ? (
                 <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 11 }}>
-                  「一覧を表示」ボタンを押すと全エリアの月次データを取得します
+                  「全エリア一覧を表示」ボタンを押すと全エリアの月次データを取得します
                 </div>
               ) : gridLoading ? (
-                <div style={{ padding: 30, textAlign: "center", color: "#9ca3af", fontSize: 11 }}>データを読み込み中...</div>
+                <div style={{ padding: 40, textAlign: "center", color: "#6b7280", fontSize: 12 }}>
+                  <div style={{
+                    display: "inline-block", width: 28, height: 28, borderRadius: "50%",
+                    border: "3px solid #d1fae5", borderTopColor: "#059669",
+                    animation: "spin 0.8s linear infinite", marginBottom: 8,
+                  }} />
+                  <div>データを読み込み中...</div>
+                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
               ) : (
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ borderCollapse: "collapse", minWidth: "100%" }}>

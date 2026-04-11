@@ -261,13 +261,13 @@ export default function MatrixPage() {
                     : marginPct <= 0 ? "計算不可"
                     : "—"}
                   unit={plBep !== null ? "万" : ""}
-                  accentColor="#854d0e" />
+                  accentColor="#059669" />
                 <KpiCard label="CF BEP"
                   value={cfBep !== null ? cfBep.toLocaleString()
                     : marginPct <= 0 ? "計算不可"
                     : "—"}
                   unit={cfBep !== null ? "万" : ""}
-                  accentColor="#065f46" />
+                  accentColor="#3b82f6" />
               </>
             )}
           </div>
@@ -294,24 +294,24 @@ export default function MatrixPage() {
           <span style={{ color: "#6b7280", fontWeight: 800, marginRight: 4 }}>凡例:</span>
           <span style={{
             background: "#d1fae5", color: "#065f46",
-            padding: "6px 14px", borderRadius: 20, fontWeight: 700,
+            padding: "5px 14px", borderRadius: 20, fontWeight: 700,
           }}>CF黒字</span>
           <span style={{
             background: "#fef9c3", color: "#854d0e",
-            padding: "6px 14px", borderRadius: 20, fontWeight: 700,
+            padding: "5px 14px", borderRadius: 20, fontWeight: 700,
           }}>PL黒字</span>
           <span style={{
             background: "#fee2e2", color: "#991b1b",
-            padding: "6px 14px", borderRadius: 20, fontWeight: 700,
+            padding: "5px 14px", borderRadius: 20, fontWeight: 700,
           }}>赤字</span>
           <span style={{
             background: "#fff", color: "#059669",
-            padding: "5px 13px", borderRadius: 20, fontWeight: 700,
+            padding: "5px 14px", borderRadius: 20, fontWeight: 700,
             border: "2px solid #059669",
           }}>📍 着地予測</span>
           <span style={{
             background: "#fff", color: "#b45309",
-            padding: "5px 13px", borderRadius: 20, fontWeight: 700,
+            padding: "5px 14px", borderRadius: 20, fontWeight: 700,
             border: "2px solid #f59e0b",
           }}>📌 現在実績</span>
         </div>
@@ -357,7 +357,7 @@ export default function MatrixPage() {
                 {rowsMan.map((salesMan, ri) => (
                   <tr key={salesMan}>
                     <th style={{
-                      padding: "6px 10px", fontSize: 11, fontWeight: 800,
+                      padding: "6px 10px", fontSize: 11, fontWeight: 600,
                       color: ri === forecastRowIdx ? "#065f46"
                         : ri === actualRowIdx ? "#b45309"
                         : "#374151",
@@ -381,9 +381,9 @@ export default function MatrixPage() {
                       // 通常: 非常に薄いボーダー / ピン: box-shadow で強調
                       const isPin = isForecast || isActual;
                       const pinShadow = isForecast
-                        ? "0 0 0 3px #059669, 0 2px 6px rgba(5,150,105,0.4)"
+                        ? "0 0 0 2px #059669, 0 2px 6px rgba(5,150,105,0.35)"
                         : isActual
-                        ? "0 0 0 3px #f59e0b, 0 2px 6px rgba(245,158,11,0.4)"
+                        ? "0 0 0 2px #f59e0b, 0 2px 6px rgba(245,158,11,0.35)"
                         : undefined;
                       return (
                         <td
@@ -453,12 +453,14 @@ function KpiCard({ label, value, unit, accentColor }: {
 }) {
   return (
     <div style={{
-      padding: "12px 14px", background: "#f8fdf8", borderRadius: 8,
+      padding: "12px 16px", background: "#fff", borderRadius: 10,
       borderLeft: `4px solid ${accentColor}`,
+      border: "1px solid #ecfdf5",
+      borderLeftWidth: 4,
     }}>
       <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, marginBottom: 6 }}>{label}</div>
       <div style={{
-        fontSize: 24, fontWeight: 800, color: accentColor, lineHeight: 1.1,
+        fontSize: 22, fontWeight: 800, color: accentColor, lineHeight: 1.1,
         display: "flex", alignItems: "baseline", gap: 3,
       }}>
         <span>{value}</span>
