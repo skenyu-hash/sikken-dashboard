@@ -192,6 +192,14 @@ export default function Dashboard() {
   const [prevMonthlySummary, setPrevMonthlySummary] = useState<Record<string, unknown> | null>(null);
   const [prevEntries, setPrevEntries] = useState<DailyEntry[]>([]);
   const [yoyMonthlySummary, setYoyMonthlySummary] = useState<Record<string, unknown> | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const update = () => setIsMobile(typeof window !== "undefined" && window.innerWidth < 640);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   // ============ 事業切替時にタブリセット ============
   useEffect(() => {
@@ -919,7 +927,7 @@ export default function Dashboard() {
               },
             ];
             return (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
                 {kpis.map((kpi) => (
                   <div key={kpi.label} style={{ padding: "14px 18px", borderRight: "1px solid rgba(255,255,255,0.12)" }}>
                     <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{kpi.label}</div>
@@ -1037,10 +1045,10 @@ export default function Dashboard() {
         <section style={{ marginBottom: 16 }}>
           <SectionLabel>全17項目 指標一覧</SectionLabel>
           <div style={{
-            display: "flex", gap: 0, background: "#fff",
+            display: "flex", flexDirection: isMobile ? "column" : "row", gap: 0, background: "#fff",
             borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden",
           }}>
-            <div style={{ flex: 1, minWidth: 0, borderRight: "1px solid #d1fae5" }}>
+            <div style={{ flex: 1, minWidth: 0, borderRight: isMobile ? "none" : "1px solid #d1fae5", borderBottom: isMobile ? "1px solid #d1fae5" : "none" }}>
               <MetricsTable rows={metricRowsResult.left} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>

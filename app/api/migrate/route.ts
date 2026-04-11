@@ -34,6 +34,19 @@ export async function GET() {
       ON targets (area_id, business_category, year, month)
     `;
 
+    // monthly_summaries: unique constraint に business_category を追加
+    await sql`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'monthly_summaries_area_id_year_month_key') THEN
+          ALTER TABLE monthly_summaries DROP CONSTRAINT monthly_summaries_area_id_year_month_key;
+        END IF;
+      END $$
+    `;
+    await sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS monthly_summaries_area_cat_year_month_key
+      ON monthly_summaries (area_id, business_category, year, month)
+    `;
+
     return NextResponse.json({ ok: true, message: "Migration completed" });
   } catch (e) {
     console.error("Migration error:", e);

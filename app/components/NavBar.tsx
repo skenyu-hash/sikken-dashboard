@@ -16,6 +16,7 @@ export function NavBar() {
 
   const items: { href: string; label: string; show: boolean }[] = [
     { href: "/", label: "ダッシュボード", show: true },
+    { href: "/summary", label: "一覧", show: true },
     { href: "/ranking", label: "ランキング", show: true },
     { href: "/trends", label: "推移", show: true },
     { href: "/targets", label: "目標", show: true },

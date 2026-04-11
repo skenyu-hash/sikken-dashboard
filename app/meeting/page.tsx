@@ -96,7 +96,8 @@ function SectionTable({ title, children }: { title: string; children: React.Reac
         fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>
         {title}
       </div>
-      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+      <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", minWidth: 520 }}>
         <colgroup>
           <col style={{ width: "18%" }} />
           <col style={{ width: "17%" }} />
@@ -118,6 +119,7 @@ function SectionTable({ title, children }: { title: string; children: React.Reac
         </thead>
         <tbody>{children}</tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -136,6 +138,14 @@ export default function MeetingPage() {
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [targets, setTargets] = useState<Targets>(emptyTargets());
   const [monthlySummary, setMonthlySummary] = useState<Record<string, unknown> | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const update = () => setIsMobile(typeof window !== "undefined" && window.innerWidth < 640);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   // 事業切替時にエリアリセット
   useEffect(() => {
@@ -276,7 +286,7 @@ export default function MeetingPage() {
       </header>
 
       <div style={{ padding: "16px 20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, marginBottom: 14, gridAutoRows: "min-content" }}>
           <SectionTable title="売上・粗利・件数">
             <MetricRow label="全体売上" actual={displaySummary.totalRevenue} target={targets.targetSales} {...mp} format={fmtYen} />
             <MetricRow label="全体粗利" actual={displaySummary.totalProfit} target={targets.targetProfit} {...mp} format={fmtYen} />
@@ -296,7 +306,7 @@ export default function MeetingPage() {
           </SectionTable>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
           <SectionTable title="HELP部門">
             <MetricRow label="HELP売上" actual={displaySummary.help.revenue} target={targets.targetHelpSales} {...mp} format={fmtYen} />
             <MetricRow label="HELP件数" actual={displaySummary.help.count} target={targets.targetHelpCount} {...mp} format={fmtCount} />
