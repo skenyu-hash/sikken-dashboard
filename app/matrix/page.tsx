@@ -170,9 +170,9 @@ export default function MatrixPage() {
     const adCostMan = salesMan * (adRate / 100);
     const plMan = profitMan - adCostMan - fixedCostMan;
     const cfMan = plMan - cfExtraMan;
-    if (cfMan >= 0) return { label: "✔CF黒", bg: "#d1fae5", color: "#065f46" };
-    if (plMan >= 0) return { label: "●PL黒", bg: "#fef9c3", color: "#854d0e" };
-    return { label: "●赤字", bg: "#fee2e2", color: "#991b1b" };
+    if (cfMan >= 0) return { label: "CF黒", bg: "#d1fae5", color: "#065f46" };
+    if (plMan >= 0) return { label: "PL黒", bg: "#fef9c3", color: "#854d0e" };
+    return { label: "赤字", bg: "#fee2e2", color: "#991b1b" };
   }
 
   return (
@@ -210,87 +210,110 @@ export default function MatrixPage() {
         </div>
       </div>
 
-      <div style={{ padding: "16px 20px" }}>
-        {/* パラメータ入力 */}
-        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", padding: 16, marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#065f46", marginBottom: 12,
-            textTransform: "uppercase", letterSpacing: "0.07em" }}>
+      <div style={{ padding: "20px 20px" }}>
+        {/* パラメータ入力カード */}
+        <div style={{
+          background: "#fff", borderRadius: 12, border: "1px solid #d1fae5",
+          padding: 20, marginBottom: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#065f46", marginBottom: 14,
+            textTransform: "uppercase", letterSpacing: "0.08em" }}>
             パラメータ
           </div>
           {/* 入力フィールド: admin のみ固定費・CF追加費用を表示 */}
           <div style={{
             display: "grid",
             gridTemplateColumns: isAdmin ? "repeat(4, 1fr)" : "repeat(2, 1fr)",
-            gap: 12, marginBottom: 12,
+            gap: 14, marginBottom: 16,
           }}>
             {isAdmin && (
               <>
-                <ParamField label="固定費" unit="万円" value={fixedCostMan}
+                <ParamField icon="🏢" label="固定費" unit="万円" value={fixedCostMan}
                   onChange={setFixedCostMan} hint="自動取得・編集可" />
-                <ParamField label="CF追加費用" unit="万円" value={cfExtraMan}
+                <ParamField icon="💰" label="CF追加費用" unit="万円" value={cfExtraMan}
                   onChange={setCfExtraMan} hint="借入返済・設備投資等" />
               </>
             )}
-            <ParamField label="現在の粗利率" unit="%" value={profitRatePct}
+            <ParamField icon="📈" label="現在の粗利率" unit="%" value={profitRatePct}
               onChange={setProfitRatePct} step="0.1" hint="自動取得・編集可" />
-            <ParamField label="現在の広告費率" unit="%" value={adRatePct}
+            <ParamField icon="📢" label="現在の広告費率" unit="%" value={adRatePct}
               onChange={setAdRatePct} step="0.1" hint="📍📌のX軸位置（自動・固定）" readOnly />
           </div>
 
-          {/* BEP & 売上カード: admin は4枚（売上2 + BEP2）、非admin は2枚（売上のみ） */}
+          {/* KPI数値カード: admin は4枚（売上2 + BEP2）、非admin は2枚（売上のみ） */}
           <div style={{
             display: "grid",
             gridTemplateColumns: isAdmin ? "repeat(4, 1fr)" : "repeat(2, 1fr)",
-            gap: 12, paddingTop: 12, borderTop: "1px solid #f0faf0",
+            gap: 12, paddingTop: 14, borderTop: "1px solid #ecfdf5",
           }}>
-            <BepCard label="📍 月末着地予測売上"
-              value={forecastRevenueMan > 0 ? `${forecastRevenueMan.toLocaleString()}万` : "—"}
-              color="#059669" />
-            <BepCard label="📌 現在実績売上"
-              value={currentRevenueMan > 0 ? `${currentRevenueMan.toLocaleString()}万` : "—"}
-              color="#f59e0b" />
+            <KpiCard label="📍 月末着地予測売上"
+              value={forecastRevenueMan > 0 ? forecastRevenueMan.toLocaleString() : "—"}
+              unit={forecastRevenueMan > 0 ? "万" : ""}
+              accentColor="#059669" />
+            <KpiCard label="📌 現在実績売上"
+              value={currentRevenueMan > 0 ? currentRevenueMan.toLocaleString() : "—"}
+              unit={currentRevenueMan > 0 ? "万" : ""}
+              accentColor="#f59e0b" />
             {isAdmin && (
               <>
-                <BepCard
-                  label="PL BEP"
-                  value={plBep !== null ? `${plBep.toLocaleString()}万`
+                <KpiCard label="PL BEP"
+                  value={plBep !== null ? plBep.toLocaleString()
                     : marginPct <= 0 ? "計算不可"
                     : "—"}
-                  color="#854d0e"
-                />
-                <BepCard
-                  label="CF BEP"
-                  value={cfBep !== null ? `${cfBep.toLocaleString()}万`
+                  unit={plBep !== null ? "万" : ""}
+                  accentColor="#854d0e" />
+                <KpiCard label="CF BEP"
+                  value={cfBep !== null ? cfBep.toLocaleString()
                     : marginPct <= 0 ? "計算不可"
                     : "—"}
-                  color="#065f46"
-                />
+                  unit={cfBep !== null ? "万" : ""}
+                  accentColor="#065f46" />
               </>
             )}
           </div>
           {isAdmin && marginPct <= 0 && (
-            <div style={{ marginTop: 10, padding: "6px 10px", background: "#fee2e2", color: "#991b1b",
-              fontSize: 10, fontWeight: 700, borderRadius: 4 }}>
+            <div style={{ marginTop: 12, padding: "8px 12px", background: "#fee2e2", color: "#991b1b",
+              fontSize: 11, fontWeight: 700, borderRadius: 6 }}>
               ⚠ 粗利率（{profitRatePct}%）が広告費率（{adRatePct}%）以下のため BEP が計算できません
             </div>
           )}
           {isAdmin && marginPct > 0 && fixedCostMan <= 0 && (
-            <div style={{ marginTop: 10, padding: "6px 10px", background: "#fef9c3", color: "#854d0e",
-              fontSize: 10, fontWeight: 700, borderRadius: 4 }}>
+            <div style={{ marginTop: 12, padding: "8px 12px", background: "#fef9c3", color: "#854d0e",
+              fontSize: 11, fontWeight: 700, borderRadius: 6 }}>
               💡 固定費が未設定です。上のフィールドに手動入力すると BEP が表示されます
             </div>
           )}
         </div>
 
-        {/* 凡例 */}
-        <div style={{ marginBottom: 10, padding: "8px 12px", background: "#fff", borderRadius: 8,
-          border: "1px solid #d1fae5", display: "flex", gap: 12, flexWrap: "wrap", fontSize: 10, alignItems: "center" }}>
-          <span style={{ color: "#6b7280", fontWeight: 700 }}>凡例:</span>
-          <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 3, fontWeight: 700 }}>✔CF黒字ゾーン</span>
-          <span style={{ background: "#fef9c3", color: "#854d0e", padding: "2px 8px", borderRadius: 3, fontWeight: 700 }}>●PL黒字ゾーン</span>
-          <span style={{ background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 3, fontWeight: 700 }}>●赤字ゾーン</span>
-          <span style={{ border: "3px solid #059669", padding: "0px 6px", borderRadius: 3, color: "#059669", fontWeight: 700 }}>📍 月末着地予測</span>
-          <span style={{ border: "3px solid #f59e0b", padding: "0px 6px", borderRadius: 3, color: "#b45309", fontWeight: 700 }}>📌 現在実績</span>
+        {/* 凡例バー */}
+        <div style={{
+          marginBottom: 12, padding: "10px 14px", background: "#fff", borderRadius: 10,
+          border: "1px solid #d1fae5", display: "flex", gap: 10, flexWrap: "wrap",
+          fontSize: 11, alignItems: "center", boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+        }}>
+          <span style={{ color: "#6b7280", fontWeight: 800, marginRight: 4 }}>凡例:</span>
+          <span style={{
+            background: "#d1fae5", color: "#065f46",
+            padding: "6px 14px", borderRadius: 20, fontWeight: 700,
+          }}>CF黒字</span>
+          <span style={{
+            background: "#fef9c3", color: "#854d0e",
+            padding: "6px 14px", borderRadius: 20, fontWeight: 700,
+          }}>PL黒字</span>
+          <span style={{
+            background: "#fee2e2", color: "#991b1b",
+            padding: "6px 14px", borderRadius: 20, fontWeight: 700,
+          }}>赤字</span>
+          <span style={{
+            background: "#fff", color: "#059669",
+            padding: "5px 13px", borderRadius: 20, fontWeight: 700,
+            border: "2px solid #059669",
+          }}>📍 着地予測</span>
+          <span style={{
+            background: "#fff", color: "#b45309",
+            padding: "5px 13px", borderRadius: 20, fontWeight: 700,
+            border: "2px solid #f59e0b",
+          }}>📌 現在実績</span>
         </div>
 
         {/* マトリクステーブル */}
@@ -303,24 +326,26 @@ export default function MatrixPage() {
           <div ref={scrollerRef} style={{
             background: "#fff", borderRadius: 12, border: "1px solid #d1fae5",
             overflow: "auto", maxHeight: "70vh",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
           }}>
-            <table style={{ borderCollapse: "collapse", minWidth: "100%" }}>
+            <table style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: "100%" }}>
               <thead>
                 <tr>
                   <th style={{
-                    padding: "6px 8px", fontSize: 10, fontWeight: 700, color: "#065f46",
-                    background: "#ecfdf5", borderBottom: "1px solid #d1fae5", borderRight: "1px solid #d1fae5",
-                    position: "sticky", top: 0, left: 0, zIndex: 3, minWidth: 90, textAlign: "center",
+                    padding: "10px 10px", fontSize: 11, fontWeight: 800, color: "#fff",
+                    background: "#064e3b",
+                    borderBottom: "1px solid #064e3b", borderRight: "1px solid #065f46",
+                    position: "sticky", top: 0, left: 0, zIndex: 3, minWidth: 100, textAlign: "center",
                   }}>
                     売上＼広告費率
                   </th>
                   {cols.map((c, ci) => (
                     <th key={c} style={{
-                      padding: "6px 6px", fontSize: 10, fontWeight: 700,
-                      color: ci === pinColIdx ? "#065f46" : "#6b7280",
-                      background: ci === pinColIdx ? "#d1fae5" : "#ecfdf5",
-                      borderBottom: "1px solid #d1fae5", borderRight: "1px solid #f0faf0",
-                      position: "sticky", top: 0, zIndex: 2, minWidth: 60, textAlign: "center",
+                      padding: "10px 6px", fontSize: 11, fontWeight: 800,
+                      color: ci === pinColIdx ? "#a7f3d0" : "#fff",
+                      background: ci === pinColIdx ? "#065f46" : "#064e3b",
+                      borderBottom: "1px solid #064e3b", borderRight: "1px solid #065f46",
+                      position: "sticky", top: 0, zIndex: 2, minWidth: 64, textAlign: "center",
                       whiteSpace: "nowrap",
                     }}>
                       {c}%
@@ -332,14 +357,14 @@ export default function MatrixPage() {
                 {rowsMan.map((salesMan, ri) => (
                   <tr key={salesMan}>
                     <th style={{
-                      padding: "4px 8px", fontSize: 10, fontWeight: 700,
+                      padding: "6px 10px", fontSize: 11, fontWeight: 800,
                       color: ri === forecastRowIdx ? "#065f46"
                         : ri === actualRowIdx ? "#b45309"
                         : "#374151",
                       background: ri === forecastRowIdx ? "#d1fae5"
                         : ri === actualRowIdx ? "#fef3c7"
-                        : "#fff",
-                      borderRight: "1px solid #d1fae5", borderBottom: "1px solid #f5faf5",
+                        : "#f0fdf4",
+                      borderRight: "1px solid #d1fae5", borderBottom: "1px solid #ecfdf5",
                       position: "sticky", left: 0, zIndex: 1, textAlign: "right", whiteSpace: "nowrap",
                     }}>
                       {salesMan.toLocaleString()}万
@@ -349,28 +374,31 @@ export default function MatrixPage() {
                       const isForecast = ri === forecastRowIdx && ci === pinColIdx;
                       const isActual = ri === actualRowIdx && ci === pinColIdx;
                       // 着地と現在が同じセルに重なる場合 → 緑枠優先（着地を主役にスクロール対象にする）
-                      // ピン両方のときは prefix を 📍📌、片方なら片方のみ
                       let pinPrefix = "";
                       if (isForecast && isActual) pinPrefix = "📍📌";
                       else if (isForecast) pinPrefix = "📍";
                       else if (isActual) pinPrefix = "📌";
-                      const border = isForecast
-                        ? "3px solid #059669"
+                      // 通常: 非常に薄いボーダー / ピン: box-shadow で強調
+                      const isPin = isForecast || isActual;
+                      const pinShadow = isForecast
+                        ? "0 0 0 3px #059669, 0 2px 6px rgba(5,150,105,0.4)"
                         : isActual
-                        ? "3px solid #f59e0b"
+                        ? "0 0 0 3px #f59e0b, 0 2px 6px rgba(245,158,11,0.4)"
                         : undefined;
                       return (
                         <td
                           key={adRate}
                           ref={isForecast ? forecastCellRef : undefined}
                           style={{
-                            padding: "4px 6px", fontSize: 10, fontWeight: 700,
+                            padding: "6px 8px", fontSize: 11, fontWeight: 700,
                             background: status.bg, color: status.color, textAlign: "center",
                             borderRight: "1px solid #f0faf0", borderBottom: "1px solid #f5faf5",
-                            border,
+                            boxShadow: pinShadow,
+                            position: isPin ? "relative" : undefined,
+                            zIndex: isPin ? 1 : undefined,
                             whiteSpace: "nowrap",
                           }}>
-                          {pinPrefix ? `${pinPrefix}${status.label}` : status.label}
+                          {pinPrefix ? `${pinPrefix} ${status.label}` : status.label}
                         </td>
                       );
                     })}
@@ -389,14 +417,17 @@ export default function MatrixPage() {
   );
 }
 
-function ParamField({ label, unit, value, onChange, step = "1", hint, readOnly }: {
-  label: string; unit: string; value: number; onChange: (v: number) => void;
+function ParamField({ icon, label, unit, value, onChange, step = "1", hint, readOnly }: {
+  icon?: string; label: string; unit: string; value: number; onChange: (v: number) => void;
   step?: string; hint?: string; readOnly?: boolean;
 }) {
   return (
     <label style={{ display: "block" }}>
-      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, marginBottom: 4 }}>
-        {label} <span style={{ color: "#9ca3af", fontWeight: 400 }}>（{unit}）</span>
+      <div style={{ fontSize: 11, color: "#374151", fontWeight: 700, marginBottom: 6,
+        display: "flex", alignItems: "center", gap: 6 }}>
+        {icon && <span style={{ fontSize: 14 }}>{icon}</span>}
+        <span>{label}</span>
+        <span style={{ color: "#9ca3af", fontWeight: 500, fontSize: 10 }}>（{unit}）</span>
       </div>
       <input
         type="number" step={step} value={value || ""}
@@ -404,23 +435,35 @@ function ParamField({ label, unit, value, onChange, step = "1", hint, readOnly }
         readOnly={readOnly}
         placeholder="0"
         style={{
-          width: "100%", height: 34, border: "1px solid #d1fae5", borderRadius: 6,
-          padding: "0 10px", fontSize: 13, fontWeight: 700, textAlign: "right",
+          width: "100%", height: 38, border: "1px solid #d1fae5", borderRadius: 8,
+          padding: "0 12px", fontSize: 14, fontWeight: 700, textAlign: "right",
           color: readOnly ? "#6b7280" : "#111",
           background: readOnly ? "#f3f4f6" : "#fff",
           cursor: readOnly ? "not-allowed" : "auto",
+          outline: "none",
         }}
       />
-      {hint && <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 2 }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>{hint}</div>}
     </label>
   );
 }
 
-function BepCard({ label, value, color }: { label: string; value: string; color: string }) {
+function KpiCard({ label, value, unit, accentColor }: {
+  label: string; value: string; unit: string; accentColor: string;
+}) {
   return (
-    <div style={{ padding: "8px 12px", background: "#f8fdf8", borderRadius: 6, borderLeft: `3px solid ${color}` }}>
-      <div style={{ fontSize: 9, color: "#6b7280", fontWeight: 700, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 800, color }}>{value}</div>
+    <div style={{
+      padding: "12px 14px", background: "#f8fdf8", borderRadius: 8,
+      borderLeft: `4px solid ${accentColor}`,
+    }}>
+      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, marginBottom: 6 }}>{label}</div>
+      <div style={{
+        fontSize: 24, fontWeight: 800, color: accentColor, lineHeight: 1.1,
+        display: "flex", alignItems: "baseline", gap: 3,
+      }}>
+        <span>{value}</span>
+        {unit && <span style={{ fontSize: 13, fontWeight: 700 }}>{unit}</span>}
+      </div>
     </div>
   );
 }

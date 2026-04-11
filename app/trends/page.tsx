@@ -46,11 +46,12 @@ export default function TrendsPage() {
   const [monthlyTargets, setMonthlyTargets] = useState<Record<number, Targets | null>>({});
   const [loading, setLoading] = useState(false);
 
-  // 全エリア×全月一覧（Summary統合）
+  // 全エリア×全月一覧（Summary統合）— 遅延ロード方式
   type GridCell = { revenue: number; targetSales: number } | null;
   const [gridYearFilter, setGridYearFilter] = useState<"2025" | "2026" | "all">(String(currentYear) as "2025" | "2026");
   const [gridData, setGridData] = useState<Record<string, Record<string, GridCell>>>({});
   const [gridLoading, setGridLoading] = useState(false);
+  const [gridLoaded, setGridLoaded] = useState(false);
 
   const gridMonths = useMemo(() => {
     const list: { y: number; m: number; key: string; label: string }[] = [];
@@ -65,39 +66,57 @@ export default function TrendsPage() {
     return list;
   }, [gridYearFilter, currentYear, now]);
 
-  useEffect(() => {
+  // 一括取得: 年ごとに bulk API を呼ぶ（年フィルタが "all" なら 2025+2026 の2回）
+  async function loadGrid() {
     setGridLoading(true);
-    const tasks: Promise<{ areaId: string; key: string; cell: GridCell }>[] = [];
-    for (const a of businessAreas) {
-      for (const { y, m, key } of gridMonths) {
-        tasks.push((async () => {
-          const [sumRes, tgtRes] = await Promise.all([
-            fetch(`/api/monthly-summary?area=${a.id}&year=${y}&month=${m}&category=${activeBusiness}`)
-              .then(r => r.ok ? r.json() : { summary: null }),
-            fetch(`/api/targets?area=${a.id}&year=${y}&month=${m}&category=${activeBusiness}`)
-              .then(r => r.ok ? r.json() : { targets: null }),
-          ]);
-          if (!sumRes.summary) return { areaId: a.id, key, cell: null };
-          return {
-            areaId: a.id, key,
-            cell: {
-              revenue: Number(sumRes.summary.total_revenue ?? 0),
-              targetSales: Number(tgtRes.targets?.targetSales ?? 0),
-            },
-          };
-        })());
-      }
-    }
-    Promise.all(tasks).then((results) => {
-      const map: Record<string, Record<string, GridCell>> = {};
-      for (const { areaId, key, cell } of results) {
-        if (!map[areaId]) map[areaId] = {};
-        map[areaId][key] = cell;
-      }
-      setGridData(map);
+    setGridLoaded(true);
+    const years = gridYearFilter === "all" ? [2025, currentYear] : [Number(gridYearFilter)];
+    const areaIds = businessAreas.map(a => a.id).join(",");
+    if (!areaIds) {
+      setGridData({});
       setGridLoading(false);
-    });
-  }, [businessAreas, gridMonths, activeBusiness]);
+      return;
+    }
+    const map: Record<string, Record<string, GridCell>> = {};
+    for (const a of businessAreas) map[a.id] = {};
+
+    try {
+      // 年ごとに並列で2 API（summary-bulk + targets-bulk）を呼ぶ
+      await Promise.all(years.map(async (y) => {
+        const [sumRes, tgtRes] = await Promise.all([
+          fetch(`/api/monthly-summary-bulk?areas=${areaIds}&year=${y}&category=${activeBusiness}`)
+            .then(r => r.ok ? r.json() : { summaries: [] }),
+          fetch(`/api/targets-bulk?areas=${areaIds}&year=${y}&category=${activeBusiness}`)
+            .then(r => r.ok ? r.json() : { targets: [] }),
+        ]);
+        // ターゲットを (areaId, month) でインデックス
+        const tIdx = new Map<string, number>();
+        for (const t of (tgtRes.targets ?? []) as Array<{ area_id: string; month: number; target_sales: number | string }>) {
+          tIdx.set(`${t.area_id}-${t.month}`, Number(t.target_sales) || 0);
+        }
+        for (const s of (sumRes.summaries ?? []) as Array<Record<string, unknown>>) {
+          const aid = String(s.area_id);
+          const mo = Number(s.month);
+          const key = `${y}-${mo}`;
+          if (!map[aid]) map[aid] = {};
+          map[aid][key] = {
+            revenue: Number(s.total_revenue ?? 0),
+            targetSales: tIdx.get(`${aid}-${mo}`) ?? 0,
+          };
+        }
+      }));
+      setGridData(map);
+    } catch (e) {
+      console.error("loadGrid error:", e);
+    }
+    setGridLoading(false);
+  }
+
+  // 事業/年フィルタ変更時はリセット（再度ボタンで再取得）
+  useEffect(() => {
+    setGridLoaded(false);
+    setGridData({});
+  }, [activeBusiness, gridYearFilter]);
 
   function fmtMan(v: number): string {
     if (v <= 0) return "—";
@@ -461,12 +480,13 @@ export default function TrendsPage() {
               </div>
             </div>
 
-            {/* 全エリア×全月一覧 */}
+            {/* 全エリア×全月一覧 — 遅延ロード（明示的にボタンを押すまで取得しない） */}
+            <div style={{ height: 40 }} />
             <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden", marginTop: 16 }}>
               <div style={{ background: "#ecfdf5", padding: "10px 16px", borderBottom: "1px solid #d1fae5",
                 display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46" }}>全エリア×全月一覧</span>
-                <div style={{ display: "flex", gap: 4 }}>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                   {([
                     { key: "2025" as const, label: "2025年" },
                     { key: "2026" as const, label: "2026年" },
@@ -482,9 +502,21 @@ export default function TrendsPage() {
                       {y.label}
                     </button>
                   ))}
+                  <button type="button" onClick={loadGrid} disabled={gridLoading}
+                    style={{
+                      marginLeft: 8, padding: "4px 14px", borderRadius: 4, fontSize: 10, fontWeight: 700,
+                      border: "1px solid #059669", background: "#059669", color: "#fff",
+                      cursor: gridLoading ? "default" : "pointer", opacity: gridLoading ? 0.6 : 1,
+                    }}>
+                    {gridLoading ? "読込中..." : gridLoaded ? "↻ 再取得" : "一覧を表示"}
+                  </button>
                 </div>
               </div>
-              {gridLoading ? (
+              {!gridLoaded && !gridLoading ? (
+                <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 11 }}>
+                  「一覧を表示」ボタンを押すと全エリアの月次データを取得します
+                </div>
+              ) : gridLoading ? (
                 <div style={{ padding: 30, textAlign: "center", color: "#9ca3af", fontSize: 11 }}>データを読み込み中...</div>
               ) : (
                 <div style={{ overflowX: "auto" }}>
