@@ -260,7 +260,9 @@ export default function MeetingPage() {
           </div>
         </div>
         <div className="px-6 pb-4">
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{period === "end" ? "月次" : `${period}日`}会議シート</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>
+            {BUSINESSES.find(b => b.id === activeBusiness)?.label ?? ""} — {areaName}{period === "end" ? "月次" : `${period}日`}会議シート
+          </h1>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
             {year}年{month}月 ／ {areaName} ／ 1〜{period === "end" ? daysInMonth : period}日
             {isPastMonth && <span style={{ marginLeft: 10, fontSize: 11, background: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "2px 8px" }}>過去データ</span>}

@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { emptyTargets, type Targets } from "../lib/calculations";
 import { useRole } from "../components/RoleProvider";
+import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
-const AREAS = [
+const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
   { id: "nagoya", name: "名古屋" }, { id: "kyushu", name: "九州" },
   { id: "kitakanto", name: "北関東" }, { id: "hokkaido", name: "北海道" },
@@ -16,16 +17,30 @@ export default function TargetsPage() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
-  const [areaId, setAreaId] = useState(AREAS[0].id);
+  const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
+  const businessAreas = useMemo(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (!biz) return ALL_AREAS;
+    return biz.areas.map(id => ALL_AREAS.find(a => a.id === id)).filter(Boolean) as typeof ALL_AREAS;
+  }, [activeBusiness]);
+  const [areaId, setAreaId] = useState(ALL_AREAS[0].id);
   const [targets, setTargets] = useState<Targets>(emptyTargets());
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
+  // 事業切替時にエリアリセット
   useEffect(() => {
-    fetch(`/api/targets?area=${areaId}&year=${year}&month=${month}`)
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (biz && !biz.areas.includes(areaId)) {
+      setAreaId(biz.areas[0]);
+    }
+  }, [activeBusiness, areaId]);
+
+  useEffect(() => {
+    fetch(`/api/targets?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { targets: emptyTargets() }))
       .then((j) => setTargets({ ...emptyTargets(), ...j.targets }));
-  }, [areaId, year, month]);
+  }, [areaId, year, month, activeBusiness]);
 
   async function save() {
     setSaving(true);
@@ -33,7 +48,7 @@ export default function TargetsPage() {
     const res = await fetch("/api/targets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ areaId, year, month, targets }),
+      body: JSON.stringify({ areaId, year, month, targets, category: activeBusiness }),
     });
     setSaving(false);
     setSavedMsg(res.ok ? "保存しました" : "保存に失敗しました");
@@ -59,7 +74,22 @@ export default function TargetsPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
       <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 24px 8px" }}>
+        {/* 事業タブ */}
+        <div style={{ display: "flex", gap: 4, padding: "8px 24px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          {BUSINESSES.map((b) => (
+            <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+              style={{
+                padding: "5px 12px", borderRadius: "6px 6px 0 0",
+                fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
+                color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                whiteSpace: "nowrap",
+              }}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 24px 8px" }}>
           <select
             value={areaId}
             onChange={(e) => setAreaId(e.target.value)}
@@ -68,7 +98,7 @@ export default function TargetsPage() {
               color: "#fff", borderRadius: "8px", padding: "6px 12px", fontSize: "13px", fontWeight: 700,
             }}
           >
-            {AREAS.map((a) => (
+            {businessAreas.map((a) => (
               <option key={a.id} value={a.id} style={{ color: "#111" }}>{a.name}エリア</option>
             ))}
           </select>
@@ -91,7 +121,7 @@ export default function TargetsPage() {
         <div style={{ padding: "0 24px 14px" }}>
           <h1 style={{ fontSize: "20px", fontWeight: 800, color: "#fff" }}>月次目標設定</h1>
           <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.65)", marginTop: "3px" }}>
-            {year}年{month}月 ／ {AREAS.find((a) => a.id === areaId)?.name}エリア
+            {year}年{month}月 ／ {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {ALL_AREAS.find((a) => a.id === areaId)?.name}エリア
           </p>
         </div>
       </div>

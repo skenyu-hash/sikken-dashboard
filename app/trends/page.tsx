@@ -2,13 +2,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { calculateDashboard, getDaysInMonth, yen } from "../lib/calculations";
 import type { DailyEntry } from "../lib/calculations";
+import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
-const AREAS = [
+const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
   { id: "nagoya", name: "名古屋" }, { id: "kyushu", name: "九州" },
   { id: "kitakanto", name: "北関東" }, { id: "hokkaido", name: "北海道" },
   { id: "chugoku", name: "中国" }, { id: "shizuoka", name: "静岡" },
 ];
+const AREAS = ALL_AREAS;
 
 const METRICS = [
   { key: "revenue", label: "売上", format: (v: number) => yen(v) },
@@ -25,6 +27,12 @@ export default function TrendsPage() {
   const now = new Date();
   const currentYear = now.getFullYear();
   const [year, setYear] = useState(currentYear);
+  const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
+  const businessAreas = useMemo(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (!biz) return ALL_AREAS;
+    return biz.areas.map(id => ALL_AREAS.find(a => a.id === id)).filter(Boolean) as typeof ALL_AREAS;
+  }, [activeBusiness]);
   const [areaId, setAreaId] = useState("kansai");
   const [metric, setMetric] = useState("revenue");
   const [monthlyData, setMonthlyData] = useState<Record<number, {
@@ -33,13 +41,21 @@ export default function TrendsPage() {
   }>>({});
   const [loading, setLoading] = useState(false);
 
+  // 事業切替時にエリアリセット
+  useEffect(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (biz && !biz.areas.includes(areaId)) {
+      setAreaId(biz.areas[0]);
+    }
+  }, [activeBusiness, areaId]);
+
   useEffect(() => {
     setLoading(true);
     Promise.all(
       MONTHS.map(async (m) => {
         const [eRes, sRes] = await Promise.all([
-          fetch(`/api/entries?area=${areaId}&year=${year}&month=${m}`),
-          fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${m}`),
+          fetch(`/api/entries?area=${areaId}&year=${year}&month=${m}&category=${activeBusiness}`),
+          fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${m}&category=${activeBusiness}`),
         ]);
         const eJson = eRes.ok ? await eRes.json() : { entries: [] };
         const sJson = sRes.ok ? await sRes.json() : { summary: null };
@@ -51,7 +67,7 @@ export default function TrendsPage() {
       setMonthlyData(map);
       setLoading(false);
     });
-  }, [areaId, year]);
+  }, [areaId, year, activeBusiness]);
 
   const chartData = useMemo(() => {
     return MONTHS.map((m) => {
@@ -89,19 +105,35 @@ export default function TrendsPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
-      <div style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "16px 20px" }}>
+      <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
+        {/* 事業タブ */}
+        <div style={{ display: "flex", gap: 4, padding: "8px 20px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          {BUSINESSES.map((b) => (
+            <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+              style={{
+                padding: "5px 12px", borderRadius: "6px 6px 0 0",
+                fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
+                color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                whiteSpace: "nowrap",
+              }}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+      <div style={{ padding: "12px 20px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>月次推移グラフ</h1>
             <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
-              年間12ヶ月の推移を確認
+              {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ 年間12ヶ月の推移を確認
             </p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <select value={areaId} onChange={(e) => setAreaId(e.target.value)}
               style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.3)",
                 color: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600 }}>
-              {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {businessAreas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             <select value={year} onChange={(e) => setYear(Number(e.target.value))}
               style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.3)",
@@ -122,6 +154,7 @@ export default function TrendsPage() {
             </button>
           ))}
         </div>
+      </div>
       </div>
 
       <div style={{ padding: 20 }}>
