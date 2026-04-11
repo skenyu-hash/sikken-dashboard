@@ -4,8 +4,9 @@ import {
   calculateDashboard, getDaysElapsed, yen,
   type DailyEntry, type DashboardSummary, type Targets, emptyTargets,
 } from "../lib/calculations";
+import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
-const AREAS = [
+const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
   { id: "nagoya", name: "名古屋" }, { id: "kyushu", name: "九州" },
   { id: "kitakanto", name: "北関東" }, { id: "hokkaido", name: "北海道" },
@@ -31,16 +32,23 @@ export default function RankingPage() {
   const month = now.getMonth() + 1;
   const daysElapsed = getDaysElapsed(now, year, month);
 
+  const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
+  const businessAreas = useMemo(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (!biz) return ALL_AREAS;
+    return biz.areas.map(id => ALL_AREAS.find(a => a.id === id)).filter(Boolean) as typeof ALL_AREAS;
+  }, [activeBusiness]);
+
   const [allEntries, setAllEntries] = useState<Record<string, DailyEntry[]>>({});
   const [allTargets, setAllTargets] = useState<Record<string, Targets>>({});
   const [allMonthlySummaries, setAllMonthlySummaries] = useState<Record<string, Record<string, unknown>>>({});
 
   useEffect(() => {
-    Promise.all(AREAS.map(async (a) => {
+    Promise.all(businessAreas.map(async (a) => {
       const [eRes, tRes, sRes] = await Promise.all([
-        fetch(`/api/entries?area=${a.id}&year=${year}&month=${month}`),
-        fetch(`/api/targets?area=${a.id}&year=${year}&month=${month}`),
-        fetch(`/api/monthly-summary?area=${a.id}&year=${year}&month=${month}`),
+        fetch(`/api/entries?area=${a.id}&year=${year}&month=${month}&category=${activeBusiness}`),
+        fetch(`/api/targets?area=${a.id}&year=${year}&month=${month}&category=${activeBusiness}`),
+        fetch(`/api/monthly-summary?area=${a.id}&year=${year}&month=${month}&category=${activeBusiness}`),
       ]);
       const eJson = eRes.ok ? await eRes.json() : { entries: [] };
       const tJson = tRes.ok ? await tRes.json() : { targets: emptyTargets() };
@@ -55,10 +63,10 @@ export default function RankingPage() {
       setAllTargets(tm);
       setAllMonthlySummaries(sm);
     });
-  }, [year, month]);
+  }, [year, month, businessAreas, activeBusiness]);
 
   const areaSummaries: AreaSummary[] = useMemo(() => {
-    return AREAS.map((a) => {
+    return businessAreas.map((a) => {
       const entries = allEntries[a.id] ?? [];
       const ms = allMonthlySummaries[a.id] ?? null;
       const tgts = allTargets[a.id] ?? emptyTargets();
@@ -101,7 +109,7 @@ export default function RankingPage() {
         help: { ...summary.help, count: helpCount, revenue: helpRevenue } };
       return { area: a, summary: displaySummary, values, targetValues, profitRate, adRate, helpRate, convRate };
     });
-  }, [allEntries, allMonthlySummaries, allTargets, year, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allEntries, allMonthlySummaries, allTargets, year, month, businessAreas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const badge = (ratio: number | null) => {
     if (ratio === null) return <span style={{ color: "#d1d5db", fontSize: 9 }}>未設定</span>;
@@ -120,11 +128,28 @@ export default function RankingPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
-      <div style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "16px 20px 14px" }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>エリアランキング</h1>
-        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
-          {year}年{month}月 ／ 経過{daysElapsed}日時点 ／ スクロールで全指標を確認
-        </p>
+      <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
+        {/* 事業タブ */}
+        <div style={{ display: "flex", gap: 4, padding: "8px 20px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          {BUSINESSES.map((b) => (
+            <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+              style={{
+                padding: "5px 12px", borderRadius: "6px 6px 0 0",
+                fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
+                color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                whiteSpace: "nowrap",
+              }}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ padding: "12px 20px 14px" }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>エリアランキング</h1>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
+            {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {year}年{month}月 ／ 経過{daysElapsed}日時点
+          </p>
+        </div>
       </div>
       <div style={{ padding: "16px 20px" }}>
         <RankingSection title="粗利率ランキング" metric="profitRate"

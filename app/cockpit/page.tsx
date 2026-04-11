@@ -6,8 +6,9 @@ import {
   type CashflowSummary, type DailyEntry, yen,
 } from "../lib/calculations";
 import { useRole } from "../components/RoleProvider";
+import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
-const AREAS = [
+const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
   { id: "nagoya", name: "名古屋" }, { id: "kyushu", name: "九州" },
   { id: "kitakanto", name: "北関東" }, { id: "hokkaido", name: "北海道" },
@@ -30,7 +31,7 @@ type CashflowEntry = {
 };
 
 const empty = (year: number, month: number): CashflowEntry => ({
-  areaId: AREAS[0].id, year, month,
+  areaId: ALL_AREAS[0].id, year, month,
   accountsReceivable: 0, accountsReceivableOverdue: 0,
   bankBalance: 0, loanBalance: 0, loanRepayment: 0,
   scheduledPayments: 0, paymentDueDate: null, notes: "",
@@ -52,10 +53,25 @@ export default function CockpitPage() {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
 
+  const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
+  const businessAreas = useMemo(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (!biz) return ALL_AREAS;
+    return biz.areas.map(id => ALL_AREAS.find(a => a.id === id)).filter(Boolean) as typeof ALL_AREAS;
+  }, [activeBusiness]);
+
   const [cfs, setCfs] = useState<CashflowEntry[]>([]);
   const [form, setForm] = useState<CashflowEntry>(() => empty(year, month));
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
   const [saving, setSaving] = useState(false);
+
+  // 事業切替時にform の areaId をリセット
+  useEffect(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (biz && !biz.areas.includes(form.areaId)) {
+      setForm(f => ({ ...f, areaId: biz.areas[0] }));
+    }
+  }, [activeBusiness, form.areaId]);
 
   async function reload() {
     const r = await fetch(`/api/cashflow?year=${year}&month=${month}`);
@@ -67,26 +83,26 @@ export default function CockpitPage() {
   useEffect(() => {
     if (role !== "admin") return;
     reload();
-    Promise.all(AREAS.map(async (a) => {
-      const r = await fetch(`/api/entries?area=${a.id}&year=${year}&month=${month}`);
+    Promise.all(businessAreas.map(async (a) => {
+      const r = await fetch(`/api/entries?area=${a.id}&year=${year}&month=${month}&category=${activeBusiness}`);
       return (await r.json()).entries ?? [];
     })).then((rs: DailyEntry[][]) => {
       const all = rs.flat();
       const s = calculateDashboard(all, year, month, now);
       setMonthlyRevenue(s.totalRevenue);
     });
-  }, [role, year, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [role, year, month, businessAreas, activeBusiness]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const summary = useMemo(() => calculateCashflow(cfs, monthlyRevenue), [cfs, monthlyRevenue]);
 
   const perArea = useMemo(() => {
     const map = new Map<string, CashflowSummary>();
-    for (const a of AREAS) {
+    for (const a of businessAreas) {
       const filt = cfs.filter((c) => c.areaId === a.id);
-      map.set(a.id, calculateCashflow(filt, monthlyRevenue / AREAS.length));
+      map.set(a.id, calculateCashflow(filt, monthlyRevenue / Math.max(1, businessAreas.length)));
     }
     return map;
-  }, [cfs, monthlyRevenue]);
+  }, [cfs, monthlyRevenue, businessAreas]);
 
   if (role && role !== "admin") {
     return <div style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>このページは役員のみアクセス可能です</div>;
@@ -143,12 +159,28 @@ export default function CockpitPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
       {/* ヘッダー */}
-      <div style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "16px 24px" }}>
+      <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
+        {/* 事業タブ */}
+        <div style={{ display: "flex", gap: 4, padding: "8px 24px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          {BUSINESSES.map((b) => (
+            <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+              style={{
+                padding: "5px 12px", borderRadius: "6px 6px 0 0",
+                fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
+                color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                whiteSpace: "nowrap",
+              }}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ padding: "12px 24px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>役員コックピット</h1>
             <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
-              {year}年{month}月 ／ キャッシュフロー管理
+              {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {year}年{month}月 ／ キャッシュフロー管理
             </p>
           </div>
         </div>
@@ -162,6 +194,7 @@ export default function CockpitPage() {
           <KPI label="融資残高" value={yen(summary.totalLoan)} />
           <KPI label="月次CF" value={yen(summary.monthlyCF)}
             color={summary.monthlyCF >= 0 ? "#a7f3d0" : "#fca5a5"} />
+        </div>
         </div>
       </div>
 
@@ -202,7 +235,7 @@ export default function CockpitPage() {
               </tr>
             </thead>
             <tbody>
-              {AREAS.map((a) => {
+              {businessAreas.map((a) => {
                 const s = perArea.get(a.id)!;
                 const cfPositive = s.monthlyCF >= 0;
                 const count = cfs.filter((c) => c.areaId === a.id).length;
@@ -232,7 +265,7 @@ export default function CockpitPage() {
                   width: 160, height: 32, border: "1px solid #d1fae5", borderRadius: 6,
                   padding: "0 10px", fontSize: 12, fontWeight: 600, background: "#fff",
                 }}>
-                {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {businessAreas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </FieldRow>
             {moneyFields.map((f) => (
@@ -303,7 +336,7 @@ export default function CockpitPage() {
               </thead>
               <tbody>
                 {cfs.map((c) => {
-                  const area = AREAS.find((a) => a.id === c.areaId);
+                  const area = ALL_AREAS.find((a) => a.id === c.areaId);
                   return (
                     <tr key={c.id} style={{ borderBottom: "1px solid #f5faf5" }}>
                       <td style={{ padding: "8px 8px", fontSize: 12, fontWeight: 700 }}>{area?.name}</td>

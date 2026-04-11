@@ -6,8 +6,9 @@ import {
   type DailyEntry, type DashboardSummary, type FixedCosts, yen,
 } from "../lib/calculations";
 import { useRole } from "../components/RoleProvider";
+import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
-const AREAS = [
+const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
   { id: "nagoya", name: "名古屋" }, { id: "kyushu", name: "九州" },
   { id: "kitakanto", name: "北関東" }, { id: "hokkaido", name: "北海道" },
@@ -31,7 +32,14 @@ export default function BreakevenPage() {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
 
-  const [areaId, setAreaId] = useState(AREAS[0].id);
+  const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
+  const businessAreas = useMemo(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (!biz) return ALL_AREAS;
+    return biz.areas.map(id => ALL_AREAS.find(a => a.id === id)).filter(Boolean) as typeof ALL_AREAS;
+  }, [activeBusiness]);
+
+  const [areaId, setAreaId] = useState(ALL_AREAS[0].id);
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [fixed, setFixed] = useState<FixedCosts>({ laborCost: 0, rent: 0, other: 0 });
   const [saving, setSaving] = useState(false);
@@ -43,11 +51,19 @@ export default function BreakevenPage() {
   ]);
   const [areaBreakevens, setAreaBreakevens] = useState<AreaBreakeven[]>([]);
 
+  // 事業切替時にエリアリセット
+  useEffect(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (biz && !biz.areas.includes(areaId)) {
+      setAreaId(biz.areas[0]);
+    }
+  }, [activeBusiness, areaId]);
+
   // 選択エリアのデータ取得
   useEffect(() => {
     Promise.all([
-      fetch(`/api/entries?area=${areaId}&year=${year}&month=${month}`),
-      fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${month}`),
+      fetch(`/api/entries?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`),
+      fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`),
       fetch(`/api/fixed-costs?area=${areaId}&year=${year}&month=${month}`),
     ]).then(async ([eRes, sRes, fRes]) => {
       const eJson = eRes.ok ? await eRes.json() : { entries: [] };
@@ -65,7 +81,7 @@ export default function BreakevenPage() {
         { id: "3", name: "その他", amount: fc.other || 0, color: "#6b7280" },
       ]);
     });
-  }, [areaId, year, month]);
+  }, [areaId, year, month, activeBusiness]);
 
   // 全エリア達成状況取得
   useEffect(() => {
@@ -73,10 +89,10 @@ export default function BreakevenPage() {
     const daysElapsed = now.getDate();
     const remainingDays = daysInMonth - daysElapsed;
 
-    Promise.all(AREAS.map(async (area) => {
+    Promise.all(businessAreas.map(async (area) => {
       const [eRes, sRes, fRes] = await Promise.all([
-        fetch(`/api/entries?area=${area.id}&year=${year}&month=${month}`),
-        fetch(`/api/monthly-summary?area=${area.id}&year=${year}&month=${month}`),
+        fetch(`/api/entries?area=${area.id}&year=${year}&month=${month}&category=${activeBusiness}`),
+        fetch(`/api/monthly-summary?area=${area.id}&year=${year}&month=${month}&category=${activeBusiness}`),
         fetch(`/api/fixed-costs?area=${area.id}&year=${year}&month=${month}`),
       ]);
       const eJson = eRes.ok ? await eRes.json() : { entries: [] };
@@ -101,7 +117,7 @@ export default function BreakevenPage() {
 
       return { areaId: area.id, areaName: area.name, revenue, profitRate, fixedCost, breakevenRevenue, achievementRate, remainingCount, dailyRequired };
     })).then(setAreaBreakevens);
-  }, [year, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [year, month, businessAreas, activeBusiness]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rawSummary = useMemo(
     () => calculateDashboard(entries, year, month, now),
@@ -169,19 +185,36 @@ export default function BreakevenPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
       {/* ヘッダー */}
-      <div style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "16px 24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>損益分岐エンジン</h1>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
-              {year}年{month}月 ／ 固定費から達成必要件数を逆算
-            </p>
+      <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
+        {/* 事業タブ */}
+        <div style={{ display: "flex", gap: 4, padding: "8px 24px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          {BUSINESSES.map((b) => (
+            <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+              style={{
+                padding: "5px 12px", borderRadius: "6px 6px 0 0",
+                fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
+                color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                whiteSpace: "nowrap",
+              }}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ padding: "12px 24px 16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>損益分岐エンジン</h1>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
+                {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {year}年{month}月 ／ 固定費から達成必要件数を逆算
+              </p>
+            </div>
+            <select value={areaId} onChange={(e) => setAreaId(e.target.value)}
+              style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.35)",
+                color: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 700 }}>
+              {businessAreas.map((a) => <option key={a.id} value={a.id} style={{ color: "#111" }}>{a.name}エリア</option>)}
+            </select>
           </div>
-          <select value={areaId} onChange={(e) => setAreaId(e.target.value)}
-            style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.35)",
-              color: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 700 }}>
-            {AREAS.map((a) => <option key={a.id} value={a.id} style={{ color: "#111" }}>{a.name}エリア</option>)}
-          </select>
         </div>
       </div>
 
