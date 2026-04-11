@@ -18,6 +18,7 @@ export async function GET(req: Request) {
   const area = searchParams.get("area") ?? "";
   const year = Number(searchParams.get("year"));
   const month = Number(searchParams.get("month"));
+  const category = searchParams.get("category") ?? "water";
   if (!AREA_IDS.has(area) || !year || !month) {
     return NextResponse.json({ error: "bad params" }, { status: 400 });
   }
@@ -25,7 +26,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   try {
-    const entries = await listEntries(area, year, month);
+    const entries = await listEntries(area, year, month, category);
     return NextResponse.json({ entries });
   } catch (e) {
     console.error(e);
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = (await req.json().catch(() => null)) as {
-    areaId?: string; entry?: DailyEntry;
+    areaId?: string; entry?: DailyEntry; category?: string;
   } | null;
 
   if (!body?.areaId || !body.entry || !AREA_IDS.has(body.areaId)) {
@@ -52,14 +53,16 @@ export async function POST(req: Request) {
   }
 
   try {
+    const cat = body.category ?? "water";
     // 既存値を取得して監査ログのbeforeに記録
     const before = (await listEntries(
       body.areaId,
       Number(body.entry.date.slice(0, 4)),
-      Number(body.entry.date.slice(5, 7))
+      Number(body.entry.date.slice(5, 7)),
+      cat
     )).find((e) => e.date === body.entry!.date) ?? null;
 
-    await upsertEntry(body.areaId, body.entry);
+    await upsertEntry(body.areaId, body.entry, cat);
     await logAudit({
       user, action: before ? "entry_edit" : "entry_create",
       areaId: body.areaId, targetDate: body.entry.date,

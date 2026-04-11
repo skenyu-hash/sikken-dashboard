@@ -12,11 +12,13 @@ import {
 } from "../lib/calculations";
 import { useRole, useSession } from "./RoleProvider";
 import { logAction } from "../lib/logger";
+import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../lib/businesses";
+import { COMPANIES } from "../lib/companies";
 
 // ============ エリア定義 ============
 type Area = { id: string; name: string };
 
-const AREAS: Area[] = [
+const ALL_AREAS: Area[] = [
   { id: "kansai", name: "関西" },
   { id: "kanto", name: "関東" },
   { id: "nagoya", name: "名古屋" },
@@ -26,14 +28,17 @@ const AREAS: Area[] = [
   { id: "chugoku", name: "中国" },
   { id: "shizuoka", name: "静岡" },
 ];
+// 後方互換: 既存コードで AREAS を参照している箇所向け
+const AREAS = ALL_AREAS;
 
 async function fetchEntries(
   areaId: string,
   year: number,
-  month: number
+  month: number,
+  category: string = "water"
 ): Promise<DailyEntry[]> {
   const res = await fetch(
-    `/api/entries?area=${areaId}&year=${year}&month=${month}`,
+    `/api/entries?area=${areaId}&year=${year}&month=${month}&category=${category}`,
     { cache: "no-store" }
   );
   if (!res.ok) return [];
@@ -41,11 +46,11 @@ async function fetchEntries(
   return json.entries ?? [];
 }
 
-async function postEntry(areaId: string, entry: DailyEntry): Promise<boolean> {
+async function postEntry(areaId: string, entry: DailyEntry, category: string = "water"): Promise<boolean> {
   const res = await fetch("/api/entries", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ areaId, entry }),
+    body: JSON.stringify({ areaId, entry, category }),
   });
   return res.ok;
 }
@@ -148,6 +153,17 @@ export default function Dashboard() {
   const [fixedCosts, setFixedCosts] = useState<FixedCosts>({ laborCost: 0, rent: 0, other: 0 });
   const [targets, setTargets] = useState<Targets>(emptyTargets());
 
+  const [viewMode, setViewMode] = useState<"business" | "company">("business");
+  const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
+  const [activeCompany, setActiveCompany] = useState<string>("__all__");
+
+  // 事業別: 現在の事業に属するエリアだけ表示
+  const businessAreas = useMemo(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (!biz) return ALL_AREAS;
+    return biz.areas.map(id => ALL_AREAS.find(a => a.id === id)).filter(Boolean) as Area[];
+  }, [activeBusiness]);
+
   const [activeTab, setActiveTab] = useState<string>(AREAS[0].id);
 
   const [viewYear, setViewYear] = useState(currentYear);
@@ -157,13 +173,17 @@ export default function Dashboard() {
   const [groupEntriesByArea, setGroupEntriesByArea] = useState<
     Record<string, DailyEntry[]>
   >({});
+  const [companyData, setCompanyData] = useState<{
+    totalRevenue: number; totalProfit: number; totalCount: number; totalAdCost: number;
+    helpRevenue: number; helpCount: number; vehicleCount: number;
+  } | null>(null);
   const [form, setForm] = useState<DailyEntry>(() => emptyEntry(todayStr()));
   const [, setLoaded] = useState(false);
 
   const isCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
   const isGroup = activeTab === GROUP_TAB;
   const isAreaEditable = !userAreaId || userAreaId === activeTab;
-  const canEdit = canEditDashboard && !isGroup && isAreaEditable;
+  const canEdit = canEditDashboard && !isGroup && isAreaEditable && viewMode === "business";
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -173,12 +193,22 @@ export default function Dashboard() {
   const [prevEntries, setPrevEntries] = useState<DailyEntry[]>([]);
   const [yoyMonthlySummary, setYoyMonthlySummary] = useState<Record<string, unknown> | null>(null);
 
+  // ============ 事業切替時にタブリセット ============
+  useEffect(() => {
+    if (viewMode === "business") {
+      const biz = BUSINESSES.find(b => b.id === activeBusiness);
+      if (biz && !biz.areas.includes(activeTab) && activeTab !== GROUP_TAB) {
+        setActiveTab(biz.areas[0]);
+      }
+    }
+  }, [activeBusiness, viewMode, activeTab]);
+
   // ============ データ読込: エリアタブ ============
   useEffect(() => {
-    if (isGroup) return;
+    if (isGroup || viewMode === "company") return;
     let cancelled = false;
     setLoaded(false);
-    fetchEntries(activeTab, viewYear, viewMonth).then((rows) => {
+    fetchEntries(activeTab, viewYear, viewMonth, activeBusiness).then((rows) => {
       if (cancelled) return;
       setEntries(rows);
       setLoaded(true);
@@ -186,30 +216,31 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, viewYear, viewMonth, isGroup]);
+  }, [activeTab, viewYear, viewMonth, isGroup, activeBusiness, viewMode]);
 
   // 固定費 + 目標の読込
   useEffect(() => {
-    if (isGroup) return;
+    if (isGroup || viewMode === "company") return;
     fetch(`/api/fixed-costs?area=${activeTab}&year=${viewYear}&month=${viewMonth}`)
       .then((r) => (r.ok ? r.json() : { fixedCosts: { laborCost: 0, rent: 0, other: 0 } }))
       .then((j: { fixedCosts: FixedCosts }) => setFixedCosts(j.fixedCosts));
-    fetch(`/api/targets?area=${activeTab}&year=${viewYear}&month=${viewMonth}`)
+    fetch(`/api/targets?area=${activeTab}&year=${viewYear}&month=${viewMonth}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { targets: emptyTargets() }))
       .then((j: { targets: Targets }) => setTargets(j.targets));
-  }, [activeTab, viewYear, viewMonth, isGroup]);
+  }, [activeTab, viewYear, viewMonth, isGroup, activeBusiness, viewMode]);
 
   const [groupMonthlySummaries, setGroupMonthlySummaries] = useState<Record<string, Record<string, unknown> | null>>({});
 
   // ============ データ読込: グループタブ ============
   useEffect(() => {
-    if (!isGroup) return;
+    if (!isGroup || viewMode === "company") return;
     let cancelled = false;
+    const areas = businessAreas;
     Promise.all(
-      AREAS.map(async (a) => {
+      areas.map(async (a) => {
         const [eRes, sRes] = await Promise.all([
-          fetch(`/api/entries?area=${a.id}&year=${viewYear}&month=${viewMonth}`).then(r => r.ok ? r.json() : { entries: [] }),
-          fetch(`/api/monthly-summary?area=${a.id}&year=${viewYear}&month=${viewMonth}`).then(r => r.ok ? r.json() : { summary: null }),
+          fetch(`/api/entries?area=${a.id}&year=${viewYear}&month=${viewMonth}&category=${activeBusiness}`).then(r => r.ok ? r.json() : { entries: [] }),
+          fetch(`/api/monthly-summary?area=${a.id}&year=${viewYear}&month=${viewMonth}&category=${activeBusiness}`).then(r => r.ok ? r.json() : { summary: null }),
         ]);
         return [a.id, eRes.entries ?? [], sRes.summary] as const;
       })
@@ -222,18 +253,61 @@ export default function Dashboard() {
       setGroupMonthlySummaries(sMap);
     });
     return () => { cancelled = true; };
-  }, [isGroup, viewYear, viewMonth]);
+  }, [isGroup, viewYear, viewMonth, activeBusiness, viewMode, businessAreas]);
+
+  // ============ データ読込: 会社別ビュー ============
+  useEffect(() => {
+    if (viewMode !== "company") { setCompanyData(null); return; }
+    let cancelled = false;
+    const company = COMPANIES.find(c => c.id === activeCompany);
+    const pairs = company ? company.areas : COMPANIES.flatMap(c => c.areas);
+    Promise.all(
+      pairs.map(async ({ category, areaId }) => {
+        const res = await fetch(`/api/monthly-summary?area=${areaId}&year=${viewYear}&month=${viewMonth}&category=${category}`)
+          .then(r => r.ok ? r.json() : { summary: null });
+        return res.summary;
+      })
+    ).then((summaries) => {
+      if (cancelled) return;
+      const result = { totalRevenue: 0, totalProfit: 0, totalCount: 0, totalAdCost: 0, helpRevenue: 0, helpCount: 0, vehicleCount: 0 };
+      for (const s of summaries) {
+        if (!s) continue;
+        result.totalRevenue += Number(s.total_revenue ?? 0);
+        result.totalProfit += Number(s.total_profit ?? 0);
+        result.totalCount += Number(s.total_count ?? 0);
+        result.totalAdCost += Number(s.ad_cost ?? 0);
+        result.helpRevenue += Number(s.help_revenue ?? 0);
+        result.helpCount += Number(s.help_count ?? 0);
+        result.vehicleCount += Number(s.vehicle_count ?? 0);
+      }
+      setCompanyData(result);
+    });
+    // Also load group entries for company view aggregation
+    const uniqueAreas = [...new Set(pairs.map(p => p.areaId))];
+    const uniqueCats = [...new Set(pairs.map(p => p.category))];
+    Promise.all(
+      pairs.map(async ({ category, areaId }) => {
+        const res = await fetch(`/api/entries?area=${areaId}&year=${viewYear}&month=${viewMonth}&category=${category}`)
+          .then(r => r.ok ? r.json() : { entries: [] });
+        return res.entries as DailyEntry[];
+      })
+    ).then((entryArrays) => {
+      if (cancelled) return;
+      setEntries(entryArrays.flat());
+    });
+    return () => { cancelled = true; };
+  }, [viewMode, activeCompany, viewYear, viewMonth]);
 
   // ============ 過去月サマリー取得 ============
   useEffect(() => {
-    if (entries.length === 0 && !isGroup && activeTab) {
-      fetch(`/api/monthly-summary?area=${activeTab}&year=${viewYear}&month=${viewMonth}`)
+    if (entries.length === 0 && !isGroup && activeTab && viewMode === "business") {
+      fetch(`/api/monthly-summary?area=${activeTab}&year=${viewYear}&month=${viewMonth}&category=${activeBusiness}`)
         .then((r) => r.ok ? r.json() : { summary: null })
         .then((j) => setMonthlySummary(j.summary ?? null));
     } else {
       setMonthlySummary(null);
     }
-  }, [entries, activeTab, viewYear, viewMonth, isGroup]);
+  }, [entries, activeTab, viewYear, viewMonth, isGroup, activeBusiness, viewMode]);
 
   // ============ 閲覧ログ ============
   useEffect(() => {
@@ -247,26 +321,26 @@ export default function Dashboard() {
   const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear;
 
   useEffect(() => {
-    if (!isGroup && activeTab) {
-      fetch(`/api/monthly-summary?area=${activeTab}&year=${prevYear}&month=${prevMonth}`)
+    if (!isGroup && activeTab && viewMode === "business") {
+      fetch(`/api/monthly-summary?area=${activeTab}&year=${prevYear}&month=${prevMonth}&category=${activeBusiness}`)
         .then((r) => r.ok ? r.json() : { summary: null })
         .then((j) => setPrevMonthlySummary(j.summary ?? null));
-      fetch(`/api/entries?area=${activeTab}&year=${prevYear}&month=${prevMonth}`)
+      fetch(`/api/entries?area=${activeTab}&year=${prevYear}&month=${prevMonth}&category=${activeBusiness}`)
         .then((r) => r.ok ? r.json() : { entries: [] })
         .then((j) => setPrevEntries(j.entries ?? []));
     }
-  }, [activeTab, prevYear, prevMonth, isGroup]);
+  }, [activeTab, prevYear, prevMonth, isGroup, activeBusiness, viewMode]);
 
   // ============ 前年同月データ取得 ============
   useEffect(() => {
-    if (!isGroup && activeTab) {
-      fetch(`/api/monthly-summary?area=${activeTab}&year=${viewYear - 1}&month=${viewMonth}`)
+    if (!isGroup && activeTab && viewMode === "business") {
+      fetch(`/api/monthly-summary?area=${activeTab}&year=${viewYear - 1}&month=${viewMonth}&category=${activeBusiness}`)
         .then((r) => r.ok ? r.json() : { summary: null })
         .then((j) => setYoyMonthlySummary(j.summary ?? null));
     } else {
       setYoyMonthlySummary(null);
     }
-  }, [activeTab, viewYear, viewMonth, isGroup]);
+  }, [activeTab, viewYear, viewMonth, isGroup, activeBusiness, viewMode]);
 
   // ============ 集計 ============
   const summaryToday = useMemo(
@@ -286,6 +360,27 @@ export default function Dashboard() {
   );
 
   const displaySummary = useMemo(() => {
+    // 会社別ビュー: companyDataから集計
+    if (viewMode === "company" && companyData) {
+      const dim = getDaysInMonth(viewYear, viewMonth);
+      return {
+        ...summary,
+        totalRevenue: companyData.totalRevenue,
+        totalProfit: companyData.totalProfit,
+        totalCount: companyData.totalCount,
+        totalAdCost: companyData.totalAdCost,
+        companyUnitPrice: companyData.totalCount > 0 ? Math.round(companyData.totalRevenue / companyData.totalCount) : 0,
+        vehicleCount: companyData.vehicleCount,
+        constructionRate: 0,
+        help: {
+          revenue: companyData.helpRevenue, profit: 0, count: companyData.helpCount,
+          unitPrice: companyData.helpCount > 0 ? Math.round(companyData.helpRevenue / companyData.helpCount) : 0,
+        },
+        totalLaborCost: 0, totalMaterialCost: 0,
+        daysElapsed: dim, daysInMonth: dim,
+        grossMargin: companyData.totalRevenue > 0 ? Math.round(companyData.totalProfit / companyData.totalRevenue * 1000) / 10 : 0,
+      };
+    }
     // グループ全体: 全エリアのmonthlySummariesから集計（エントリがない過去月対応）
     if (isGroup) {
       const allEntries = Object.values(groupEntriesByArea).flat();
@@ -341,7 +436,7 @@ export default function Dashboard() {
       daysInMonth: dim,
       grossMargin: Number(monthlySummary.profit_rate ?? 0),
     };
-  }, [summary, monthlySummary, viewYear, viewMonth, isGroup, groupEntriesByArea, groupMonthlySummaries]);
+  }, [summary, monthlySummary, viewYear, viewMonth, isGroup, groupEntriesByArea, groupMonthlySummaries, viewMode, companyData]);
 
   // ============ 前月比 ============
   const prevSummaryCalc = useMemo(() => {
@@ -411,7 +506,7 @@ export default function Dashboard() {
   // 各エリアサマリー(グループ表示用)
   const perAreaSummaries = useMemo(() => {
     if (!isGroup) return [];
-    return AREAS.map((a) => {
+    return businessAreas.map((a) => {
       const entries = groupEntriesByArea[a.id] ?? [];
       const ms = groupMonthlySummaries[a.id];
       const raw = calculateDashboard(entries, viewYear, viewMonth, summaryToday);
@@ -451,7 +546,7 @@ export default function Dashboard() {
     e.preventDefault();
     setSaveError(null);
     setSaving(true);
-    const ok = await postEntry(activeTab, form);
+    const ok = await postEntry(activeTab, form, activeBusiness);
     setSaving(false);
     if (!ok) {
       setSaveError("保存に失敗しました。通信状況をご確認ください。");
@@ -486,7 +581,10 @@ export default function Dashboard() {
   }, [activeTab]);
 
   const activeArea = AREAS.find((a) => a.id === activeTab);
-  const headerLabel = isGroup ? "グループ全体" : activeArea?.name ?? "";
+  const activeBusinessLabel = BUSINESSES.find(b => b.id === activeBusiness)?.label ?? "";
+  const headerLabel = viewMode === "company"
+    ? (activeCompany === "__all__" ? "全社合計" : COMPANIES.find(c => c.id === activeCompany)?.name ?? "")
+    : isGroup ? "グループ全体" : activeArea?.name ?? "";
 
   // 事務員: 入力専用シンプル画面
   if (isInputOnly) {
@@ -563,40 +661,96 @@ export default function Dashboard() {
         <span style={{ fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "0.06em" }}>
           SIKKEN GROUP 経営OS
         </span>
-        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>
-          {currentYear}年{currentMonth}月{new Date().getDate()}日時点
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {role === "admin" && (
+            <div style={{ display: "flex", gap: 2, background: "rgba(0,0,0,0.2)", borderRadius: 6, padding: 2 }}>
+              <button type="button" onClick={() => setViewMode("business")}
+                style={{ padding: "3px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, border: "none",
+                  background: viewMode === "business" ? "#fff" : "transparent",
+                  color: viewMode === "business" ? "#059669" : "rgba(255,255,255,0.7)", cursor: "pointer" }}>
+                事業別
+              </button>
+              <button type="button" onClick={() => setViewMode("company")}
+                style={{ padding: "3px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, border: "none",
+                  background: viewMode === "company" ? "#fff" : "transparent",
+                  color: viewMode === "company" ? "#059669" : "rgba(255,255,255,0.7)", cursor: "pointer" }}>
+                会社別
+              </button>
+            </div>
+          )}
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>
+            {currentYear}年{currentMonth}月{new Date().getDate()}日時点
+          </span>
+        </div>
       </div>
 
       {/* ============ グリーンヘッダー: タブ + ヒーロー + KPIストリップ ============ */}
       <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
-        {/* エリアタブ */}
-        <div style={{ display: "flex", gap: 4, padding: "10px 20px 0", overflowX: "auto" }}>
-          {AREAS.map((a) => (
-            <button key={a.id} type="button" onClick={() => setActiveTab(a.id)}
-              style={{
-                padding: "8px 16px", borderRadius: "8px 8px 0 0",
-                fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
-                background: activeTab === a.id ? "rgba(255,255,255,0.18)" : "transparent",
-                color: activeTab === a.id ? "#fff" : "rgba(255,255,255,0.65)",
-                whiteSpace: "nowrap",
-              }}>
-              {a.name}
-            </button>
-          ))}
-          {role === "admin" && (
-            <button type="button" onClick={() => setActiveTab(GROUP_TAB)}
-              style={{
-                padding: "8px 16px", borderRadius: "8px 8px 0 0",
-                fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
-                background: isGroup ? "rgba(255,255,255,0.18)" : "transparent",
-                color: isGroup ? "#fff" : "rgba(255,255,255,0.65)",
-                whiteSpace: "nowrap",
-              }}>
-              グループ全体
-            </button>
-          )}
-        </div>
+        {/* 事業別ビュー: 事業タブ + エリアタブ */}
+        {viewMode === "business" && (
+          <>
+            {/* 事業タブ */}
+            <div style={{ display: "flex", gap: 4, padding: "8px 20px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+              {BUSINESSES.map((b) => (
+                <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+                  style={{
+                    padding: "6px 14px", borderRadius: "8px 8px 0 0",
+                    fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                    background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
+                    color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                    whiteSpace: "nowrap",
+                  }}>
+                  {b.label}
+                </button>
+              ))}
+            </div>
+            {/* エリアタブ */}
+            <div style={{ display: "flex", gap: 4, padding: "6px 20px 0", overflowX: "auto" }}>
+              {businessAreas.map((a) => (
+                <button key={a.id} type="button" onClick={() => setActiveTab(a.id)}
+                  style={{
+                    padding: "8px 16px", borderRadius: "8px 8px 0 0",
+                    fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
+                    background: activeTab === a.id ? "rgba(255,255,255,0.18)" : "transparent",
+                    color: activeTab === a.id ? "#fff" : "rgba(255,255,255,0.65)",
+                    whiteSpace: "nowrap",
+                  }}>
+                  {a.name}
+                </button>
+              ))}
+              {role === "admin" && (
+                <button type="button" onClick={() => setActiveTab(GROUP_TAB)}
+                  style={{
+                    padding: "8px 16px", borderRadius: "8px 8px 0 0",
+                    fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
+                    background: isGroup ? "rgba(255,255,255,0.18)" : "transparent",
+                    color: isGroup ? "#fff" : "rgba(255,255,255,0.65)",
+                    whiteSpace: "nowrap",
+                  }}>
+                  グループ全体
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* 会社別ビュー: 会社タブ */}
+        {viewMode === "company" && (
+          <div style={{ display: "flex", gap: 4, padding: "10px 20px 0", overflowX: "auto" }}>
+            {[{ id: "__all__", name: "全社合計" }, ...COMPANIES.map(c => ({ id: c.id, name: c.name }))].map((c) => (
+              <button key={c.id} type="button" onClick={() => setActiveCompany(c.id)}
+                style={{
+                  padding: "8px 16px", borderRadius: "8px 8px 0 0",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
+                  background: activeCompany === c.id ? "rgba(255,255,255,0.18)" : "transparent",
+                  color: activeCompany === c.id ? "#fff" : "rgba(255,255,255,0.65)",
+                  whiteSpace: "nowrap",
+                }}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ヒーロー */}
         <div style={{ padding: "14px 20px 0" }}>
@@ -615,7 +769,10 @@ export default function Dashboard() {
                   }}>▶</button>
               </div>
               <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>
-                {headerLabel}{!isGroup && "エリア"}
+                {viewMode === "company" ? headerLabel : <>{headerLabel}{!isGroup && "エリア"}</>}
+                {viewMode === "business" && activeBusiness !== "water" && (
+                  <span style={{ fontSize: 13, fontWeight: 600, marginLeft: 8, opacity: 0.7 }}>({activeBusinessLabel})</span>
+                )}
               </h1>
               <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
                 {viewYear}年{viewMonth}月 / {isCurrentMonth ? now.getDate() : displaySummary.daysInMonth}日時点 ｜ 月末着地予測 {(() => {
@@ -670,7 +827,7 @@ export default function Dashboard() {
                   }
                   Promise.all(
                     months.map(({ y, m }) =>
-                      fetch(`/api/monthly-summary?area=${area}&year=${y}&month=${m}`)
+                      fetch(`/api/monthly-summary?area=${area}&year=${y}&month=${m}&category=${activeBusiness}`)
                         .then(r => r.ok ? r.json() : { summary: null })
                         .then(j => ({ y, m, s: j.summary }))
                     )

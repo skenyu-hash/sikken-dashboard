@@ -6,11 +6,13 @@ export async function GET(req: NextRequest) {
   const area = searchParams.get("area");
   const year = Number(searchParams.get("year"));
   const month = Number(searchParams.get("month"));
+  const category = searchParams.get("category") ?? "water";
 
   const sql = getSql();
   const rows = await sql`
     SELECT * FROM monthly_summaries
     WHERE area_id = ${area} AND year = ${year} AND month = ${month}
+      AND COALESCE(business_category, 'water') = ${category}
     LIMIT 1
   `;
 

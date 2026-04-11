@@ -155,7 +155,8 @@ export function ensureSchema(): Promise<void> {
 export async function listEntries(
   areaId: string,
   year: number,
-  month: number
+  month: number,
+  category: string = "water"
 ): Promise<DailyEntry[]> {
   await ensureSchema();
   const start = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -167,6 +168,7 @@ export async function listEntries(
   const rows = (await getSql()`
     SELECT data FROM entries
     WHERE area_id = ${areaId} AND entry_date >= ${start} AND entry_date < ${end}
+      AND COALESCE(business_category, 'water') = ${category}
     ORDER BY entry_date ASC
   `) as { data: DailyEntry }[];
 
@@ -202,7 +204,7 @@ export async function upsertFixedCosts(
 }
 
 export async function getTargets(
-  areaId: string, year: number, month: number
+  areaId: string, year: number, month: number, category: string = "water"
 ): Promise<Targets> {
   await ensureSchema();
   const rows = (await getSql()`
@@ -214,6 +216,7 @@ export async function getTargets(
       target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate,
       target_unit_price, target_call_unit_price, target_help_rate
     FROM targets WHERE area_id = ${areaId} AND year = ${year} AND month = ${month}
+      AND COALESCE(business_category, 'water') = ${category}
   `) as Record<string, string | number>[];
   if (!rows[0]) {
     return {
@@ -258,12 +261,12 @@ export async function getTargets(
 }
 
 export async function upsertTargets(
-  areaId: string, year: number, month: number, t: Targets
+  areaId: string, year: number, month: number, t: Targets, category: string = "water"
 ): Promise<void> {
   await ensureSchema();
   await getSql()`
     INSERT INTO targets (
-      area_id, year, month,
+      area_id, year, month, business_category,
       target_sales, target_profit, target_count, target_cpa, target_conversion_rate,
       target_help_sales, target_help_count, target_help_unit_price,
       target_self_sales, target_self_profit, target_self_count,
@@ -274,7 +277,7 @@ export async function upsertTargets(
       updated_at
     )
     VALUES (
-      ${areaId}, ${year}, ${month},
+      ${areaId}, ${year}, ${month}, ${category},
       ${t.targetSales}, ${t.targetProfit}, ${t.targetCount}, ${t.targetCpa}, ${t.targetConversionRate},
       ${t.targetHelpSales}, ${t.targetHelpCount}, ${t.targetHelpUnitPrice},
       ${t.targetSelfSales}, ${t.targetSelfProfit}, ${t.targetSelfCount},
@@ -379,13 +382,14 @@ export async function deleteCashflow(id: number): Promise<void> {
 /** 入力データを upsert */
 export async function upsertEntry(
   areaId: string,
-  entry: DailyEntry
+  entry: DailyEntry,
+  category: string = "water"
 ): Promise<void> {
   await ensureSchema();
   await getSql()`
-    INSERT INTO entries (area_id, entry_date, data, updated_at)
-    VALUES (${areaId}, ${entry.date}, ${JSON.stringify(entry)}::jsonb, NOW())
+    INSERT INTO entries (area_id, entry_date, data, business_category, updated_at)
+    VALUES (${areaId}, ${entry.date}, ${JSON.stringify(entry)}::jsonb, ${category}, NOW())
     ON CONFLICT (area_id, entry_date)
-    DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+    DO UPDATE SET data = EXCLUDED.data, business_category = EXCLUDED.business_category, updated_at = NOW()
   `;
 }

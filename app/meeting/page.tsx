@@ -5,8 +5,9 @@ import {
   calculateDashboard, getDaysInMonth,
   emptyTargets, yen, type DailyEntry, type Targets, type DashboardSummary,
 } from "../lib/calculations";
+import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
-const AREAS = [
+const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
   { id: "nagoya", name: "名古屋" }, { id: "kyushu", name: "九州" },
   { id: "kitakanto", name: "北関東" }, { id: "hokkaido", name: "北海道" },
@@ -123,11 +124,26 @@ function SectionTable({ title, children }: { title: string; children: React.Reac
 
 // ============ メインページ ============
 export default function MeetingPage() {
+  const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
+  const businessAreas = useMemo(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (!biz) return ALL_AREAS;
+    return biz.areas.map(id => ALL_AREAS.find(a => a.id === id)).filter(Boolean) as typeof ALL_AREAS;
+  }, [activeBusiness]);
+
   const [areaId, setAreaId] = useState("kansai");
   const [period, setPeriod] = useState<"10" | "20" | "end">("10");
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [targets, setTargets] = useState<Targets>(emptyTargets());
   const [monthlySummary, setMonthlySummary] = useState<Record<string, unknown> | null>(null);
+
+  // 事業切替時にエリアリセット
+  useEffect(() => {
+    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    if (biz && !biz.areas.includes(areaId)) {
+      setAreaId(biz.areas[0]);
+    }
+  }, [activeBusiness, areaId]);
 
   const now = useMemo(() => new Date(), []);
   const year = now.getFullYear();
@@ -136,19 +152,19 @@ export default function MeetingPage() {
   const isPastData = monthlySummary !== null && entries.length === 0;
   const daysElapsed = isPastData ? daysInMonth : (period === "10" ? 10 : period === "20" ? 20 : daysInMonth);
   const isEndPeriod = isPastData || period === "end";
-  const areaName = AREAS.find((a) => a.id === areaId)?.name ?? "";
+  const areaName = ALL_AREAS.find((a) => a.id === areaId)?.name ?? "";
 
   useEffect(() => {
-    fetch(`/api/entries?area=${areaId}&year=${year}&month=${month}`)
+    fetch(`/api/entries?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { entries: [] }))
       .then((j) => setEntries(j.entries ?? []));
-    fetch(`/api/targets?area=${areaId}&year=${year}&month=${month}`)
+    fetch(`/api/targets?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { targets: emptyTargets() }))
       .then((j) => setTargets({ ...emptyTargets(), ...j.targets }));
-    fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${month}`)
+    fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { summary: null }))
       .then((j) => setMonthlySummary(j.summary ?? null));
-  }, [areaId, year, month]);
+  }, [areaId, year, month, activeBusiness]);
 
   const filteredEntries = useMemo(() => {
     if (period === "end") return entries;
@@ -211,10 +227,25 @@ export default function MeetingPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
       <header style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
-        <div className="flex items-center justify-between px-6 pt-4 pb-2">
+        {/* 事業タブ */}
+        <div style={{ display: "flex", gap: 4, padding: "8px 24px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          {BUSINESSES.map((b) => (
+            <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+              style={{
+                padding: "5px 12px", borderRadius: "6px 6px 0 0",
+                fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
+                color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                whiteSpace: "nowrap",
+              }}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center justify-between px-6 pt-3 pb-2">
           <select value={areaId} onChange={(e) => setAreaId(e.target.value)}
             style={{ padding: "6px 12px", borderRadius: 8, fontSize: 13, background: "rgba(255,255,255,0.12)", color: "#fff", border: "1px solid rgba(255,255,255,0.3)" }}>
-            {AREAS.map((a) => <option key={a.id} value={a.id} style={{ color: "#111" }}>{a.name}</option>)}
+            {businessAreas.map((a) => <option key={a.id} value={a.id} style={{ color: "#111" }}>{a.name}</option>)}
           </select>
           <div className="flex gap-2">
             {([{ key: "10" as const, label: "10日" }, { key: "20" as const, label: "20日" }, { key: "end" as const, label: "末日" }]).map((p) => (
