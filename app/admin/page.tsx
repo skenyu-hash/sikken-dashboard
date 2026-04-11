@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "../components/RoleProvider";
 import type { Role } from "../lib/auth";
 import { formatJST } from "../lib/utils";
+import { BUSINESSES } from "../lib/businesses";
 
 const AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -18,6 +19,7 @@ type User = {
   name: string;
   role: Role;
   areaId: string | null;
+  businessCategory: string;
   isActive: boolean;
   lastLoginAt: string | null;
   lockedUntil: string | null;
@@ -45,8 +47,8 @@ export default function AdminPage() {
   const [logFilter, setLogFilter] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<{
-    email: string; password: string; name: string; role: Role; areaId: string;
-  }>({ email: "", password: "", name: "", role: "input", areaId: "" });
+    email: string; password: string; name: string; role: Role; areaId: string; businessCategory: string;
+  }>({ email: "", password: "", name: "", role: "input", areaId: "", businessCategory: "water" });
   const [msg, setMsg] = useState<string | null>(null);
 
   async function loadUsers() {
@@ -87,7 +89,7 @@ export default function AdminPage() {
     if (res.ok) {
       setMsg("ユーザーを作成しました");
       setShowCreate(false);
-      setForm({ email: "", password: "", name: "", role: "input", areaId: "" });
+      setForm({ email: "", password: "", name: "", role: "input", areaId: "", businessCategory: "water" });
       loadUsers();
     } else {
       const j = await res.json().catch(() => ({}));
@@ -126,6 +128,19 @@ export default function AdminPage() {
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       setMsg(`エリア変更エラー: ${j.error ?? "失敗"}`);
+    }
+    loadUsers();
+  }
+
+  async function changeBusinessCategory(u: User, businessCategory: string) {
+    const res = await fetch("/api/users", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: u.id, businessCategory }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setMsg(`担当事業変更エラー: ${j.error ?? "失敗"}`);
     }
     loadUsers();
   }
@@ -175,7 +190,7 @@ export default function AdminPage() {
           {/* 新規追加フォーム（トグル） */}
           {showCreate && (
             <form onSubmit={createUser} style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", padding: 16, marginBottom: 16 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 10, alignItems: "end" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr", gap: 10, alignItems: "end" }}>
                 <label>
                   <span style={{ display: "block", fontSize: 10, color: "#6b7280", marginBottom: 4 }}>氏名</span>
                   <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -199,6 +214,13 @@ export default function AdminPage() {
                     <option value="manager">部長</option>
                     <option value="staff">内勤・役職者</option>
                     <option value="input">事務員</option>
+                  </select>
+                </label>
+                <label>
+                  <span style={{ display: "block", fontSize: 10, color: "#6b7280", marginBottom: 4 }}>担当事業</span>
+                  <select value={form.businessCategory} onChange={(e) => setForm((f) => ({ ...f, businessCategory: e.target.value }))}
+                    style={{ width: "100%", height: 34, border: "1px solid #d1fae5", borderRadius: 6, padding: "0 6px", fontSize: 11 }}>
+                    {BUSINESSES.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
                   </select>
                 </label>
                 <div style={{ display: "flex", gap: 6 }}>
@@ -226,17 +248,18 @@ export default function AdminPage() {
             </div>
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <colgroup>
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "20%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "7%" }} />
+                <col style={{ width: "16%" }} />
                 <col style={{ width: "15%" }} />
-                <col style={{ width: "22%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "17%" }} />
               </colgroup>
               <thead>
                 <tr style={{ background: "#ecfdf5" }}>
-                  {["氏名", "メール", "権限", "エリア", "状態", "最終ログイン", "アクション"].map((h) => (
+                  {["氏名", "メール", "権限", "エリア", "担当事業", "状態", "最終ログイン", "アクション"].map((h) => (
                     <th key={h} style={{
                       padding: "8px 10px", fontSize: 10, fontWeight: 700,
                       color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
@@ -267,6 +290,13 @@ export default function AdminPage() {
                           fontSize: 11, color: "#374151", background: "#fff", width: "100%" }}>
                         <option value="">全エリア</option>
                         {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: "6px 10px" }}>
+                      <select value={u.businessCategory ?? "water"} onChange={(e) => changeBusinessCategory(u, e.target.value)}
+                        style={{ border: "1px solid #d1fae5", borderRadius: 6, padding: "4px 6px",
+                          fontSize: 11, color: "#374151", background: "#fff", width: "100%" }}>
+                        {BUSINESSES.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
                       </select>
                     </td>
                     <td style={{ padding: "10px 10px" }}>

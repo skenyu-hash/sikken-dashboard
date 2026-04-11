@@ -1,8 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { calculateDashboard, getDaysInMonth, yen } from "../lib/calculations";
-import type { DailyEntry } from "../lib/calculations";
+import type { DailyEntry, Targets } from "../lib/calculations";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ReferenceLine, ResponsiveContainer,
+} from "recharts";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -39,6 +43,7 @@ export default function TrendsPage() {
     entries: DailyEntry[];
     summary: Record<string, unknown> | null;
   }>>({});
+  const [monthlyTargets, setMonthlyTargets] = useState<Record<number, Targets | null>>({});
   const [loading, setLoading] = useState(false);
 
   // 事業切替時にエリアリセット
@@ -53,21 +58,47 @@ export default function TrendsPage() {
     setLoading(true);
     Promise.all(
       MONTHS.map(async (m) => {
-        const [eRes, sRes] = await Promise.all([
+        const [eRes, sRes, tRes] = await Promise.all([
           fetch(`/api/entries?area=${areaId}&year=${year}&month=${m}&category=${activeBusiness}`),
           fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${m}&category=${activeBusiness}`),
+          fetch(`/api/targets?area=${areaId}&year=${year}&month=${m}&category=${activeBusiness}`),
         ]);
         const eJson = eRes.ok ? await eRes.json() : { entries: [] };
         const sJson = sRes.ok ? await sRes.json() : { summary: null };
-        return [m, { entries: eJson.entries ?? [], summary: sJson.summary }] as const;
+        const tJson = tRes.ok ? await tRes.json() : { targets: null };
+        return [m, { entries: eJson.entries ?? [], summary: sJson.summary }, tJson.targets as Targets | null] as const;
       })
-    ).then((pairs) => {
+    ).then((triples) => {
       const map: Record<number, { entries: DailyEntry[]; summary: Record<string, unknown> | null }> = {};
-      for (const [m, data] of pairs) map[m] = data;
+      const tmap: Record<number, Targets | null> = {};
+      for (const [m, data, targets] of triples) { map[m] = data; tmap[m] = targets; }
       setMonthlyData(map);
+      setMonthlyTargets(tmap);
       setLoading(false);
     });
   }, [areaId, year, activeBusiness]);
+
+  // 達成率トレンド用データ
+  const achievementChartData = useMemo(() => {
+    return MONTHS.map((m) => {
+      const data = monthlyData[m];
+      const targets = monthlyTargets[m];
+      if (!data) return { month: `${m}月`, salesRate: null, profitRate: null, countRate: null };
+      const { entries, summary: ms } = data;
+      const endDate = new Date(year, m - 1, getDaysInMonth(year, m));
+      const s = calculateDashboard(entries, year, m, endDate);
+      const revenue = ms ? Number(ms.total_revenue ?? 0) : s.totalRevenue;
+      const profit = ms ? Number(ms.total_profit ?? 0) : s.totalProfit;
+      const count = ms ? Number(ms.total_count ?? 0) : s.totalCount;
+      const salesRate = targets && targets.targetSales > 0
+        ? Math.round(revenue / targets.targetSales * 1000) / 10 : null;
+      const profitRate = targets && targets.targetProfit > 0
+        ? Math.round(profit / targets.targetProfit * 1000) / 10 : null;
+      const countRate = targets && targets.targetCount > 0
+        ? Math.round(count / targets.targetCount * 1000) / 10 : null;
+      return { month: `${m}月`, salesRate, profitRate, countRate };
+    });
+  }, [monthlyData, monthlyTargets, year]);
 
   const chartData = useMemo(() => {
     return MONTHS.map((m) => {
@@ -200,6 +231,34 @@ export default function TrendsPage() {
                     {m}月
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* 達成率トレンドグラフ */}
+            <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", padding: 20, marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#065f46", marginBottom: 16 }}>
+                {ALL_AREAS.find((a) => a.id === areaId)?.name} — {year}年 目標達成率トレンド
+              </div>
+              <div style={{ width: "100%", height: 280 }}>
+                <ResponsiveContainer>
+                  <LineChart data={achievementChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6b7280" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} domain={[0, "auto"]} unit="%" />
+                    <Tooltip
+                      formatter={(v) => v == null ? "—" : `${v}%`}
+                      contentStyle={{ fontSize: 11, borderRadius: 6, border: "1px solid #d1fae5" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <ReferenceLine y={100} stroke="#dc2626" strokeDasharray="4 4" label={{ value: "目標 100%", fontSize: 10, fill: "#dc2626", position: "right" }} />
+                    <Line type="monotone" dataKey="salesRate" name="売上達成率" stroke="#059669" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                    <Line type="monotone" dataKey="profitRate" name="粗利達成率" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                    <Line type="monotone" dataKey="countRate" name="件数達成率" stroke="#d97706" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 6, textAlign: "right" }}>
+                ※ 目標未設定の月はラインが途切れます
               </div>
             </div>
 

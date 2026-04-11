@@ -16,7 +16,9 @@ export async function GET() {
   if ("error" in r) return r.error;
   await ensureAuthSchema();
   const rows = (await getSql()`
-    SELECT id, email, name, role, area_id, is_active, last_login_at, locked_until, created_at
+    SELECT id, email, name, role, area_id,
+      COALESCE(business_category, 'water') AS business_category,
+      is_active, last_login_at, locked_until, created_at
     FROM users ORDER BY created_at ASC
   `) as Record<string, string | number | boolean | null>[];
   return NextResponse.json({
@@ -26,6 +28,7 @@ export async function GET() {
       name: String(u.name),
       role: u.role as Role,
       areaId: u.area_id ? String(u.area_id) : null,
+      businessCategory: u.business_category ? String(u.business_category) : "water",
       isActive: Boolean(u.is_active),
       lastLoginAt: u.last_login_at ? String(u.last_login_at) : null,
       lockedUntil: u.locked_until ? String(u.locked_until) : null,
@@ -41,7 +44,7 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null) as {
     email?: string; password?: string; name?: string;
-    role?: Role; areaId?: string | null;
+    role?: Role; areaId?: string | null; businessCategory?: string;
   } | null;
   if (!body?.email || !body.password || !body.name || !body.role) {
     return NextResponse.json({ error: "必須項目が不足しています" }, { status: 400 });
@@ -53,13 +56,14 @@ export async function POST(req: Request) {
   try {
     const hash = await hashPassword(body.password);
     const email = body.email.trim().toLowerCase();
+    const cat = body.businessCategory ?? "water";
     await getSql()`
-      INSERT INTO users (email, password_hash, name, role, area_id, is_active)
-      VALUES (${email}, ${hash}, ${body.name}, ${body.role}, ${body.areaId ?? null}, TRUE)
+      INSERT INTO users (email, password_hash, name, role, area_id, business_category, is_active)
+      VALUES (${email}, ${hash}, ${body.name}, ${body.role}, ${body.areaId ?? null}, ${cat}, TRUE)
     `;
     await logAudit({
       user: r.user, action: "user_create",
-      after: { email, name: body.name, role: body.role, areaId: body.areaId ?? null },
+      after: { email, name: body.name, role: body.role, areaId: body.areaId ?? null, businessCategory: cat },
     });
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
@@ -79,7 +83,8 @@ export async function PATCH(req: Request) {
 
   const body = await req.json().catch(() => null) as {
     id?: number; name?: string; role?: Role;
-    areaId?: string | null; isActive?: boolean; password?: string;
+    areaId?: string | null; businessCategory?: string;
+    isActive?: boolean; password?: string;
   } | null;
   if (!body?.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
@@ -99,6 +104,9 @@ export async function PATCH(req: Request) {
     }
     if (body.areaId !== undefined) {
       await getSql()`UPDATE users SET area_id = ${body.areaId}, updated_at = NOW() WHERE id = ${body.id}`;
+    }
+    if (body.businessCategory !== undefined) {
+      await getSql()`UPDATE users SET business_category = ${body.businessCategory}, updated_at = NOW() WHERE id = ${body.id}`;
     }
     if (body.isActive !== undefined) {
       await getSql()`UPDATE users SET is_active = ${body.isActive}, updated_at = NOW() WHERE id = ${body.id}`;

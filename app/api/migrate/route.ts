@@ -7,6 +7,7 @@ export async function GET() {
     await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS business_category VARCHAR(20) DEFAULT 'water'`;
     await sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS business_category VARCHAR(20) DEFAULT 'water'`;
     await sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS business_category VARCHAR(20) DEFAULT 'water'`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS business_category VARCHAR(20) DEFAULT 'water'`;
 
     // entries: unique constraint に business_category を追加
     await sql`

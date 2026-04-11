@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef } from "react";
+import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
 const AREA_MAP: Record<string, string> = {
   "関西": "kansai", "関東": "kanto", "東海": "nagoya", "名古屋": "nagoya",
@@ -29,6 +30,7 @@ export default function ImportPage() {
   const [jsonText, setJsonText] = useState("");
   const [importingJson, setImportingJson] = useState(false);
   const [jsonStatus, setJsonStatus] = useState<string | null>(null);
+  const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
   const fileRef = useRef<HTMLInputElement>(null);
 
   function handleFile(file: File) {
@@ -73,7 +75,7 @@ export default function ImportPage() {
       const res = await fetch("/api/import-monthly", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rows: extracted }),
+        body: JSON.stringify({ rows: extracted, category: activeBusiness }),
       });
       const json = await res.json();
       if (json.success) {
@@ -99,7 +101,7 @@ export default function ImportPage() {
       const res = await fetch("/api/import-monthly", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rows }),
+        body: JSON.stringify({ rows, category: activeBusiness }),
       });
       const json = await res.json();
       if (json.success) {
@@ -118,11 +120,28 @@ export default function ImportPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
-      <div style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "16px 24px" }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>写真から月次データをインポート</h1>
-        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
-          スプレッドシートの写真をアップロードするとAIが自動でデータを読み取ります
-        </p>
+      <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
+        {/* 事業タブ */}
+        <div style={{ display: "flex", gap: 4, padding: "8px 24px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          {BUSINESSES.map((b) => (
+            <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+              style={{
+                padding: "5px 12px", borderRadius: "6px 6px 0 0",
+                fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
+                color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                whiteSpace: "nowrap",
+              }}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ padding: "12px 24px 16px" }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>写真から月次データをインポート</h1>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
+            {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ スプレッドシートの写真をAIが読み取ります
+          </p>
+        </div>
       </div>
 
       <div style={{ padding: "20px 24px", maxWidth: 1000 }}>
