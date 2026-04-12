@@ -954,7 +954,7 @@ export default function Dashboard() {
                       ) : null}
                     </div>
                     {kpi.momVal === null ? (
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)" }}>前月比 \u2014</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)" }}>前月比 —</div>
                     ) : (
                       <div style={{ fontSize: 11, fontWeight: 700,
                         color: (kpi.momInvert ? kpi.momVal <= 0 : kpi.momVal >= 0) ? "#86efac" : "#fca5a5" }}>
