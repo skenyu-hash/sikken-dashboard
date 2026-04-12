@@ -80,8 +80,13 @@ export function ensureSchema(): Promise<void> {
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_unit_price INT NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_call_unit_price INT NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_rate NUMERIC NOT NULL DEFAULT 0`,
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS business_category TEXT NOT NULL DEFAULT 'water'`,
       ];
       for (const m of migrations) await safe(m);
+
+      // PRIMARY KEY を business_category 込みに変更（冪等）
+      await safe(sql`ALTER TABLE targets DROP CONSTRAINT IF EXISTS targets_pkey`);
+      await safe(sql`ALTER TABLE targets ADD CONSTRAINT targets_pkey PRIMARY KEY (area_id, year, month, business_category)`);
 
       await safe(sql`
         CREATE TABLE IF NOT EXISTS cashflow_entries (
@@ -287,7 +292,7 @@ export async function upsertTargets(
       ${t.targetUnitPrice}, ${t.targetCallUnitPrice}, ${t.targetHelpRate},
       NOW()
     )
-    ON CONFLICT (area_id, year, month) DO UPDATE
+    ON CONFLICT (area_id, year, month, business_category) DO UPDATE
     SET target_sales = EXCLUDED.target_sales,
         target_profit = EXCLUDED.target_profit,
         target_count = EXCLUDED.target_count,
