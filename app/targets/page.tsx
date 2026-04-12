@@ -54,21 +54,14 @@ export default function TargetsPage() {
     setSavedMsg(res.ok ? "保存しました" : "保存に失敗しました");
   }
 
-  const MAN_KEYS = new Set<keyof Targets>([
-    "targetSales", "targetProfit", "targetHelpSales", "targetHelpUnitPrice",
-    "targetSelfSales", "targetSelfProfit", "targetNewSales", "targetNewProfit",
-    "targetAdCost", "targetUnitPrice", "targetCallUnitPrice",
-  ]);
-
   function setField(k: keyof Targets, raw: string) {
-    const num = parseFloat(raw) || 0;
-    const stored = MAN_KEYS.has(k) ? Math.round(num * 10000) : num;
-    setTargets((t) => ({ ...t, [k]: stored }));
+    const num = raw === "" ? 0 : parseFloat(raw) || 0;
+    setTargets((t) => ({ ...t, [k]: num }));
   }
   function displayVal(k: keyof Targets): string {
     const v = targets[k] ?? 0;
     if (!v) return "";
-    return MAN_KEYS.has(k) ? String(v / 10000) : String(v);
+    return String(v);
   }
 
   return (
@@ -141,50 +134,50 @@ export default function TargetsPage() {
       <div style={{ padding: "16px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
           <FieldSection title="① 全体KPI" fields={[
-            { key: "targetSales", label: "売上目標", unit: "万円", color: "#059669", step: "0.1" },
-            { key: "targetProfit", label: "粗利目標", unit: "万円", color: "#059669", step: "0.1" },
-            { key: "targetCount", label: "獲得件数目標", unit: "件", color: "#3b82f6", step: "1" },
-            { key: "targetUnitPrice", label: "客単価目標", unit: "万円", color: "#3b82f6", step: "0.1" },
-            { key: "targetCpa", label: "CPA目標", unit: "円", color: "#3b82f6", step: "1" },
-            { key: "targetConversionRate", label: "成約率目標", unit: "%", color: "#3b82f6", step: "0.1" },
+            { key: "targetSales", label: "売上目標", unit: "万円", color: "#059669", step: "any" },
+            { key: "targetProfit", label: "粗利目標", unit: "万円", color: "#059669", step: "any" },
+            { key: "targetCount", label: "獲得件数目標", unit: "件", color: "#3b82f6", step: "any" },
+            { key: "targetUnitPrice", label: "客単価目標", unit: "万円", color: "#3b82f6", step: "any" },
+            { key: "targetCpa", label: "CPA目標", unit: "円", color: "#3b82f6", step: "any" },
+            { key: "targetConversionRate", label: "成約率目標", unit: "%", color: "#3b82f6", step: "any" },
           ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
 
           <FieldSection title="② HELP部門目標" fields={[
-            { key: "targetHelpSales", label: "HELP売上目標", unit: "万円", color: "#0891b2", step: "0.1" },
-            { key: "targetHelpCount", label: "HELP件数目標", unit: "件", color: "#0891b2", step: "1" },
-            { key: "targetHelpUnitPrice", label: "HELP客単価目標", unit: "万円", color: "#0891b2", step: "0.1" },
-            { key: "targetHelpRate", label: "HELP率目標", unit: "%", color: "#0891b2", step: "0.1" },
+            { key: "targetHelpSales", label: "HELP売上目標", unit: "万円", color: "#0891b2", step: "any" },
+            { key: "targetHelpCount", label: "HELP件数目標", unit: "件", color: "#0891b2", step: "any" },
+            { key: "targetHelpUnitPrice", label: "HELP客単価目標", unit: "万円", color: "#0891b2", step: "any" },
+            { key: "targetHelpRate", label: "HELP率目標", unit: "%", color: "#0891b2", step: "any" },
           ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
           <FieldSection title="③ 部門別目標 — 自社施工" fields={[
-            { key: "targetSelfSales", label: "売上目標", unit: "万円", color: "#059669", step: "0.1" },
-            { key: "targetSelfProfit", label: "粗利目標", unit: "万円", color: "#059669", step: "0.1" },
-            { key: "targetSelfCount", label: "件数目標", unit: "件", color: "#3b82f6", step: "1" },
+            { key: "targetSelfSales", label: "売上目標", unit: "万円", color: "#059669", step: "any" },
+            { key: "targetSelfProfit", label: "粗利目標", unit: "万円", color: "#059669", step: "any" },
+            { key: "targetSelfCount", label: "件数目標", unit: "件", color: "#3b82f6", step: "any" },
           ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
 
           <FieldSection title="③ 部門別目標 — 新規営業" fields={[
-            { key: "targetNewSales", label: "売上目標", unit: "万円", color: "#3b82f6", step: "0.1" },
-            { key: "targetNewProfit", label: "粗利目標", unit: "万円", color: "#3b82f6", step: "0.1" },
-            { key: "targetNewCount", label: "件数目標", unit: "件", color: "#3b82f6", step: "1" },
+            { key: "targetNewSales", label: "売上目標", unit: "万円", color: "#3b82f6", step: "any" },
+            { key: "targetNewProfit", label: "粗利目標", unit: "万円", color: "#3b82f6", step: "any" },
+            { key: "targetNewCount", label: "件数目標", unit: "件", color: "#3b82f6", step: "any" },
           ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
           <FieldSection title="④ コスト指標" fields={[
-            { key: "targetAdCost", label: "広告費目標", unit: "万円", color: "#d97706", step: "0.1" },
-            { key: "targetAdRate", label: "広告費率目標", unit: "%", color: "#d97706", step: "0.1" },
-            { key: "targetLaborRate", label: "職人費率目標", unit: "%", color: "#d97706", step: "0.1" },
-            { key: "targetMaterialRate", label: "材料費率目標", unit: "%", color: "#d97706", step: "0.1" },
+            { key: "targetAdCost", label: "広告費目標", unit: "万円", color: "#d97706", step: "any" },
+            { key: "targetAdRate", label: "広告費率目標", unit: "%", color: "#d97706", step: "any" },
+            { key: "targetLaborRate", label: "職人費率目標", unit: "%", color: "#d97706", step: "any" },
+            { key: "targetMaterialRate", label: "材料費率目標", unit: "%", color: "#d97706", step: "any" },
           ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
 
           <FieldSection title="⑤ その他KPI" fields={[
-            { key: "targetVehicleCount", label: "車両数", unit: "台", color: "#dc2626", step: "1" },
-            { key: "targetCallCount", label: "入電件数目標", unit: "件", color: "#3b82f6", step: "1" },
-            { key: "targetCallUnitPrice", label: "入電単価目標", unit: "万円", color: "#3b82f6", step: "0.1" },
-            { key: "targetConstructionRate", label: "工事取得率目標", unit: "%", color: "#dc2626", step: "0.1" },
-            { key: "targetPassRate", label: "パス率目標", unit: "%", color: "#dc2626", step: "0.1" },
+            { key: "targetVehicleCount", label: "車両数", unit: "台", color: "#dc2626", step: "any" },
+            { key: "targetCallCount", label: "入電件数目標", unit: "件", color: "#3b82f6", step: "any" },
+            { key: "targetCallUnitPrice", label: "入電単価目標", unit: "万円", color: "#3b82f6", step: "any" },
+            { key: "targetConstructionRate", label: "工事取得率目標", unit: "%", color: "#dc2626", step: "any" },
+            { key: "targetPassRate", label: "パス率目標", unit: "%", color: "#dc2626", step: "any" },
           ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
         </div>
       </div>
