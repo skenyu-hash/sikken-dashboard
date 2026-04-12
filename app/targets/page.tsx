@@ -137,7 +137,7 @@ export default function TargetsPage() {
             { key: "targetSales", label: "売上目標", unit: "万円", color: "#059669", step: "any" },
             { key: "targetProfit", label: "粗利目標", unit: "万円", color: "#059669", step: "any" },
             { key: "targetCount", label: "獲得件数目標", unit: "件", color: "#3b82f6", step: "any" },
-            { key: "targetUnitPrice", label: "客単価目標", unit: "万円", color: "#3b82f6", step: "any" },
+            { key: "targetUnitPrice", label: "客単価目標", unit: "円", color: "#3b82f6", step: "any" },
             { key: "targetCpa", label: "CPA目標", unit: "円", color: "#3b82f6", step: "any" },
             { key: "targetConversionRate", label: "成約率目標", unit: "%", color: "#3b82f6", step: "any" },
           ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
@@ -145,7 +145,7 @@ export default function TargetsPage() {
           <FieldSection title="② HELP部門目標" fields={[
             { key: "targetHelpSales", label: "HELP売上目標", unit: "万円", color: "#0891b2", step: "any" },
             { key: "targetHelpCount", label: "HELP件数目標", unit: "件", color: "#0891b2", step: "any" },
-            { key: "targetHelpUnitPrice", label: "HELP客単価目標", unit: "万円", color: "#0891b2", step: "any" },
+            { key: "targetHelpUnitPrice", label: "HELP客単価目標", unit: "円", color: "#0891b2", step: "any" },
             { key: "targetHelpRate", label: "HELP率目標", unit: "%", color: "#0891b2", step: "any" },
           ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
         </div>
@@ -175,7 +175,7 @@ export default function TargetsPage() {
           <FieldSection title="⑤ その他KPI" fields={[
             { key: "targetVehicleCount", label: "車両数", unit: "台", color: "#dc2626", step: "any" },
             { key: "targetCallCount", label: "入電件数目標", unit: "件", color: "#3b82f6", step: "any" },
-            { key: "targetCallUnitPrice", label: "入電単価目標", unit: "万円", color: "#3b82f6", step: "any" },
+            { key: "targetCallUnitPrice", label: "入電単価目標", unit: "円", color: "#3b82f6", step: "any" },
             { key: "targetConstructionRate", label: "工事取得率目標", unit: "%", color: "#dc2626", step: "any" },
             { key: "targetPassRate", label: "パス率目標", unit: "%", color: "#dc2626", step: "any" },
           ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
