@@ -146,7 +146,7 @@ export function calculateDashboard(
   const forecastRevenue = Math.round((totalRevenue / daysElapsed) * daysInMonth);
 
   const constructionRate = safeDiv(constructionCount, totalCount) * 100;
-  const helpRate = safeDiv(addCnt, constructionCount) * 100;
+  const helpRate = safeDiv(addCnt, totalCount) * 100;
   const insourceRate = safeDiv(insourceCount, totalCount) * 100;
   const outsourceRate = safeDiv(outsourceCount, totalCount) * 100;
   const grossMargin = safeDiv(totalProfit, totalRevenue) * 100;
@@ -288,10 +288,10 @@ export function buildMetricRows(
       };
     })(),
     (() => {
-      const tr = targets.targetConversionRate > 0 ? Math.round(convRate / targets.targetConversionRate * 1000) / 10 : null;
+      const responseRate = callCount > 0 ? (summary.totalCount / callCount) * 100 : 0;
       return {
-        name: "対応率", value: `${convRate.toFixed(1)}%`, salesRatio: null,
-        targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr), lineColor: "#3b82f6",
+        name: "対応率", value: `${responseRate.toFixed(1)}%`, salesRatio: null,
+        targetRatio: null, status: "\u2014", statusLevel: "none" as const, lineColor: "#3b82f6",
         landingValue: 0, landingRate: null,
       };
     })(),
