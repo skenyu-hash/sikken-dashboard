@@ -6,7 +6,7 @@ import {
   forecastWeekday, forecastRecent7, getDaysInMonth,
   buildMetricRows, type MetricRow,
   type DashboardSummary,
-  DailyEntry, FixedCosts, Targets, emptyTargets,
+  DailyEntry, FixedCosts, Targets, emptyTargets, manToYen,
   emptyEntry,
   yen,
 } from "../lib/calculations";
@@ -234,7 +234,7 @@ export default function Dashboard() {
       .then((j: { fixedCosts: FixedCosts }) => setFixedCosts(j.fixedCosts));
     fetch(`/api/targets?area=${activeTab}&year=${viewYear}&month=${viewMonth}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { targets: emptyTargets() }))
-      .then((j: { targets: Targets }) => setTargets(j.targets));
+      .then((j: { targets: Targets }) => setTargets(manToYen(j.targets)));
   }, [activeTab, viewYear, viewMonth, isGroup, activeBusiness, viewMode]);
 
   const [groupMonthlySummaries, setGroupMonthlySummaries] = useState<Record<string, Record<string, unknown> | null>>({});

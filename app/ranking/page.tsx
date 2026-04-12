@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   calculateDashboard, getDaysElapsed, yen,
-  type DailyEntry, type DashboardSummary, type Targets, emptyTargets,
+  type DailyEntry, type DashboardSummary, type Targets, emptyTargets, manToYen,
 } from "../lib/calculations";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
@@ -53,7 +53,7 @@ export default function RankingPage() {
       const eJson = eRes.ok ? await eRes.json() : { entries: [] };
       const tJson = tRes.ok ? await tRes.json() : { targets: emptyTargets() };
       const sJson = sRes.ok ? await sRes.json() : { summary: null };
-      return [a.id, eJson.entries ?? [], { ...emptyTargets(), ...tJson.targets }, sJson.summary] as const;
+      return [a.id, eJson.entries ?? [], manToYen({ ...emptyTargets(), ...tJson.targets }), sJson.summary] as const;
     })).then((results) => {
       const em: Record<string, DailyEntry[]> = {};
       const tm: Record<string, Targets> = {};

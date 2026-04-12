@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   calculateDashboard, getDaysInMonth,
-  emptyTargets, yen, type DailyEntry, type Targets, type DashboardSummary,
+  emptyTargets, manToYen, yen, type DailyEntry, type Targets, type DashboardSummary,
 } from "../lib/calculations";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
@@ -170,7 +170,7 @@ export default function MeetingPage() {
       .then((j) => setEntries(j.entries ?? []));
     fetch(`/api/targets?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { targets: emptyTargets() }))
-      .then((j) => setTargets({ ...emptyTargets(), ...j.targets }));
+      .then((j) => setTargets(manToYen({ ...emptyTargets(), ...j.targets })));
     fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { summary: null }))
       .then((j) => setMonthlySummary(j.summary ?? null));

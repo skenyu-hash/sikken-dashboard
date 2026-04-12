@@ -548,6 +548,21 @@ export const emptyTargets = (): Targets => ({
   targetUnitPrice: 0, targetCallUnitPrice: 0, targetHelpRate: 0,
 });
 
+// 万円単位で保存されているフィールドを円に変換（比較・表示用）
+export function manToYen(targets: Targets): Targets {
+  return {
+    ...targets,
+    targetSales: targets.targetSales * 10000,
+    targetProfit: targets.targetProfit * 10000,
+    targetHelpSales: targets.targetHelpSales * 10000,
+    targetSelfSales: targets.targetSelfSales * 10000,
+    targetSelfProfit: targets.targetSelfProfit * 10000,
+    targetNewSales: targets.targetNewSales * 10000,
+    targetNewProfit: targets.targetNewProfit * 10000,
+    targetAdCost: targets.targetAdCost * 10000,
+  };
+}
+
 export type Achievement = {
   salesPct: number;
   profitPct: number;
