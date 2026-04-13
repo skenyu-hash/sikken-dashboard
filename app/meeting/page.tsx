@@ -159,8 +159,14 @@ export default function MeetingPage() {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const daysInMonth = getDaysInMonth(year, month);
-  const isPastData = monthlySummary !== null && entries.length === 0;
-  const daysElapsed = isPastData ? daysInMonth : (period === "10" ? 10 : period === "20" ? 20 : daysInMonth);
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+  const isPastData = monthlySummary !== null && entries.length === 0 && !isCurrentMonth;
+  const actualDayOfMonth = now.getDate();
+  const daysElapsed = isPastData
+    ? daysInMonth
+    : (isCurrentMonth && entries.length === 0)
+      ? actualDayOfMonth
+      : (period === "10" ? 10 : period === "20" ? 20 : daysInMonth);
   const isEndPeriod = isPastData || period === "end";
   const areaName = ALL_AREAS.find((a) => a.id === areaId)?.name ?? "";
 
