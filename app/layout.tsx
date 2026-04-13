@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NavBar } from "./components/NavBar";
+import { BottomNav } from "./components/BottomNav";
 import { RoleProvider } from "./components/RoleProvider";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -22,8 +23,10 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <RoleProvider>
-          <NavBar />
+          <div className="hide-mobile"><NavBar /></div>
           {children}
+          <BottomNav />
+          <div className="show-mobile" style={{ height: 64 }} />
         </RoleProvider>
       </body>
     </html>

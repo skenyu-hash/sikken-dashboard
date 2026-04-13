@@ -927,7 +927,7 @@ export default function Dashboard() {
               },
             ];
             return (
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+              <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
                 {kpis.map((kpi) => (
                   <div key={kpi.label} style={{ padding: "14px 18px", borderRight: "1px solid rgba(255,255,255,0.12)" }}>
                     <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{kpi.label}</div>
@@ -971,7 +971,7 @@ export default function Dashboard() {
       </div>
 
       {/* ============ ボディ ============ */}
-      <div style={{ padding: "16px 20px", background: "#f2f5f2" }}>
+      <div className="page-padding-mobile" style={{ padding: "16px 20px", background: "#f2f5f2" }}>
 
       {/* 異常アラート */}
       {isAlert && (
@@ -1020,7 +1020,7 @@ export default function Dashboard() {
         return (
           <div style={{ marginBottom: 18 }}>
             <SectionLabel>目標達成に向けた 1日あたりの目安</SectionLabel>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
+            <div className="kpi-grid-6" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
               {cards.map((c) => (
                 <div key={c.label} style={{
                   borderRadius: 10, padding: "12px 10px",
@@ -1044,14 +1044,14 @@ export default function Dashboard() {
       {!isGroup && (
         <section style={{ marginBottom: 16 }}>
           <SectionLabel>全17項目 指標一覧</SectionLabel>
-          <div style={{
-            display: "flex", flexDirection: isMobile ? "column" : "row", gap: 0, background: "#fff",
+          <div className="metrics-grid-2col" style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr", background: "#fff",
             borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden",
           }}>
-            <div style={{ flex: 1, minWidth: 0, borderRight: isMobile ? "none" : "1px solid #d1fae5", borderBottom: isMobile ? "1px solid #d1fae5" : "none" }}>
+            <div className="table-scroll-mobile" style={{ minWidth: 0, borderRight: "1px solid #d1fae5" }}>
               <MetricsTable rows={metricRowsResult.left} />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="table-scroll-mobile" style={{ minWidth: 0 }}>
               <MetricsTable rows={metricRowsResult.right} />
             </div>
           </div>

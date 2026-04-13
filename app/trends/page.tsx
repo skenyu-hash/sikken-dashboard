@@ -281,7 +281,7 @@ export default function TrendsPage() {
       </div>
       </div>
 
-      <div style={{ padding: 20 }}>
+      <div className="page-padding-mobile" style={{ padding: 20 }}>
         {loading && (
           <div style={{ textAlign: "center", padding: 40, color: "#9ca3af" }}>データを読み込み中...</div>
         )}
@@ -361,7 +361,7 @@ export default function TrendsPage() {
                 fontSize: 11, fontWeight: 700, color: "#065f46" }}>
                 月別データ一覧
               </div>
-              <div style={{ overflowX: "auto" }}>
+              <div className="table-scroll-mobile" style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 800 }}>
                   <thead>
                     <tr style={{ background: "#f8fdf8" }}>

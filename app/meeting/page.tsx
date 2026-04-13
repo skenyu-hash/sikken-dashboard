@@ -290,8 +290,8 @@ export default function MeetingPage() {
         </div>
       </header>
 
-      <div style={{ padding: "16px 20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, marginBottom: 14, gridAutoRows: "min-content" }}>
+      <div className="page-padding-mobile" style={{ padding: "16px 20px" }}>
+        <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14, gridAutoRows: "min-content" }}>
           <SectionTable title="売上・粗利・件数">
             <MetricRow label="全体売上" actual={displaySummary.totalRevenue} target={targets.targetSales} {...mp} format={fmtYen} />
             <MetricRow label="全体粗利" actual={displaySummary.totalProfit} target={targets.targetProfit} {...mp} format={fmtYen} />
@@ -311,7 +311,7 @@ export default function MeetingPage() {
           </SectionTable>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
+        <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <SectionTable title="HELP部門">
             <MetricRow label="HELP売上" actual={displaySummary.help.revenue} target={targets.targetHelpSales} {...mp} format={fmtYen} />
             <MetricRow label="HELP件数" actual={displaySummary.help.count} target={targets.targetHelpCount} {...mp} format={fmtCount} />

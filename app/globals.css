@@ -56,3 +56,17 @@ textarea {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+@media (max-width: 640px) {
+  .kpi-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .kpi-grid-6 { grid-template-columns: repeat(2, 1fr) !important; }
+  .metrics-grid-2col { grid-template-columns: 1fr !important; }
+  .table-scroll-mobile { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: flex !important; }
+  .page-padding-mobile { padding: 10px !important; }
+  .hero-amount-mobile { font-size: 20px !important; }
+}
+@media (min-width: 641px) {
+  .show-mobile { display: none !important; }
+}
