@@ -139,26 +139,36 @@ export default function TrendsPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all(
-      MONTHS.map(async (m) => {
-        const [eRes, sRes, tRes] = await Promise.all([
-          fetch(`/api/entries?area=${areaId}&year=${year}&month=${m}&category=${activeBusiness}`),
-          fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${m}&category=${activeBusiness}`),
-          fetch(`/api/targets?area=${areaId}&year=${year}&month=${m}&category=${activeBusiness}`),
+    const fetchTrends = async () => {
+      try {
+        const [sumRes, tgtRes] = await Promise.all([
+          fetch(`/api/monthly-summary-bulk?areas=${areaId}&year=${year}&category=${activeBusiness}`),
+          fetch(`/api/targets-bulk?areas=${areaId}&year=${year}&category=${activeBusiness}`),
         ]);
-        const eJson = eRes.ok ? await eRes.json() : { entries: [] };
-        const sJson = sRes.ok ? await sRes.json() : { summary: null };
-        const tJson = tRes.ok ? await tRes.json() : { targets: null };
-        return [m, { entries: eJson.entries ?? [], summary: sJson.summary }, tJson.targets as Targets | null] as const;
-      })
-    ).then((triples) => {
-      const map: Record<number, { entries: DailyEntry[]; summary: Record<string, unknown> | null }> = {};
-      const tmap: Record<number, Targets | null> = {};
-      for (const [m, data, targets] of triples) { map[m] = data; tmap[m] = targets; }
-      setMonthlyData(map);
-      setMonthlyTargets(tmap);
-      setLoading(false);
-    });
+        const sumJson = sumRes.ok ? await sumRes.json() : { summaries: [] };
+        const tgtJson = tgtRes.ok ? await tgtRes.json() : { targets: [] };
+
+        const map: Record<number, { entries: DailyEntry[]; summary: Record<string, unknown> | null }> = {};
+        const tmap: Record<number, Targets | null> = {};
+
+        for (const s of (sumJson.summaries ?? []) as Array<Record<string, unknown>>) {
+          const mo = Number(s.month);
+          map[mo] = { entries: [], summary: s };
+        }
+        for (const t of (tgtJson.targets ?? []) as Array<Record<string, unknown>>) {
+          const mo = Number(t.month);
+          tmap[mo] = t as unknown as Targets;
+        }
+
+        setMonthlyData(map);
+        setMonthlyTargets(tmap);
+      } catch (err) {
+        console.error("Trends fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTrends();
   }, [areaId, year, activeBusiness]);
 
   // 達成率トレンド用データ
