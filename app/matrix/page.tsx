@@ -401,8 +401,10 @@ export default function MatrixPage() {
                             zIndex: isPin ? 1 : undefined,
                             whiteSpace: "nowrap",
                           }}>
-                          <div>{pinPrefix ? `${pinPrefix} ${status.label}` : status.label}</div>
-                          <div style={{ fontSize: 9, fontWeight: 600, opacity: 0.8 }}>{status.sub}</div>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                            <span style={{ fontSize: 10, fontWeight: 800 }}>{pinPrefix ? `${pinPrefix} ` : ""}{status.label}</span>
+                            <span style={{ fontSize: 9, fontWeight: 600, opacity: 0.8 }}>{status.sub}</span>
+                          </div>
                         </td>
                       );
                     })}
