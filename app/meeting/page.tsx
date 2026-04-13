@@ -216,23 +216,22 @@ export default function MeetingPage() {
     };
   }, [periodSummary, monthlySummary, entries, year, month]);
 
-  const isPastMonth = monthlySummary !== null && entries.length === 0;
-  const callCount = isPastMonth ? Number(monthlySummary!.call_count ?? 0) : filteredEntries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
-  const acquisitionCount = isPastMonth ? Number(monthlySummary!.acquisition_count ?? 0) : displaySummary.totalCount;
-  const convRate = isPastMonth ? Number(monthlySummary!.conv_rate ?? 0) : (callCount > 0 ? (acquisitionCount / callCount) * 100 : 0);
+  const callCount = isPastData ? Number(monthlySummary!.call_count ?? 0) : filteredEntries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
+  const acquisitionCount = isPastData ? Number(monthlySummary!.acquisition_count ?? 0) : displaySummary.totalCount;
+  const convRate = isPastData ? Number(monthlySummary!.conv_rate ?? 0) : (callCount > 0 ? (acquisitionCount / callCount) * 100 : 0);
   const grossRate = displaySummary.totalRevenue > 0 ? Math.round(displaySummary.totalProfit / displaySummary.totalRevenue * 1000) / 10 : 0;
   const targetGrossRate = targets.targetSales > 0 && targets.targetProfit > 0 ? Math.round(targets.targetProfit / targets.targetSales * 1000) / 10 : 0;
   const adRate = displaySummary.totalRevenue > 0 ? Math.round(displaySummary.totalAdCost / displaySummary.totalRevenue * 1000) / 10 : 0;
   const cpaCurrent = acquisitionCount > 0 ? Math.round(displaySummary.totalAdCost / acquisitionCount) : 0;
 
-  const mp = { isEndPeriod: isEndPeriod || isPastMonth, daysElapsed, daysInMonth };
+  const mp = { isEndPeriod: isEndPeriod || isPastData, daysElapsed, daysInMonth };
   const fmtYen = (v: number) => yen(v);
   const fmtCount = (v: number) => `${v}件`;
   const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 
   // 部門別
   const ratio = daysElapsed > 0 ? daysInMonth / daysElapsed : 0;
-  const showLanding = !isEndPeriod && !isPastMonth;
+  const showLanding = !isEndPeriod && !isPastData;
   const depts = [
     { name: "自社施工", color: "#059669", d: displaySummary.self },
     { name: "新規営業", color: "#3b82f6", d: displaySummary.newSales },
@@ -281,8 +280,8 @@ export default function MeetingPage() {
           </h1>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
             {year}年{month}月 ／ {areaName} ／ 1〜{period === "end" ? daysInMonth : period}日
-            {isPastMonth && <span style={{ marginLeft: 10, fontSize: 11, background: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "2px 8px" }}>過去データ</span>}
-            {!isEndPeriod && !isPastMonth && (
+            {isPastData && <span style={{ marginLeft: 10, fontSize: 11, background: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "2px 8px" }}>過去データ</span>}
+            {!isEndPeriod && !isPastData && (
               <span style={{ marginLeft: 10, fontSize: 11, background: "rgba(255,255,255,0.15)", borderRadius: 4, padding: "2px 8px" }}>
                 着地予測 = {period}日ペースで月末換算
               </span>
