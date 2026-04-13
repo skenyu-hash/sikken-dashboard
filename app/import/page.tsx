@@ -101,7 +101,7 @@ export default function ImportPage() {
       const res = await fetch("/api/import-monthly", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rows, category: activeBusiness }),
+        body: JSON.stringify({ rows, category: parsed.category ?? activeBusiness }),
       });
       const json = await res.json();
       if (json.success) {
