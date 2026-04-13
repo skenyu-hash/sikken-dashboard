@@ -164,15 +164,18 @@ export default function MatrixPage() {
     scroller.scrollTo({ left: Math.max(0, offsetLeft), top: Math.max(0, offsetTop), behavior: "smooth" });
   }, [loading, forecastRowIdx, actualRowIdx, pinColIdx]);
 
-  // セル判定: 戻り値 { label, bg, color }
+  // セル判定: 戻り値 { label, sub, bg, color }
   function cellStatus(salesMan: number, adRate: number) {
     const profitMan = salesMan * (profitRatePct / 100);
     const adCostMan = salesMan * (adRate / 100);
     const plMan = profitMan - adCostMan - fixedCostMan;
     const cfMan = plMan - cfExtraMan;
-    if (cfMan >= 0) return { label: "CF黒", bg: "#d1fae5", color: "#065f46" };
-    if (plMan >= 0) return { label: "PL黒", bg: "#fef9c3", color: "#854d0e" };
-    return { label: "赤字", bg: "#fee2e2", color: "#991b1b" };
+    const displayVal = fixedCostMan > 0 ? cfMan : plMan;
+    const sign = displayVal >= 0 ? "+" : "";
+    const sub = `${sign}${Math.round(displayVal).toLocaleString()}万`;
+    if (cfMan >= 0) return { label: "CF黒", sub, bg: "#d1fae5", color: "#065f46" };
+    if (plMan >= 0) return { label: "PL黒", sub, bg: "#fef9c3", color: "#854d0e" };
+    return { label: "赤字", sub, bg: "#fee2e2", color: "#991b1b" };
   }
 
   return (
@@ -398,7 +401,8 @@ export default function MatrixPage() {
                             zIndex: isPin ? 1 : undefined,
                             whiteSpace: "nowrap",
                           }}>
-                          {pinPrefix ? `${pinPrefix} ${status.label}` : status.label}
+                          <div>{pinPrefix ? `${pinPrefix} ${status.label}` : status.label}</div>
+                          <div style={{ fontSize: 9, fontWeight: 600, opacity: 0.8 }}>{status.sub}</div>
                         </td>
                       );
                     })}
