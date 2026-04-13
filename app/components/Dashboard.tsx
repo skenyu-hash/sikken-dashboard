@@ -238,6 +238,32 @@ export default function Dashboard() {
   }, [activeTab, viewYear, viewMonth, isGroup, activeBusiness, viewMode]);
 
   const [groupMonthlySummaries, setGroupMonthlySummaries] = useState<Record<string, Record<string, unknown> | null>>({});
+  const [crossBusinessData, setCrossBusinessData] = useState<Record<string, { revenue: number; profit: number; adCost: number; count: number }>>({});
+
+  // ============ データ読込: グループ事業別クロス ============
+  useEffect(() => {
+    if (!isGroup) return;
+    Promise.all(
+      BUSINESSES.map(async (biz) => {
+        const res = await fetch(`/api/monthly-summary-bulk?areas=${biz.areas.join(",")}&year=${viewYear}&category=${biz.id}`);
+        const json = res.ok ? await res.json() : { summaries: [] };
+        const rows = (json.summaries ?? []) as Array<Record<string, unknown>>;
+        const monthRows = rows.filter(r => Number(r.month) === viewMonth);
+        type BizAgg = { revenue: number; profit: number; adCost: number; count: number };
+        const agg = monthRows.reduce<BizAgg>((acc, r) => ({
+          revenue: acc.revenue + Number(r.total_revenue ?? 0),
+          profit: acc.profit + Number(r.total_profit ?? 0),
+          adCost: acc.adCost + Number(r.ad_cost ?? 0),
+          count: acc.count + Number(r.total_count ?? 0),
+        }), { revenue: 0, profit: 0, adCost: 0, count: 0 });
+        return [biz.id, agg] as const;
+      })
+    ).then(pairs => {
+      const map: typeof crossBusinessData = {};
+      for (const [id, agg] of pairs) map[id] = agg;
+      setCrossBusinessData(map);
+    });
+  }, [isGroup, viewYear, viewMonth]);
 
   // ============ データ読込: グループタブ ============
   useEffect(() => {
@@ -1057,6 +1083,80 @@ export default function Dashboard() {
           </div>
         </section>
       )}
+
+      {/* ============ グループ: 事業別クロス比較 ============ */}
+      {isGroup && Object.keys(crossBusinessData).length > 0 && (() => {
+        const gt = Object.values(crossBusinessData).reduce((a, b) => ({
+          revenue: a.revenue + b.revenue, profit: a.profit + b.profit,
+          adCost: a.adCost + b.adCost, count: a.count + b.count,
+        }), { revenue: 0, profit: 0, adCost: 0, count: 0 });
+        type RowDef = { label: string; fn: (d: { revenue: number; profit: number; adCost: number; count: number }) => string; colorFn?: (d: { revenue: number; profit: number; adCost: number; count: number }) => string };
+        const rows: RowDef[] = [
+          { label: "売上", fn: d => d.revenue > 0 ? yen(d.revenue) : "\u2014" },
+          { label: "粗利", fn: d => d.profit > 0 ? yen(d.profit) : "\u2014", colorFn: () => "#059669" },
+          { label: "粗利率", fn: d => d.revenue > 0 ? `${(d.profit / d.revenue * 100).toFixed(1)}%` : "\u2014",
+            colorFn: d => { const r = d.revenue > 0 ? d.profit / d.revenue * 100 : 0; return r >= 30 ? "#059669" : r >= 20 ? "#d97706" : "#dc2626"; } },
+          { label: "広告費", fn: d => d.adCost > 0 ? yen(d.adCost) : "\u2014", colorFn: () => "#d97706" },
+          { label: "広告費率", fn: d => d.revenue > 0 ? `${(d.adCost / d.revenue * 100).toFixed(1)}%` : "\u2014",
+            colorFn: d => { const r = d.revenue > 0 ? d.adCost / d.revenue * 100 : 0; return r <= 25 ? "#059669" : r <= 35 ? "#d97706" : "#dc2626"; } },
+          { label: "件数", fn: d => d.count > 0 ? `${d.count}件` : "\u2014" },
+          { label: "客単価", fn: d => d.count > 0 ? yen(Math.round(d.revenue / d.count)) : "\u2014" },
+        ];
+        return (
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden", marginBottom: 16 }}>
+            <div style={{ background: "#ecfdf5", padding: "10px 16px", borderBottom: "1px solid #d1fae5", fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+              事業別クロス比較 — {viewYear}年{viewMonth}月
+            </div>
+            <div className="table-scroll-mobile" style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
+                <thead>
+                  <tr style={{ background: "#f8fdf8" }}>
+                    <th style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280", textAlign: "left", borderBottom: "1px solid #f0faf0", position: "sticky", left: 0, background: "#f8fdf8", zIndex: 1, minWidth: 90 }}>指標</th>
+                    {BUSINESSES.map(b => (
+                      <th key={b.id} style={{ padding: "8px 10px", fontSize: 11, fontWeight: 700, color: "#065f46", textAlign: "right", borderBottom: "1px solid #f0faf0", minWidth: 100 }}>{b.label}</th>
+                    ))}
+                    <th style={{ padding: "8px 10px", fontSize: 11, fontWeight: 700, color: "#059669", textAlign: "right", borderBottom: "1px solid #f0faf0", background: "#f0fdf4", minWidth: 100 }}>グループ計</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(row => (
+                    <tr key={row.label} style={{ borderBottom: "1px solid #f0faf0" }}>
+                      <td style={{ padding: "9px 12px", fontSize: 12, fontWeight: 700, color: "#374151", position: "sticky", left: 0, background: "#fff", zIndex: 1 }}>{row.label}</td>
+                      {BUSINESSES.map(b => {
+                        const d = crossBusinessData[b.id] ?? { revenue: 0, profit: 0, adCost: 0, count: 0 };
+                        return (
+                          <td key={b.id} style={{ padding: "9px 10px", fontSize: 12, fontWeight: 600, textAlign: "right",
+                            color: d.revenue > 0 ? (row.colorFn ? row.colorFn(d) : "#111") : "#d1d5db" }}>
+                            {row.fn(d)}
+                          </td>
+                        );
+                      })}
+                      <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 800, textAlign: "right", background: "#f0fdf4",
+                        color: gt.revenue > 0 ? (row.colorFn ? row.colorFn(gt) : "#065f46") : "#d1d5db" }}>
+                        {row.fn(gt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, padding: 16, borderTop: "1px solid #f0faf0" }}>
+              {[
+                { label: "グループ売上", value: yen(gt.revenue) },
+                { label: "グループ粗利", value: yen(gt.profit), color: "#059669" },
+                { label: "平均粗利率", value: gt.revenue > 0 ? `${(gt.profit / gt.revenue * 100).toFixed(1)}%` : "\u2014",
+                  color: gt.revenue > 0 && gt.profit / gt.revenue >= 0.25 ? "#059669" : "#d97706" },
+                { label: "グループ広告費", value: yen(gt.adCost), color: "#d97706" },
+              ].map(kpi => (
+                <div key={kpi.label} style={{ textAlign: "center", padding: "8px 4px" }}>
+                  <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600, marginBottom: 4 }}>{kpi.label}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: (kpi as { color?: string }).color ?? "#111" }}>{kpi.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ============ グループ: エリア別実績テーブル ============ */}
       {isGroup && perAreaSummaries.length > 0 && (() => {
