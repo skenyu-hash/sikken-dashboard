@@ -21,6 +21,7 @@ export function NavBar() {
     { href: "/matrix", label: "マトリクス", show: true },
     { href: "/targets", label: "目標", show: true },
     { href: "/meeting", label: "会議", show: true },
+    { href: "/minutes", label: "議事録", show: true },
     { href: "/breakeven", label: "損益分岐", show: role === "admin" },
     { href: "/cockpit", label: "CF", show: role === "admin" },
     { href: "/import", label: "インポート", show: role === "admin" },
