@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 // body: { series_code, meeting_date, title?, facilitator? }
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { series_code, meeting_date, title, facilitator } = body;
+  const { series_code, meeting_date, title, facilitator, metric_scope, metric_business, metric_area } = body;
 
   if (!series_code || !meeting_date) {
     return NextResponse.json(
@@ -57,13 +57,11 @@ export async function POST(req: NextRequest) {
   const cycle_month = date.getMonth() + 1;
 
   const inserted = await sql`
-    INSERT INTO meeting_sessions
-      (series_id, meeting_date, cycle_year, cycle_month, cycle_period, title, facilitator, status)
+ INSERT INTO meeting_sessions
+      (series_id, meeting_date, cycle_year, cycle_month, cycle_period, title, facilitator, status, metric_scope, metric_business, metric_area)
     VALUES
-      (${seriesRows[0].id}, ${meeting_date}, ${cycle_year}, ${cycle_month}, ${cycle_period},
-       ${title ?? null}, ${facilitator ?? null}, 'in_progress')
+      (${seriesRows[0].id}, ${meeting_date}, ${cycle_year}, ${cycle_month}, ${cycle_period}, ${title ?? null}, ${facilitator ?? null}, 'in_progress', ${metric_scope ?? 'group'}, ${metric_business ?? null}, ${metric_area ?? null})
     RETURNING *
-  `;
-
+`;
   return NextResponse.json({ session: inserted[0] }, { status: 201 });
 }
