@@ -21,11 +21,11 @@ async function getMeetingData(id: number) {
   ` as any[];
   const agendaIds = agendas.map((a) => a.id);
 
-  const [discussions, decisions, actions] = agendaIds.length > 0
+  const [discussions, concerns, decisions] = agendaIds.length > 0
     ? await Promise.all([
         sql`SELECT * FROM discussions WHERE agenda_id = ANY(${agendaIds}::int[]) ORDER BY agenda_id, order_index, id` as Promise<any[]>,
+        sql`SELECT * FROM concerns    WHERE agenda_id = ANY(${agendaIds}::int[]) ORDER BY agenda_id, order_index, id` as Promise<any[]>,
         sql`SELECT * FROM decisions   WHERE agenda_id = ANY(${agendaIds}::int[]) ORDER BY agenda_id, decided_at` as Promise<any[]>,
-        sql`SELECT * FROM action_items WHERE agenda_id = ANY(${agendaIds}::int[]) ORDER BY agenda_id, due_date NULLS LAST, id` as Promise<any[]>,
       ])
     : [[] as any[], [] as any[], [] as any[]];
 
@@ -36,8 +36,8 @@ async function getMeetingData(id: number) {
   const agendasWithChildren = agendas.map((a) => ({
     ...a,
     discussions: discussions.filter((d) => d.agenda_id === a.id),
+    concerns:    concerns.filter((c) => c.agenda_id === a.id),
     decisions:   decisions.filter((d) => d.agenda_id === a.id),
-    actions:     actions.filter((ai) => ai.agenda_id === a.id),
   }));
 
   return {

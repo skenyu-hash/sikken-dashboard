@@ -1,8 +1,10 @@
-// app/(dashboard)/meetings/new/page.tsx
+// app/meetings/new/page.tsx
 'use client';
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+
+const PURPLE = '#3C3489';
 
 export default function NewMeetingPage() {
   const router = useRouter();
@@ -39,50 +41,100 @@ export default function NewMeetingPage() {
   };
 
   return (
-    <div className="p-6 max-w-xl mx-auto">
-      <a href="/meetings" className="text-sm text-gray-500 hover:underline">← 会議一覧へ</a>
-      <h1 className="text-2xl font-semibold mt-2 mb-6">新しい会議</h1>
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 20px' }}>
+      <a href="/meetings" style={{ fontSize: 13, color: '#888', textDecoration: 'none' }}>
+        ← 会議一覧へ
+      </a>
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">開催日 <span className="text-red-500">*</span></label>
+      <div
+        style={{
+          background: PURPLE,
+          color: '#fff',
+          padding: '20px 24px',
+          borderRadius: '12px 12px 0 0',
+          marginTop: 12,
+        }}
+      >
+        <h1 style={{ fontSize: 22, fontWeight: 500, margin: 0 }}>新しい会議</h1>
+        <p style={{ fontSize: 12, opacity: 0.85, margin: '4px 0 0' }}>
+          開催日からサイクル（上旬／中旬／下旬）が自動で判定されます
+        </p>
+      </div>
+
+      <div
+        style={{
+          background: '#fff',
+          padding: '24px',
+          borderRadius: '0 0 12px 12px',
+          border: '0.5px solid rgba(0,0,0,0.1)',
+          borderTop: 'none',
+        }}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>
+            開催日 <span style={{ color: '#D85A30' }}>*</span>
+          </label>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
+            style={inputStyle}
           />
-          <p className="text-xs text-gray-500 mt-1">サイクル（上旬/中旬/下旬）は日付から自動判定されます</p>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">タイトル</label>
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>タイトル</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="例: 4月下旬役員会"
-            className="w-full px-3 py-2 border rounded"
+            style={inputStyle}
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">司会</label>
+        <div style={{ marginBottom: 20 }}>
+          <label style={labelStyle}>司会</label>
           <input
             type="text"
             value={facilitator}
             onChange={(e) => setFacilitator(e.target.value)}
             placeholder="例: 反謙雄"
-            className="w-full px-3 py-2 border rounded"
+            style={inputStyle}
           />
         </div>
 
-        {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
+        {error && (
+          <div
+            style={{
+              fontSize: 13,
+              color: '#A32D2D',
+              background: '#FCEBEB',
+              border: '0.5px solid #F09595',
+              borderRadius: 6,
+              padding: '8px 12px',
+              marginBottom: 16,
+            }}
+          >
+            {error}
+          </div>
+        )}
 
         <button
           onClick={submit}
           disabled={submitting || !date}
-          className="w-full py-2 bg-black text-white rounded font-medium disabled:opacity-50"
+          style={{
+            width: '100%',
+            padding: '12px',
+            background: PURPLE,
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: submitting ? 'wait' : 'pointer',
+            opacity: submitting || !date ? 0.5 : 1,
+          }}
         >
           {submitting ? '作成中…' : '作成して議事録を開く'}
         </button>
@@ -90,3 +142,20 @@ export default function NewMeetingPage() {
     </div>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 13,
+  fontWeight: 500,
+  color: '#444',
+  marginBottom: 6,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  border: '0.5px solid rgba(0,0,0,0.2)',
+  borderRadius: 6,
+  fontSize: 14,
+  boxSizing: 'border-box',
+};
