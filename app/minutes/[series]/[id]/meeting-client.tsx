@@ -91,7 +91,8 @@ function StatusChip({ status }: { status: string }) {
 }
 
 function MetricsBar({ metrics, sessionId, onChange }: { metrics: AnyRow | null; sessionId: number; onChange: () => void }) {
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+    const [loading, setLoading] = useState(false);
   const sync = async () => {
     setLoading(true);
     try { await fetch(`/api/meetings/${sessionId}/sync-metrics`, { method: 'POST' }); onChange(); } finally { setLoading(false); }
