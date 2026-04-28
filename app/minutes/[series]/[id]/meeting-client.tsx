@@ -109,6 +109,7 @@ function MetricsBar({ metrics, sessionId, onChange }: { metrics: AnyRow | null; 
     <div style={{ background: PURPLE_LIGHT, padding: '12px 20px', borderBottom: '0.5px solid rgba(0,0,0,0.08)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <div style={{ fontSize: 11, color: PURPLE_DARK }}>10日会議シート連動 ／ {new Date(metrics.snapshot_at).toLocaleString('ja-JP')} 時点</div>
+     <button onClick={() => router.push('/meeting')} style={{ background: 'transparent', color: PURPLE, border: '0.5px solid #AFA9EC', padding: '2px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', marginRight: 8 }}>10日シートを見る →</button>      
         <button onClick={sync} disabled={loading} style={{ background: 'transparent', color: PURPLE, border: '0.5px solid #AFA9EC', padding: '2px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>{loading ? '更新中…' : '再取得'}</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
