@@ -1,4 +1,4 @@
-// app/(dashboard)/meetings/[id]/page.tsx
+// app/meetings/[id]/page.tsx
 import { neon } from '@neondatabase/serverless';
 import { notFound } from 'next/navigation';
 import MeetingClient from './meeting-client';
@@ -13,31 +13,31 @@ async function getMeetingData(id: number) {
     FROM meeting_sessions s
     JOIN meeting_series ms ON s.series_id = ms.id
     WHERE s.id = ${id}
-  `;
+  ` as any[];
   if (sessions.length === 0) return null;
 
   const agendas = await sql`
     SELECT * FROM agendas WHERE session_id = ${id} ORDER BY order_index, id
-  `;
-  const agendaIds = agendas.map((a: Record<string, unknown>) => a.id as number);
+  ` as any[];
+  const agendaIds = agendas.map((a) => a.id);
 
   const [discussions, decisions, actions] = agendaIds.length > 0
     ? await Promise.all([
-        sql`SELECT * FROM discussions WHERE agenda_id = ANY(${agendaIds}::int[]) ORDER BY agenda_id, order_index, id`,
-        sql`SELECT * FROM decisions   WHERE agenda_id = ANY(${agendaIds}::int[]) ORDER BY agenda_id, decided_at`,
-        sql`SELECT * FROM action_items WHERE agenda_id = ANY(${agendaIds}::int[]) ORDER BY agenda_id, due_date NULLS LAST, id`,
+        sql`SELECT * FROM discussions WHERE agenda_id = ANY(${agendaIds}::int[]) ORDER BY agenda_id, order_index, id` as Promise<any[]>,
+        sql`SELECT * FROM decisions   WHERE agenda_id = ANY(${agendaIds}::int[]) ORDER BY agenda_id, decided_at` as Promise<any[]>,
+        sql`SELECT * FROM action_items WHERE agenda_id = ANY(${agendaIds}::int[]) ORDER BY agenda_id, due_date NULLS LAST, id` as Promise<any[]>,
       ])
-    : [[], [], []];
+    : [[] as any[], [] as any[], [] as any[]];
 
   const metrics = await sql`
     SELECT * FROM linked_metrics WHERE session_id = ${id} ORDER BY snapshot_at DESC LIMIT 1
-  `;
+  ` as any[];
 
-  const agendasWithChildren = agendas.map((a: Record<string, unknown>) => ({
+  const agendasWithChildren = agendas.map((a) => ({
     ...a,
-    discussions: discussions.filter((d: Record<string, unknown>) => d.agenda_id === a.id),
-    decisions:   decisions.filter((d: Record<string, unknown>) => d.agenda_id === a.id),
-    actions:     actions.filter((ai: Record<string, unknown>) => ai.agenda_id === a.id),
+    discussions: discussions.filter((d) => d.agenda_id === a.id),
+    decisions:   decisions.filter((d) => d.agenda_id === a.id),
+    actions:     actions.filter((ai) => ai.agenda_id === a.id),
   }));
 
   return {
@@ -52,5 +52,5 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
   const data = await getMeetingData(parseInt(id, 10));
   if (!data) notFound();
 
-  return <MeetingClient initial={data} />;
+  return <MeetingClient initial={data as any} />;
 }
