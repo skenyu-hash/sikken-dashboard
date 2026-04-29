@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import { useRole } from "../components/RoleProvider";
 import { canViewAdminPages } from "../lib/roles";
+import CrossMatrixSection from "../components/CrossMatrixSection";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -180,6 +181,10 @@ export default function MatrixPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
+    {/* グループ全体クロス比較（上段・新規） */}
+        <div style={{ padding: "16px" }}>
+          <CrossMatrixSection />
+        </div>  
       <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
         {/* 事業タブ */}
         <div style={{ display: "flex", gap: 4, padding: "8px 24px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
