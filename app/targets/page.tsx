@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { emptyTargets, type Targets } from "../lib/calculations";
 import { useRole } from "../components/RoleProvider";
+import { CAN_EDIT_TARGETS } from "../lib/roles";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
 const ALL_AREAS = [
@@ -12,9 +13,9 @@ const ALL_AREAS = [
 ];
 
 export default function TargetsPage() {
-  const role = useRole();
-  const canEdit = role === "admin" || role === "manager";
   const now = new Date();
+  const role = useRole();
+  const canEdit = role !== null && CAN_EDIT_TARGETS.includes(role);
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");

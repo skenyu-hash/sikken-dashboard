@@ -6,8 +6,8 @@ import { getSql, ensureSchema } from "./db";
 export const AUTH_COOKIE = "sd_session";
 export const TOKEN_TTL_SEC = 60 * 60 * 8; // 8 hours
 
-export type Role = "admin" | "manager" | "staff" | "input";
-
+import type { Role } from "./roles";
+export type { Role };
 export type SessionUser = {
   id: number;
   email: string;
@@ -97,7 +97,7 @@ export async function ensureAuthSchema(): Promise<void> {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       name TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('admin','manager','staff','input')),
+      role TEXT NOT NULL CHECK (role IN ('executive','vice','manager','chief','staff','clerk')),
       area_id TEXT,
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
       failed_attempts INT NOT NULL DEFAULT 0,
@@ -142,7 +142,7 @@ export async function ensureAuthSchema(): Promise<void> {
   // roleのCHECK制約を更新（staff追加）
   try {
     await getSql()`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`;
-    await getSql()`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','manager','staff','input'))`;
+    await getSql()`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('executive','vice','manager','chief','staff','clerk'))`;
   } catch { /* constraint already correct */ }
 
   await seedInitialAdmin();
@@ -282,12 +282,14 @@ export function canAccessArea(_user: SessionUser, _areaId: string): boolean {
 }
 // 編集はロール＋エリアで制御
 export function canEditArea(user: SessionUser, targetAreaId: string): boolean {
-  if (user.role === "admin") return true;
+// 役員・副社長: 全エリア編集可
+  if (user.role === "executive" || user.role === "vice") return true;
+  // 社員: 編集不可
   if (user.role === "staff") return false;
-  // manager / input: エリア未設定→全エリア編集可、設定あり→担当のみ
-  if (user.role === "manager" || user.role === "input") {
+  // 部長・課長・事務員: エリア未設定→全エリア編集可、設定あり→担当のみ
+  if (user.role === "manager" || user.role === "chief" || user.role === "clerk") {
     if (!user.areaId) return true;
     return user.areaId === targetAreaId;
   }
-  return false;
+  return false;  
 }

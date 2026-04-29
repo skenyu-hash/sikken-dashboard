@@ -77,7 +77,7 @@ export default function DriverPage() {
   const diff = result.grossProfit - be.fixedTotal;
   const mixTotal = d.lightRatio + d.constRatio + d.helpRatio;
 
-  if (role && role !== "admin") {
+  if (role && role !== "executive") {
     return (
       <div style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>
         このページは役員のみアクセス可能です
