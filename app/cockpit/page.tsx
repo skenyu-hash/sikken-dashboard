@@ -81,7 +81,7 @@ export default function CockpitPage() {
   }
 
   useEffect(() => {
-    if (role !== "admin") return;
+    if (role !== "executive") return;
     reload();
     Promise.all(businessAreas.map(async (a) => {
       const r = await fetch(`/api/entries?area=${a.id}&year=${year}&month=${month}&category=${activeBusiness}`);
@@ -104,7 +104,7 @@ export default function CockpitPage() {
     return map;
   }, [cfs, monthlyRevenue, businessAreas]);
 
-  if (role && role !== "admin") {
+  if (role && role !== "executive") {
     return <div style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>このページは役員のみアクセス可能です</div>;
   }
 

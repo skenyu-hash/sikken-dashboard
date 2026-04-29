@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { currentRole } from "../../lib/auth";
 import { getTargets, upsertTargets } from "../../lib/db";
 import type { Targets } from "../../lib/calculations";
+import { CAN_EDIT_TARGETS, type Role } from "../../lib/roles";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const role = await currentRole();
-  if (role !== "admin" && role !== "manager") {
+if (role !== "executive" && role !== "vice" && role !== "manager") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   try {

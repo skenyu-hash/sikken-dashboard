@@ -48,7 +48,7 @@ export default function AdminPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<{
     email: string; password: string; name: string; role: Role; areaId: string; businessCategory: string;
-  }>({ email: "", password: "", name: "", role: "input", areaId: "", businessCategory: "water" });
+  }>({ email: "", password: "", name: "", role: "clerk", areaId: "", businessCategory: "water" });
   const [msg, setMsg] = useState<string | null>(null);
 
   async function loadUsers() {
@@ -62,7 +62,7 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (session?.role !== "admin") return;
+    if (session?.role !== "executive") return;
     if (tab === "users") loadUsers();
     else if (tab === "audit") loadLogs();
     else if (tab === "logs") {
@@ -71,7 +71,7 @@ export default function AdminPage() {
     }
   }, [tab, areaFilter, logFilter, session]);
 
-  if (session && session.role !== "admin") {
+  if (session && session.role !== "executive") {
     return <div className="p-8 text-center text-zinc-500">役員のみアクセス可能です</div>;
   }
 
@@ -89,7 +89,7 @@ export default function AdminPage() {
     if (res.ok) {
       setMsg("ユーザーを作成しました");
       setShowCreate(false);
-      setForm({ email: "", password: "", name: "", role: "input", areaId: "", businessCategory: "water" });
+      setForm({ email: "", password: "", name: "", role: "clerk", areaId: "", businessCategory: "water" });
       loadUsers();
     } else {
       const j = await res.json().catch(() => ({}));
@@ -210,7 +210,7 @@ export default function AdminPage() {
                   <span style={{ display: "block", fontSize: 10, color: "#6b7280", marginBottom: 4 }}>ロール</span>
                   <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))}
                     style={{ width: "100%", height: 34, border: "1px solid #d1fae5", borderRadius: 6, padding: "0 6px", fontSize: 11 }}>
-                    <option value="admin">役員</option>
+                    <option value="executive">役員</option>
                     <option value="manager">部長</option>
                     <option value="staff">内勤・役職者</option>
                     <option value="input">事務員</option>
@@ -278,7 +278,7 @@ export default function AdminPage() {
                       <select value={u.role} onChange={(e) => changeRole(u, e.target.value as Role)}
                         style={{ border: "1px solid #d1fae5", borderRadius: 6, padding: "4px 6px",
                           fontSize: 11, fontWeight: 600, color: "#065f46", background: "#f0fdf4", width: "100%" }}>
-                        <option value="admin">役員</option>
+                        <option value="executive">役員</option>
                         <option value="manager">部長</option>
                         <option value="staff">内勤</option>
                         <option value="input">事務員</option>

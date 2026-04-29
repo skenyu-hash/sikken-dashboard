@@ -11,7 +11,7 @@ const AREA_IDS = new Set([
 
 export async function GET(req: Request) {
   const role = await currentRole();
-  if (role !== "admin") return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (role !== "executive") return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const year = Number(searchParams.get("year"));
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const role = await currentRole();
-  if (role !== "admin") return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (role !== "executive") return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const body = (await req.json().catch(() => null)) as Partial<CashflowEntry> | null;
   if (!body || !body.areaId || !body.year || !body.month || !AREA_IDS.has(body.areaId)) {
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   const role = await currentRole();
-  if (role !== "admin") return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (role !== "executive") return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const id = Number(searchParams.get("id"));

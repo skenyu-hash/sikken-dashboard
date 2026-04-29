@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   try {
     await ensureSchema();
     const user = await currentUser();
-    if (!user || user.role !== "admin") {
+    if (!user || user.role !== "executive") {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     const { searchParams } = new URL(req.url);

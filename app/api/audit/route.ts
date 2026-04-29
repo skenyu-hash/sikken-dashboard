@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const u = await currentUser();
   if (!u) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (u.role !== "admin") return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (u.role !== "executive") return NextResponse.json({ error: "forbidden" }, { status: 403 });
   await ensureAuthSchema();
 
   const { searchParams } = new URL(req.url);

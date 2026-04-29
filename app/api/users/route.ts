@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 async function requireAdmin() {
   const u = await currentUser();
   if (!u) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
-  if (u.role !== "admin") return { error: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
+  if (u.role !== "executive") return { error: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
   return { user: u };
 }
 
