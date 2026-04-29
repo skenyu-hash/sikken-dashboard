@@ -5,7 +5,7 @@ import {
   calculateBreakeven, calculateDashboard, getDaysInMonth,
   type DailyEntry, type DashboardSummary, type FixedCosts, yen,
 } from "../lib/calculations";
-import { useRole } from "../components/RoleProvider";
+import { useRole } from "../components/RoleProvider";import { canViewAdminPages } from "../lib/roles";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 
 const ALL_AREAS = [
@@ -27,7 +27,7 @@ type AreaBreakeven = {
 
 export default function BreakevenPage() {
   const role = useRole();
-  const canEdit = role === "admin";
+  const canEdit = role !== null && canViewAdminPages(role);
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;

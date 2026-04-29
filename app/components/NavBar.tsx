@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "./RoleProvider";
+import { canAccessPage, ROLE_LABELS } from "../lib/roles";
 
 export function NavBar() {
   const pathname = usePathname();
@@ -14,19 +15,19 @@ export function NavBar() {
 
   const role = session.role;
 
-  const items: { href: string; label: string; show: boolean }[] = [
-    { href: "/", label: "ダッシュボード", show: true },
-    { href: "/ranking", label: "ランキング", show: true },
-    { href: "/trends", label: "推移", show: true },
-    { href: "/matrix", label: "マトリクス", show: true },
-    { href: "/targets", label: "目標", show: true },
-    { href: "/meeting", label: "会議", show: true },
-    { href: "/minutes", label: "議事録", show: true },
-    { href: "/breakeven", label: "損益分岐", show: role === "admin" },
-    { href: "/cockpit", label: "CF", show: role === "admin" },
-    { href: "/import", label: "インポート", show: role === "admin" },
-    { href: "/admin", label: "管理者", show: role === "admin" },
-  ];
+const items = [
+    { href: "/",          label: "ダッシュボード" },
+    { href: "/ranking",   label: "ランキング" },
+    { href: "/trends",    label: "推移" },
+    { href: "/matrix",    label: "マトリクス" },
+    { href: "/targets",   label: "目標" },
+    { href: "/meeting",   label: "会議" },
+    { href: "/minutes",   label: "議事録" },
+    { href: "/breakeven", label: "損益分岐" },
+    { href: "/cockpit",   label: "CF" },
+    { href: "/import",    label: "インポート" },
+    { href: "/admin",     label: "管理者" },
+  ].filter((item) => canAccessPage(role, item.href));
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -49,7 +50,7 @@ export function NavBar() {
       }}
     >
       <div style={{ display: "flex" }}>
-        {items.filter((i) => i.show).map((i) => {
+        {items.map((i) => {
           const isActive = pathname === i.href;
           return (
             <Link
@@ -72,7 +73,7 @@ export function NavBar() {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
         <span style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap" }}>
-          {session.name}（{role === "admin" ? "役員" : role === "manager" ? "部長" : role === "staff" ? "内勤・役職者" : "事務員"}）
+          {session.name}({ROLE_LABELS[role]})
         </span>
         <button
           type="button"

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import { useRole } from "../components/RoleProvider";
+import { canViewAdminPages } from "../lib/roles";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -17,8 +18,7 @@ function getDaysInMonth(year: number, month: number): number {
 
 export default function MatrixPage() {
   const role = useRole();
-  const isAdmin = role === "admin";
-
+  const isAdmin = role !== null && canViewAdminPages(role);
   const now = useMemo(() => new Date(), []);
   const year = now.getFullYear();
   const month = now.getMonth() + 1;

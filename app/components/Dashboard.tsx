@@ -11,6 +11,7 @@ import {
   yen,
 } from "../lib/calculations";
 import { useRole, useSession } from "./RoleProvider";
+import { CAN_EDIT_DASHBOARD, canViewAdminPages } from "../lib/roles";
 import { logAction } from "../lib/logger";
 import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../lib/businesses";
 import { COMPANIES } from "../lib/companies";
@@ -142,8 +143,8 @@ const GROUP_TAB = "__group__";
 export default function Dashboard() {
   const role = useRole();
   const session = useSession();
-  const isInputOnly = role === "input";
-  const canEditDashboard = role === "admin" || role === "manager" || role === "input";
+  const isInputOnly = role === "clerk";
+  const canEditDashboard = role !== null && CAN_EDIT_DASHBOARD.includes(role);
   const userAreaId = session?.areaId ?? null;
   const formSections = isInputOnly ? FORM_SECTIONS_SIMPLE : FORM_SECTIONS_FULL;
 
@@ -696,7 +697,7 @@ export default function Dashboard() {
           SIKKEN GROUP 経営OS
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {role === "admin" && (
+          {role !== null && CAN_EDIT_DASHBOARD.includes(role) && (
             <div style={{ display: "flex", gap: 2, background: "rgba(0,0,0,0.2)", borderRadius: 6, padding: 2 }}>
               <button type="button" onClick={() => setViewMode("business")}
                 style={{ padding: "3px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, border: "none",
@@ -752,7 +753,7 @@ export default function Dashboard() {
                   {a.name}
                 </button>
               ))}
-              {role === "admin" && (
+              {role !== null && CAN_EDIT_DASHBOARD.includes(role) && (
                 <button type="button" onClick={() => setActiveTab(GROUP_TAB)}
                   style={{
                     padding: "8px 16px", borderRadius: "8px 8px 0 0",
