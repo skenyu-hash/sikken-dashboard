@@ -92,29 +92,42 @@ export default function MatrixPage() {
   const forecastRevenueMan = Math.round(forecastRevenue / 10000);
   const currentRevenueMan = Math.round(currentRevenue / 10000);
 
-  // 行（売上）: 着地予測と現在実績の両方をカバーする範囲、100万円刻み
+  // 行（売上）: 着地予測と現在実績をカバー、動的刻み
+  // 〜1億(10,000万) は 100万刻み、1億超は 500万刻み、上限 1.5億(15,000万)
+  const ROW_UPPER_CAP = 15000; // 1.5億
+  const SWITCH_POINT = 10000;  // 1億で刻み切替
   const rowsMan = useMemo(() => {
     const points = [forecastRevenueMan, currentRevenueMan].filter(v => v > 0);
+    let minMan: number;
     if (points.length === 0) {
-      const list: number[] = [];
-      for (let v = 500; v <= 2000; v += 100) list.push(v);
-      return list;
+      minMan = 500;
+    } else {
+      const lowest = Math.min(...points);
+      minMan = Math.max(100, Math.round((lowest * 0.5) / 100) * 100);
     }
-    const lowest = Math.min(...points);
-    const highest = Math.max(...points);
-    const minMan = Math.max(100, Math.round((lowest * 0.5) / 100) * 100);
-    const maxMan = Math.max(minMan + 1000, Math.round((highest * 2.0) / 100) * 100);
+    // 上限は常に 1.5億（鍵カテゴリの売上規模を視野に入れるため、データに関わらず固定）
+    const maxMan = ROW_UPPER_CAP;
     const list: number[] = [];
-    for (let v = minMan; v <= maxMan; v += 100) list.push(v);
+    // 〜1億: 100万刻み
+    const denseEnd = Math.min(maxMan, SWITCH_POINT);
+    for (let v = minMan; v <= denseEnd; v += 100) list.push(v);
+    // 1億超: 500万刻み（10,500万から）
+    if (maxMan > SWITCH_POINT) {
+      for (let v = SWITCH_POINT + 500; v <= maxMan; v += 500) list.push(v);
+    }
     return list;
   }, [forecastRevenueMan, currentRevenueMan]);
 
-  // 列（広告費率）: 10〜35% を1%刻み
+  // 列（広告費率）: 13〜45% を1%刻み（鍵カテゴリ44.9%視野）
   const cols = useMemo(() => {
     const list: number[] = [];
-    for (let v = 10; v <= 35; v++) list.push(v);
+    for (let v = 13; v <= 45; v++) list.push(v);
     return list;
   }, []);
+
+  // 鍵カテゴリ選択時のみ44.9%相当列（45%）を強調
+  const isKeyBusiness = activeBusiness === "locksmith";
+  const KEY_HIGHLIGHT_COL = 45; // 44.9%は45列に丸める
 
   // BEP計算: 分母 = 粗利率 - 広告費率（ポイント）。0以下なら計算不可
   const marginPct = profitRatePct - adRatePct;
@@ -166,7 +179,9 @@ export default function MatrixPage() {
   }, [loading, forecastRowIdx, actualRowIdx, pinColIdx]);
 
   // セル判定: 戻り値 { label, sub, bg, color }
-  function cellStatus(salesMan: number, adRate: number) {
+  // 行×列が最大 33 × 100 = 3,300 セルになるため、行単位でメモ化する
+  type CellResult = { label: string; sub: string; bg: string; color: string };
+  function cellStatus(salesMan: number, adRate: number): CellResult {
     const profitMan = salesMan * (profitRatePct / 100);
     const adCostMan = salesMan * (adRate / 100);
     const plMan = profitMan - adCostMan - fixedCostMan;
@@ -178,6 +193,13 @@ export default function MatrixPage() {
     if (plMan >= 0) return { label: "PL黒", sub, bg: "#fef9c3", color: "#854d0e" };
     return { label: "赤字", sub, bg: "#fee2e2", color: "#991b1b" };
   }
+
+  // 全セルを事前計算しメモ化（パラメータ変更時のみ再計算）
+  const cellMatrix = useMemo<CellResult[][]>(
+    () => rowsMan.map(salesMan => cols.map(adRate => cellStatus(salesMan, adRate))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rowsMan, cols, profitRatePct, fixedCostMan, cfExtraMan]
+  );
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
@@ -372,6 +394,13 @@ export default function MatrixPage() {
             padding: "5px 14px", borderRadius: 20, fontWeight: 700,
             border: "2px solid #f59e0b",
           }}>📌 現在実績</span>
+          {isKeyBusiness && (
+            <span style={{
+              background: "#fff7ed", color: "#7c2d12",
+              padding: "5px 14px", borderRadius: 20, fontWeight: 700,
+              border: "2px solid #f59e0b",
+            }}>🔑 鍵カテゴリ実績帯（広告比率 44.9%）</span>
+          )}
         </div>
 
         {/* マトリクステーブル */}
@@ -397,18 +426,22 @@ export default function MatrixPage() {
                   }}>
                     売上＼広告費率
                   </th>
-                  {cols.map((c, ci) => (
-                    <th key={c} style={{
-                      padding: "10px 6px", fontSize: 11, fontWeight: 800,
-                      color: ci === pinColIdx ? "#a7f3d0" : "#fff",
-                      background: ci === pinColIdx ? "#065f46" : "#064e3b",
-                      borderBottom: "1px solid #064e3b", borderRight: "1px solid #065f46",
-                      position: "sticky", top: 0, zIndex: 2, minWidth: 64, textAlign: "center",
-                      whiteSpace: "nowrap",
-                    }}>
-                      {c}%
-                    </th>
-                  ))}
+                  {cols.map((c, ci) => {
+                    const isKeyCol = isKeyBusiness && c === KEY_HIGHLIGHT_COL;
+                    const isPinCol = ci === pinColIdx;
+                    return (
+                      <th key={c} style={{
+                        padding: "10px 6px", fontSize: 11, fontWeight: 800,
+                        color: isKeyCol ? "#fde68a" : isPinCol ? "#a7f3d0" : "#fff",
+                        background: isKeyCol ? "#7c2d12" : isPinCol ? "#065f46" : "#064e3b",
+                        borderBottom: "1px solid #064e3b", borderRight: "1px solid #065f46",
+                        position: "sticky", top: 0, zIndex: 2, minWidth: 64, textAlign: "center",
+                        whiteSpace: "nowrap",
+                      }}>
+                        {isKeyCol ? `🔑 ${c}%` : `${c}%`}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -428,9 +461,10 @@ export default function MatrixPage() {
                       {salesMan.toLocaleString()}万
                     </th>
                     {cols.map((adRate, ci) => {
-                      const status = cellStatus(salesMan, adRate);
+                      const status = cellMatrix[ri][ci];
                       const isForecast = ri === forecastRowIdx && ci === pinColIdx;
                       const isActual = ri === actualRowIdx && ci === pinColIdx;
+                      const isKeyCol = isKeyBusiness && adRate === KEY_HIGHLIGHT_COL;
                       // 着地と現在が同じセルに重なる場合 → 緑枠優先（着地を主役にスクロール対象にする）
                       let pinPrefix = "";
                       if (isForecast && isActual) pinPrefix = "📍📌";
@@ -450,7 +484,9 @@ export default function MatrixPage() {
                           style={{
                             padding: "6px 8px", fontSize: 11, fontWeight: 700,
                             background: status.bg, color: status.color, textAlign: "center",
-                            borderRight: "1px solid #f0faf0", borderBottom: "1px solid #f5faf5",
+                            borderRight: isKeyCol ? "2px solid #f59e0b" : "1px solid #f0faf0",
+                            borderLeft: isKeyCol ? "2px solid #f59e0b" : undefined,
+                            borderBottom: "1px solid #f5faf5",
                             boxShadow: pinShadow,
                             position: isPin ? "relative" : undefined,
                             zIndex: isPin ? 1 : undefined,
