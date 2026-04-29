@@ -99,17 +99,14 @@ export default function MatrixPage() {
   const rowsMan = useMemo(() => {
     const points = [forecastRevenueMan, currentRevenueMan].filter(v => v > 0);
     let minMan: number;
-    let maxMan: number;
     if (points.length === 0) {
       minMan = 500;
-      maxMan = 2000;
     } else {
       const lowest = Math.min(...points);
-      const highest = Math.max(...points);
       minMan = Math.max(100, Math.round((lowest * 0.5) / 100) * 100);
-      maxMan = Math.max(minMan + 1000, Math.round((highest * 2.0) / 100) * 100);
     }
-    maxMan = Math.min(maxMan, ROW_UPPER_CAP);
+    // 上限は常に 1.5億（鍵カテゴリの売上規模を視野に入れるため、データに関わらず固定）
+    const maxMan = ROW_UPPER_CAP;
     const list: number[] = [];
     // 〜1億: 100万刻み
     const denseEnd = Math.min(maxMan, SWITCH_POINT);
