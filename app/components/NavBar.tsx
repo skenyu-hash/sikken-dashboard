@@ -38,7 +38,7 @@ const items = [
     <nav
       style={{
         background: "#fff",
-        borderBottom: "1px solid #d1fae5",
+        borderBottom: "1px solid #e5e7eb",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -60,8 +60,8 @@ const items = [
                 padding: "11px 15px",
                 fontSize: 12,
                 fontWeight: isActive ? 700 : 500,
-                color: isActive ? "#065f46" : "#6b7280",
-                borderBottom: isActive ? "2px solid #059669" : "2px solid transparent",
+                color: isActive ? "#111827" : "#6b7280",
+                borderBottom: isActive ? "2px solid #1B5E3F" : "2px solid transparent",
                 textDecoration: "none",
                 whiteSpace: "nowrap",
               }}
