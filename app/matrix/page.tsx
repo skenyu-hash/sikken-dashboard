@@ -185,43 +185,93 @@ export default function MatrixPage() {
         <div style={{ padding: "16px" }}>
           <CrossMatrixSection />
         </div>  
-      <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
-        {/* 事業タブ */}
-        <div style={{ display: "flex", gap: 4, padding: "8px 24px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-          {BUSINESSES.map((b) => (
-            <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+{/* ヘッダー: タイトル + エリア選択 + カテゴリタブ（融合デザイン） */}
+      <div
+        style={{
+          background: "#FFFFFF",
+          border: "1px solid #E5E7EB",
+          borderRadius: 16,
+          padding: "24px 28px",
+          marginBottom: 24,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: 20,
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div>
+            <h1
               style={{
-                padding: "5px 12px", borderRadius: "6px 6px 0 0",
-                fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
-                background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
-                color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                margin: 0,
+                fontSize: 17,
+                fontWeight: 600,
+                color: "#111827",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              損益分岐マトリクス
+            </h1>
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: "#6B7280" }}>
+              {BUSINESSES.find((b) => b.id === activeBusiness)?.label} ・ {year}年{month}月 ・ 着地予測と現在実績の2軸で経営判断
+            </p>
+          </div>
+          <select
+            value={areaId}
+            onChange={(e) => setAreaId(e.target.value)}
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #E5E7EB",
+              color: "#111827",
+              borderRadius: 8,
+              padding: "6px 12px",
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            {businessAreas.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ display: "flex", gap: 4, overflowX: "auto", paddingBottom: 4 }}>
+          {BUSINESSES.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => setActiveBusiness(b.id)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 7,
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: "pointer",
+                border: "none",
+                background: activeBusiness === b.id ? "#1B5E3F" : "transparent",
+                color: activeBusiness === b.id ? "#FFFFFF" : "#6B7280",
                 whiteSpace: "nowrap",
-              }}>
+                transition: "all 0.15s ease",
+              }}
+            >
               {b.label}
             </button>
           ))}
         </div>
-        <div style={{ padding: "12px 24px 16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>損益分岐マトリクス</h1>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
-                {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {year}年{month}月 ／ 📍着地予測（月末換算）と 📌現在実績の2軸で経営判断
-              </p>
-            </div>
-            <select value={areaId} onChange={(e) => setAreaId(e.target.value)}
-              style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.35)",
-                color: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 700 }}>
-              {businessAreas.map((a) => <option key={a.id} value={a.id} style={{ color: "#111" }}>{a.name}エリア</option>)}
-            </select>
-          </div>
-        </div>
       </div>
-
       <div style={{ padding: "20px 20px" }}>
         {/* パラメータ入力カード */}
         <div style={{
-          background: "#fff", borderRadius: 12, border: "1px solid #d1fae5",
+          background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB",
           padding: 20, marginBottom: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: "#065f46", marginBottom: 14,
@@ -296,7 +346,7 @@ export default function MatrixPage() {
         {/* 凡例バー */}
         <div style={{
           marginBottom: 12, padding: "10px 14px", background: "#fff", borderRadius: 10,
-          border: "1px solid #d1fae5", display: "flex", gap: 10, flexWrap: "wrap",
+          border: "1px solid #E5E7EB", display: "flex", gap: 10, flexWrap: "wrap",
           fontSize: 11, alignItems: "center", boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         }}>
           <span style={{ color: "#6b7280", fontWeight: 800, marginRight: 4 }}>凡例:</span>
@@ -327,12 +377,12 @@ export default function MatrixPage() {
         {/* マトリクステーブル */}
         {loading ? (
           <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 12,
-            background: "#fff", borderRadius: 12, border: "1px solid #d1fae5" }}>
+            background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB" }}>
             データを読み込み中...
           </div>
         ) : (
           <div ref={scrollerRef} style={{
-            background: "#fff", borderRadius: 12, border: "1px solid #d1fae5",
+            background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB",
             overflow: "auto", maxHeight: "70vh",
             boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
           }}>
@@ -446,7 +496,7 @@ function ParamField({ icon, label, unit, value, onChange, step = "1", hint, read
         readOnly={readOnly}
         placeholder="0"
         style={{
-          width: "100%", height: 38, border: "1px solid #d1fae5", borderRadius: 8,
+          width: "100%", height: 38, border: "1px solid #E5E7EB", borderRadius: 8,
           padding: "0 12px", fontSize: 14, fontWeight: 700, textAlign: "right",
           color: readOnly ? "#6b7280" : "#111",
           background: readOnly ? "#f3f4f6" : "#fff",
