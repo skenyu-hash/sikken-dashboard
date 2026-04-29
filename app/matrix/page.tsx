@@ -271,7 +271,7 @@ export default function MatrixPage() {
       <div style={{ padding: "20px 20px" }}>
         {/* パラメータ入力カード */}
         <div style={{
-          background: "#fff", borderRadius: 12, border: "1px solid #d1fae5",
+          background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB",
           padding: 20, marginBottom: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: "#065f46", marginBottom: 14,
@@ -346,7 +346,7 @@ export default function MatrixPage() {
         {/* 凡例バー */}
         <div style={{
           marginBottom: 12, padding: "10px 14px", background: "#fff", borderRadius: 10,
-          border: "1px solid #d1fae5", display: "flex", gap: 10, flexWrap: "wrap",
+          border: "1px solid #E5E7EB", display: "flex", gap: 10, flexWrap: "wrap",
           fontSize: 11, alignItems: "center", boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         }}>
           <span style={{ color: "#6b7280", fontWeight: 800, marginRight: 4 }}>凡例:</span>
@@ -377,12 +377,12 @@ export default function MatrixPage() {
         {/* マトリクステーブル */}
         {loading ? (
           <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 12,
-            background: "#fff", borderRadius: 12, border: "1px solid #d1fae5" }}>
+            background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB" }}>
             データを読み込み中...
           </div>
         ) : (
           <div ref={scrollerRef} style={{
-            background: "#fff", borderRadius: 12, border: "1px solid #d1fae5",
+            background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB",
             overflow: "auto", maxHeight: "70vh",
             boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
           }}>
@@ -496,7 +496,7 @@ function ParamField({ icon, label, unit, value, onChange, step = "1", hint, read
         readOnly={readOnly}
         placeholder="0"
         style={{
-          width: "100%", height: 38, border: "1px solid #d1fae5", borderRadius: 8,
+          width: "100%", height: 38, border: "1px solid #E5E7EB", borderRadius: 8,
           padding: "0 12px", fontSize: 14, fontWeight: 700, textAlign: "right",
           color: readOnly ? "#6b7280" : "#111",
           background: readOnly ? "#f3f4f6" : "#fff",
