@@ -4,6 +4,24 @@ import { useMemo, useState } from "react";
 import { BUSINESSES } from "../../lib/businesses";
 import FilterBar, { ALL_AREAS } from "./FilterBar";
 import ExportCard, { type CardState } from "./ExportCard";
+import {
+  MONTHLY_SUMMARY_COLUMNS,
+  DAILY_ENTRIES_COLUMNS,
+} from "../lib/columnMappings";
+import { rowsToCsv, downloadCsv, matrixToCsv } from "../lib/exportToCsv";
+import {
+  downloadSingleSheetXlsx,
+  downloadMatrixXlsx,
+  downloadWorkbook,
+} from "../lib/exportToXlsx";
+import {
+  buildAreaPivotSheets,
+  type AreaPivotResponse,
+} from "../lib/buildPivot";
+import {
+  buildFullReportSheets,
+  type FullReportResponse,
+} from "../lib/buildFullReport";
 
 type ExportType =
   | "monthly-summary"
@@ -15,8 +33,39 @@ type ExportType =
 const ALL_CATEGORY_IDS = BUSINESSES.map((b) => b.id);
 const ALL_AREA_IDS = ALL_AREAS.map((a) => a.id);
 
+const SLUG: Record<ExportType, string> = {
+  "monthly-summary": "monthly_summary",
+  "daily-entries": "daily_entries",
+  "matrix-cells": "matrix_cells",
+  "area-pivot": "area_pivot",
+  "full-report": "full_report",
+};
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+function buildFilename(type: ExportType, fmt: "csv" | "xlsx"): string {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const hm = `${pad(d.getHours())}${pad(d.getMinutes())}`;
+  return `sikken_${SLUG[type]}_${ymd}_${hm}.${fmt}`;
+}
+
+async function parseApiError(res: Response): Promise<string> {
+  if (res.status === 401) return "セッション切れです。再ログインしてください";
+  if (res.status === 403) return "権限がありません";
+  let body: { error?: string } = {};
+  try {
+    body = await res.json();
+  } catch {
+    /* ignore */
+  }
+  if (res.status === 400) {
+    return body.error ? `入力エラー: ${body.error}` : "入力エラー";
+  }
+  if (res.status >= 500) return "サーバエラーが発生しました";
+  return body.error ? `エラー: ${body.error}` : `HTTP ${res.status}`;
 }
 
 function defaultMonthFrom(): string {
@@ -69,13 +118,173 @@ export default function ExportPanel() {
   const [apCategory, setApCategory] = useState<string>("");
 
   // カードごとの状態
-  const [cardStates] = useState<Record<ExportType, CardState>>({
+  const [cardStates, setCardStates] = useState<Record<ExportType, CardState>>({
     "monthly-summary": INITIAL_STATE,
     "daily-entries": INITIAL_STATE,
     "matrix-cells": INITIAL_STATE,
     "area-pivot": INITIAL_STATE,
     "full-report": INITIAL_STATE,
   });
+
+  function patchCard(type: ExportType, patch: Partial<CardState>) {
+    setCardStates((prev) => ({ ...prev, [type]: { ...prev[type], ...patch } }));
+  }
+
+  async function runExport<T>(
+    type: ExportType,
+    apiUrl: string,
+    write: (json: T, filename: string) => Promise<void> | void,
+    fmt: "csv" | "xlsx"
+  ) {
+    patchCard(type, { loading: true, error: null });
+    try {
+      const res = await fetch(apiUrl, { credentials: "include" });
+      if (!res.ok) throw new Error(await parseApiError(res));
+      const json = (await res.json()) as { ok: boolean; data: T; meta?: unknown };
+      if (!json.ok) throw new Error("API returned ok=false");
+      await write(json.data, buildFilename(type, fmt));
+      patchCard(type, { loading: false, lastDownloadAt: new Date(), error: null });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "通信に失敗しました。接続を確認してください";
+      patchCard(type, { loading: false, error: msg });
+    }
+  }
+
+  // 共通フィルターのバリデーション。問題なければ URLSearchParams、エラー時は string を返す
+  function buildCommonParams(opts: { day?: boolean }): URLSearchParams | string {
+    if (selectedCategories.size === 0) {
+      return "カテゴリを1つ以上選択してください";
+    }
+    if (selectedAreas.size === 0) {
+      return "エリアを1つ以上選択してください";
+    }
+    const p = new URLSearchParams();
+    if (opts.day) {
+      p.set("from", dayFrom);
+      p.set("to", dayTo);
+    } else {
+      p.set("from", monthFrom);
+      p.set("to", monthTo);
+    }
+    if (selectedCategories.size < ALL_CATEGORY_IDS.length) {
+      p.set("categories", Array.from(selectedCategories).join(","));
+    }
+    if (selectedAreas.size < ALL_AREA_IDS.length) {
+      p.set("areas", Array.from(selectedAreas).join(","));
+    }
+    return p;
+  }
+
+  function withCommonParams(
+    type: ExportType,
+    opts: { day?: boolean },
+    run: (qs: string) => Promise<void>
+  ): Promise<void> {
+    const p = buildCommonParams(opts);
+    if (typeof p === "string") {
+      patchCard(type, { error: p });
+      return Promise.resolve();
+    }
+    return run(p.toString());
+  }
+
+  // === 月次サマリー ===
+  const handleMonthlyCsv = () =>
+    withCommonParams("monthly-summary", {}, (qs) =>
+      runExport<Array<Record<string, unknown>>>(
+        "monthly-summary",
+        `/api/export/monthly-summary?${qs}`,
+        (rows, filename) => downloadCsv(filename, rowsToCsv(rows, MONTHLY_SUMMARY_COLUMNS)),
+        "csv"
+      )
+    );
+  const handleMonthlyXlsx = () =>
+    withCommonParams("monthly-summary", {}, (qs) =>
+      runExport<Array<Record<string, unknown>>>(
+        "monthly-summary",
+        `/api/export/monthly-summary?${qs}`,
+        (rows, filename) =>
+          downloadSingleSheetXlsx(filename, "月次サマリー", rows, MONTHLY_SUMMARY_COLUMNS),
+        "xlsx"
+      )
+    );
+
+  // === 日次エントリー ===
+  const handleDailyCsv = () =>
+    withCommonParams("daily-entries", { day: true }, (qs) =>
+      runExport<Array<Record<string, unknown>>>(
+        "daily-entries",
+        `/api/export/daily-entries?${qs}`,
+        (rows, filename) => downloadCsv(filename, rowsToCsv(rows, DAILY_ENTRIES_COLUMNS)),
+        "csv"
+      )
+    );
+  const handleDailyXlsx = () =>
+    withCommonParams("daily-entries", { day: true }, (qs) =>
+      runExport<Array<Record<string, unknown>>>(
+        "daily-entries",
+        `/api/export/daily-entries?${qs}`,
+        (rows, filename) =>
+          downloadSingleSheetXlsx(filename, "日次エントリー", rows, DAILY_ENTRIES_COLUMNS),
+        "xlsx"
+      )
+    );
+
+  // === マトリクス全セル ===
+  type MatrixData = {
+    header: string[];
+    rows: Array<{ salesMan: number; cells: Array<{ displayVal: number }> }>;
+  };
+  const buildMatrixUrl = () => {
+    const p = new URLSearchParams();
+    p.set("area", mxArea);
+    p.set("category", mxCat);
+    p.set("year", String(mxYear));
+    p.set("month", String(mxMonth));
+    return `/api/export/matrix-cells?${p.toString()}`;
+  };
+  const handleMatrixCsv = () =>
+    runExport<MatrixData>(
+      "matrix-cells",
+      buildMatrixUrl(),
+      (data, filename) => downloadCsv(filename, matrixToCsv(data.header, data.rows)),
+      "csv"
+    );
+  const handleMatrixXlsx = () =>
+    runExport<MatrixData>(
+      "matrix-cells",
+      buildMatrixUrl(),
+      (data, filename) =>
+        downloadMatrixXlsx(filename, "感応度グリッド", data.header, data.rows),
+      "xlsx"
+    );
+
+  // === エリア別集計 ===
+  const handleAreaPivotXlsx = () => {
+    const p = new URLSearchParams();
+    p.set("from", monthFrom);
+    p.set("to", monthTo);
+    if (apCategory) p.set("category", apCategory);
+    return runExport<AreaPivotResponse>(
+      "area-pivot",
+      `/api/export/area-pivot?${p.toString()}`,
+      (data, filename) => downloadWorkbook(filename, buildAreaPivotSheets(data)),
+      "xlsx"
+    );
+  };
+
+  // === 全社統合レポート ===
+  const handleFullReportXlsx = () => {
+    const p = new URLSearchParams();
+    p.set("from", monthFrom);
+    p.set("to", monthTo);
+    return runExport<FullReportResponse>(
+      "full-report",
+      `/api/export/full-report?${p.toString()}`,
+      (data, filename) => downloadWorkbook(filename, buildFullReportSheets(data)),
+      "xlsx"
+    );
+  };
 
   const toggleCategory = (id: string) => {
     setSelectedCategories((prev) => {
@@ -124,10 +333,8 @@ export default function ExportPanel() {
         title="月次サマリー"
         description="monthly_summaries 全カラム + エリア・業態日本語名（最大36ヶ月、月単位）"
         state={cardStates["monthly-summary"]}
-        csvDisabled
-        xlsxDisabled
-        onCsv={() => {}}
-        onXlsx={() => {}}
+        onCsv={handleMonthlyCsv}
+        onXlsx={handleMonthlyXlsx}
       />
 
       <ExportCard
@@ -135,10 +342,8 @@ export default function ExportPanel() {
         title="日次エントリー"
         description="entries.data フラット展開 + RAW JSON（最大6ヶ月、日単位）"
         state={cardStates["daily-entries"]}
-        csvDisabled
-        xlsxDisabled
-        onCsv={() => {}}
-        onXlsx={() => {}}
+        onCsv={handleDailyCsv}
+        onXlsx={handleDailyXlsx}
       >
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span style={fieldHintStyle}>📅 日範囲：</span>
@@ -166,10 +371,8 @@ export default function ExportPanel() {
         title="マトリクス全セル"
         description="感応度グリッド全セル展開（広告費率 13〜45% × 売上動的刻み）"
         state={cardStates["matrix-cells"]}
-        csvDisabled
-        xlsxDisabled
-        onCsv={() => {}}
-        onXlsx={() => {}}
+        onCsv={handleMatrixCsv}
+        onXlsx={handleMatrixXlsx}
       >
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <span style={fieldHintStyle}>対象：</span>
@@ -225,8 +428,7 @@ export default function ExportPanel() {
         title="エリア別集計（XLSX のみ）"
         description="エリア(行)×月(列) のピボット 3シート（売上 / 粗利 / 広告費）"
         state={cardStates["area-pivot"]}
-        xlsxDisabled
-        onXlsx={() => {}}
+        onXlsx={handleAreaPivotXlsx}
       >
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           <span style={fieldHintStyle}>カテゴリ絞り込み：</span>
@@ -255,25 +457,8 @@ export default function ExportPanel() {
         title="全社統合レポート（XLSX のみ）"
         description="①月次×カテゴリ ②月次×エリア ③カテゴリ×エリア の3シート（最大12ヶ月固定）"
         state={cardStates["full-report"]}
-        xlsxDisabled
-        onXlsx={() => {}}
+        onXlsx={handleFullReportXlsx}
       />
-
-      <div
-        style={{
-          marginTop: 8,
-          padding: "10px 14px",
-          background: "#FAFAFA",
-          border: "1px dashed #E5E7EB",
-          borderRadius: 8,
-          fontSize: 11,
-          color: "#6B7280",
-          lineHeight: 1.6,
-        }}
-      >
-        💡 ダウンロードボタンは現在準備中（Phase 9.2 コミット 6b で接続予定）。
-        フィルター UI とカード骨格のみ先行公開しています。
-      </div>
     </div>
   );
 }
