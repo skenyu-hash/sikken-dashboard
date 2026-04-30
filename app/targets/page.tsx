@@ -16,8 +16,25 @@ export default function TargetsPage() {
   const now = new Date();
   const role = useRole();
   const canEdit = role !== null && CAN_EDIT_TARGETS.includes(role);
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const [year, setYear] = useState(currentYear);
+  const [month, setMonth] = useState(currentMonth);
+  // 経営実務サイクル（月末に翌月目標を立てる）に合わせ、当月+1 まで進める。
+  // 例: 今日が 2026-04 → 5月 までは ▶、6月以降は disabled。
+  const monthsFromCurrent = (year - currentYear) * 12 + (month - currentMonth);
+  const canGoNext = monthsFromCurrent < 1;
+  function gotoPrevMonth() {
+    const d = new Date(year, month - 2, 1);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth() + 1);
+  }
+  function gotoNextMonth() {
+    if (!canGoNext) return;
+    const d = new Date(year, month, 1);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth() + 1);
+  }
   const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
   const businessAreas = useMemo(() => {
     const biz = BUSINESSES.find(b => b.id === activeBusiness);
@@ -113,6 +130,18 @@ export default function TargetsPage() {
           )}
         </div>
         <div style={{ padding: "0 24px 14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <button type="button" onClick={gotoPrevMonth}
+              style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 14 }}>◀</button>
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{year}年{month}月</span>
+            <button type="button" onClick={gotoNextMonth} disabled={!canGoNext}
+              style={{
+                background: "rgba(255,255,255,0.15)", border: "none",
+                color: !canGoNext ? "rgba(255,255,255,0.3)" : "#fff",
+                borderRadius: 6, padding: "3px 10px",
+                cursor: !canGoNext ? "default" : "pointer", fontSize: 14,
+              }}>▶</button>
+          </div>
           <h1 style={{ fontSize: "20px", fontWeight: 800, color: "#fff" }}>月次目標設定</h1>
           <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.65)", marginTop: "3px" }}>
             {year}年{month}月 ／ {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {ALL_AREAS.find((a) => a.id === areaId)?.name}エリア
