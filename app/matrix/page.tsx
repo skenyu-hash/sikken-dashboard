@@ -61,16 +61,21 @@ export default function MatrixPage() {
         .then(r => r.ok ? r.json() : {}),
     ]).then(([sumRes, fcRes]) => {
       const s = sumRes.summary;
+      // カテゴリ切替時に前カテゴリの値が引き継がれるバグ防止のため
+      // データ取得結果に関わらず、まずデフォルト値を起点にし、有効な値があれば上書きする
+      let nextProfit = 25;
+      let nextAd = 20;
       if (s) {
         setCurrentRevenue(Number(s.total_revenue ?? 0));
         const pr = Number(s.profit_rate ?? 0);
-        if (pr > 0) setProfitRatePct(pr);
+        if (pr > 0) nextProfit = pr;
         const ar = Number(s.ad_rate ?? 0);
-        // 広告費率は自動取得（読み取り専用）。データがない場合はデフォルト20%のまま
-        if (ar > 0) setAdRatePct(ar);
+        if (ar > 0) nextAd = ar;
       } else {
         setCurrentRevenue(0);
       }
+      setProfitRatePct(nextProfit);
+      setAdRatePct(nextAd);
       // 固定費レスポンスは { fixedCosts: { laborCost, rent, other } } または
       // { costs: { labor_cost, rent, other } } の両形式をサポート
       const fcAny = fcRes as Record<string, unknown>;
