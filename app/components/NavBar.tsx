@@ -26,6 +26,7 @@ const items = [
     { href: "/breakeven", label: "損益分岐" },
     { href: "/cockpit",   label: "CF" },
     { href: "/import",    label: "インポート" },
+    { href: "/data-io",   label: "データ入出力" },
     { href: "/admin",     label: "管理者" },
   ].filter((item) => canAccessPage(role, item.href));
 
