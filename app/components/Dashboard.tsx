@@ -1017,7 +1017,12 @@ export default function Dashboard() {
       {/* 1日あたりの目安 */}
       {!isGroup && targets.targetSales > 0 && (() => {
         const todayElapsed = isCurrentMonth ? now.getDate() : displaySummary.daysInMonth;
-        const remain = displaySummary.daysInMonth - todayElapsed;
+        // 当月の残り日数は「今日以降」を表す（残額の「明日以降の必要額」を見る運用）。
+        // 月末（差が0）でも Math.max(1, ...) で最低1日を保証して追い込み目安を表示。
+        // 過去月は remain=0 を維持して「—」表示にフォールバックさせる。
+        const remain = isCurrentMonth
+          ? Math.max(1, displaySummary.daysInMonth - now.getDate())
+          : 0;
         const cards = [
           { label: "全体売上",
             val: remain > 0 ? yen(Math.round((targets.targetSales - displaySummary.totalRevenue) / remain)) + "/日" : "—",
