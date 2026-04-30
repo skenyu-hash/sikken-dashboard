@@ -46,14 +46,14 @@ export default async function MinutesHubPage() {
   });
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 20px' }}>
+    <div style={{ padding: '24px 20px' }}>
       <div style={{ background: PURPLE, color: '#fff', padding: '20px 24px', borderRadius: '12px 12px 0 0' }}>
         <h1 style={{ fontSize: 22, fontWeight: 500, margin: 0 }}>議事録</h1>
         <p style={{ fontSize: 13, opacity: 0.85, margin: '4px 0 0' }}>役職別の会議議事録を管理します</p>
       </div>
 
       <div style={{ background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderTop: 'none', borderRadius: '0 0 12px 12px', padding: '24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           {SERIES_ORDER.map((code) => {
             const config = SERIES_CONFIG[code];
             const stat = statsByCode[code];
@@ -67,10 +67,16 @@ export default async function MinutesHubPage() {
                 <div style={{ background: config.bgColor, borderRadius: 10, padding: '18px 20px', cursor: 'pointer', border: '0.5px solid rgba(0,0,0,0.05)', transition: 'transform 0.1s' }}>
                   <div style={{ fontSize: 16, fontWeight: 500, color: config.color, marginBottom: 6 }}>{config.label}</div>
                   <div style={{ fontSize: 12, color: config.textColor, opacity: 0.75, marginBottom: 12, lineHeight: 1.5 }}>{config.description}</div>
-                  <div style={{ fontSize: 11, color: config.color, fontWeight: 500 }}>
-                    {sessionCount > 0 ? `${sessionCount}件` : '0件'}
-                    {latestDate && <span style={{ opacity: 0.7, marginLeft: 8 }}>／ 直近 {latestDate}</span>}
-                    {sessionCount === 0 && <span style={{ opacity: 0.7, marginLeft: 8 }}>準備中</span>}
+                  <div style={{ fontSize: 11, color: config.color, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span>{sessionCount > 0 ? `${sessionCount}件` : '0件'}</span>
+                    {latestDate && <span style={{ opacity: 0.7 }}>／ 直近 {latestDate}</span>}
+                    {sessionCount === 0 && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 600,
+                        background: 'rgba(0,0,0,0.06)', color: config.color,
+                        borderRadius: 10, padding: '1px 8px',
+                      }}>準備中</span>
+                    )}
                   </div>
                 </div>
               </Link>
