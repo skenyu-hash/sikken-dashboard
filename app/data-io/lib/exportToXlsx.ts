@@ -2,6 +2,7 @@
 // 動的 import により、エクスポートUI を開かない限り xlsx の ~600KB がバンドルに乗らない。
 
 import { applyRound, type ColumnDef } from "./columnMappings";
+import { triggerBlobDownload } from "./triggerBlobDownload";
 
 type Sheet = {
   name: string;
@@ -25,14 +26,7 @@ async function buildWorkbookBlob(sheets: Sheet[]): Promise<Blob> {
 
 export async function downloadWorkbook(filename: string, sheets: Sheet[]): Promise<void> {
   const blob = await buildWorkbookBlob(sheets);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, filename);
 }
 
 // 単一テーブル → 単一シートの Workbook

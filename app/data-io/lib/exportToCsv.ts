@@ -3,6 +3,7 @@
 
 import Papa from "papaparse";
 import { applyRound, type ColumnDef } from "./columnMappings";
+import { triggerBlobDownload } from "./triggerBlobDownload";
 
 const BOM = "﻿";
 
@@ -18,14 +19,7 @@ export function rowsToCsv(
 
 export function downloadCsv(filename: string, csv: string): void {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, filename);
 }
 
 // matrix-cells 用: 売上(万) + 広告費率列 のグリッドを CSV 化
