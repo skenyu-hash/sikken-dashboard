@@ -13,7 +13,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const ALL_ROLES: Role[] = ["executive", "vice", "manager", "chief", "staff", "clerk"];
 
 // 管理職以上（副社長・部長・課長）= 5項目フル表示組
-const LEADERSHIP: Role[] = ["executive", "vice", "manager", "chief"];
+export const LEADERSHIP: Role[] = ["executive", "vice", "manager", "chief"];
 
 export const PAGE_ACCESS: Record<string, Role[]> = {
   "/":          ALL_ROLES,
@@ -27,6 +27,7 @@ export const PAGE_ACCESS: Record<string, Role[]> = {
   "/cockpit":   ["executive"],
   "/import":    ["executive"],
   "/admin":     ["executive"],
+  "/data-io":   LEADERSHIP,
 };
 
 export const CAN_EDIT_DASHBOARD: Role[] = ["executive", "vice", "manager", "chief", "clerk"];
