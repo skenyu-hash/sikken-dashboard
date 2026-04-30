@@ -169,3 +169,6 @@ PR-B では **テンプレート出力側のみ**を実装する：
 
 - `app/data-io/lib/templateSchemas.ts`（テンプレート列定義 + 注釈テキスト）
 - `app/data-io/lib/exportTemplate.ts` 等（テンプレ生成ヘルパ、PR-B 中で名称確定）
+
+### 月次テンプレ列の除外メモ
+- テンプレ列から `call_unit_price` を除外（22→21列、計算項目のため入力不要）
