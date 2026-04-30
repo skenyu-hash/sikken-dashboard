@@ -1,0 +1,31 @@
+// 経営データ取込で頻出する不純な数値表現を安全に number へ変換するヘルパ。
+// 用途: /api/import-monthly などの取込 API で、JSON 内の数値フィールドが
+// 空文字 / カンマ区切り / em dash 等を含むケースを吸収する。
+//
+// 対応する不純表現:
+//   - null / undefined → def
+//   - 空文字 ""        → def
+//   - 数値の NaN/Infinity → def
+//   - "30,500,000"     → 30500000（カンマ除去）
+//   - "—" / "―"       → def（em dash / horizontal bar、ハイフンマイナス -1234 は維持）
+//   - 全角スペース・通常スペース → trim
+//   - "12.34"          → 12.34（小数も対応、率系フィールド用）
+//   - 解釈不能 → def
+//
+// 将来の取込系 API (/api/import-* 等) でも再利用可能。
+
+export function num(v: unknown, def: number = 0): number {
+  if (v === null || v === undefined) return def;
+  if (typeof v === "number") return Number.isFinite(v) ? v : def;
+  if (typeof v === "string") {
+    const cleaned = v
+      .replace(/,/g, "")
+      .replace(/[—―]/g, "") // em dash (—), horizontal bar (―)
+      .replace(/　/g, "")          // 全角スペース
+      .trim();
+    if (cleaned === "") return def;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : def;
+  }
+  return def;
+}

@@ -30,6 +30,8 @@ export default function ImportPage() {
   const [jsonText, setJsonText] = useState("");
   const [importingJson, setImportingJson] = useState(false);
   const [jsonStatus, setJsonStatus] = useState<string | null>(null);
+  const [jsonImported, setJsonImported] = useState<number>(0);
+  const [jsonErrors, setJsonErrors] = useState<Array<{ index: number; error: string; area_id?: string }>>([]);
   const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -91,7 +93,10 @@ export default function ImportPage() {
   }
 
   async function handleJsonImport() {
-    setImportingJson(true); setJsonStatus(null);
+    setImportingJson(true);
+    setJsonStatus(null);
+    setJsonImported(0);
+    setJsonErrors([]);
     try {
       const parsed = JSON.parse(jsonText);
       const rows = (parsed.rows ?? []).map((r: ExtractedRow) => ({
@@ -104,11 +109,19 @@ export default function ImportPage() {
         body: JSON.stringify({ rows, category: parsed.category ?? activeBusiness }),
       });
       const json = await res.json();
-      if (json.success) {
-        setJsonStatus(`${json.imported}件インポートしました`);
+      const imported: number = Number(json.imported ?? 0);
+      const errs: Array<{ index: number; error: string; area_id?: string }> = Array.isArray(json.errors) ? json.errors : [];
+      setJsonImported(imported);
+      setJsonErrors(errs);
+      if (json.success && errs.length === 0) {
+        setJsonStatus(`${imported}件インポートしました`);
         setJsonText("");
+      } else if (imported > 0 && errs.length > 0) {
+        setJsonStatus(`部分成功: ${imported}件成功 / ${errs.length}件失敗`);
+      } else if (errs.length > 0) {
+        setJsonStatus(`${errs.length}件失敗、成功なし`);
       } else {
-        setJsonStatus(`エラー: ${json.error}`);
+        setJsonStatus(`エラー: ${json.error ?? "unknown"}`);
       }
     } catch (e) {
       setJsonStatus(`JSON形式が正しくありません: ${String(e)}`);
@@ -234,11 +247,39 @@ export default function ImportPage() {
             </button>
             {jsonStatus && (
               <span style={{ fontSize: 12, fontWeight: 700,
-                color: jsonStatus.includes("件インポート") ? "#065f46" : "#991b1b" }}>
+                color: jsonImported > 0 && jsonErrors.length === 0 ? "#065f46"
+                  : jsonImported > 0 ? "#854d0e"
+                  : "#991b1b" }}>
                 {jsonStatus}
               </span>
             )}
           </div>
+          {jsonImported > 0 && (
+            <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 6,
+              background: "#d1fae5", color: "#065f46", fontSize: 12, fontWeight: 700 }}>
+              ✓ {jsonImported}件のレコードを保存しました
+            </div>
+          )}
+          {jsonErrors.length > 0 && (
+            <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 6,
+              background: "#fee2e2", color: "#991b1b", fontSize: 11, lineHeight: 1.6 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                ⚠ {jsonErrors.length}件のエラー
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {jsonErrors.slice(0, 8).map((e, i) => (
+                  <li key={i}>
+                    行{e.index + 1}{e.area_id ? ` (${e.area_id})` : ""}: {e.error}
+                  </li>
+                ))}
+                {jsonErrors.length > 8 && (
+                  <li style={{ listStyle: "none", marginTop: 4, opacity: 0.7 }}>
+                    ...他 {jsonErrors.length - 8} 件
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
         </div>
 
         {error && (
