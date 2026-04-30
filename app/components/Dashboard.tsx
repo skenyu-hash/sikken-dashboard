@@ -570,7 +570,6 @@ export default function Dashboard() {
     setViewMonth(d.getMonth() + 1);
   }
   function gotoNextMonth() {
-    if (isCurrentMonth) return;
     const d = new Date(viewYear, viewMonth, 1);
     setViewYear(d.getFullYear());
     setViewMonth(d.getMonth() + 1);
@@ -795,13 +794,8 @@ export default function Dashboard() {
                 <button type="button" onClick={gotoPrevMonth}
                   style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 14 }}>◀</button>
                 <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{viewYear}年{viewMonth}月</span>
-                <button type="button" onClick={gotoNextMonth} disabled={isCurrentMonth}
-                  style={{
-                    background: "rgba(255,255,255,0.15)", border: "none",
-                    color: isCurrentMonth ? "rgba(255,255,255,0.3)" : "#fff",
-                    borderRadius: 6, padding: "3px 10px",
-                    cursor: isCurrentMonth ? "default" : "pointer", fontSize: 14,
-                  }}>▶</button>
+                <button type="button" onClick={gotoNextMonth}
+                  style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 14 }}>▶</button>
               </div>
               <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>
                 {viewMode === "company" ? headerLabel : <>{headerLabel}{!isGroup && "エリア"}</>}

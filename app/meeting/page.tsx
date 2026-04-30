@@ -162,16 +162,14 @@ export default function MeetingPage() {
   const [month, setMonth] = useState(currentMonth);
   const daysInMonth = getDaysInMonth(year, month);
   const isCurrentMonth = year === currentYear && month === currentMonth;
-  // /targets と同パターン: 当月+1 まで進める（経営実務: 月末に翌月会議シートを準備）
-  const monthsFromCurrent = (year - currentYear) * 12 + (month - currentMonth);
-  const canGoNext = monthsFromCurrent < 1;
+  // 月送りは過去・未来とも無制限（経営層が任意の月の会議シートを確認可能）。
+  // isCurrentMonth は isPastData 判定で必要なため変数自体は維持。
   function gotoPrevMonth() {
     const d = new Date(year, month - 2, 1);
     setYear(d.getFullYear());
     setMonth(d.getMonth() + 1);
   }
   function gotoNextMonth() {
-    if (!canGoNext) return;
     const d = new Date(year, month, 1);
     setYear(d.getFullYear());
     setMonth(d.getMonth() + 1);
@@ -295,13 +293,8 @@ export default function MeetingPage() {
             <button type="button" onClick={gotoPrevMonth}
               style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 14 }}>◀</button>
             <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{year}年{month}月</span>
-            <button type="button" onClick={gotoNextMonth} disabled={!canGoNext}
-              style={{
-                background: "rgba(255,255,255,0.15)", border: "none",
-                color: !canGoNext ? "rgba(255,255,255,0.3)" : "#fff",
-                borderRadius: 6, padding: "3px 10px",
-                cursor: !canGoNext ? "default" : "pointer", fontSize: 14,
-              }}>▶</button>
+            <button type="button" onClick={gotoNextMonth}
+              style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 14 }}>▶</button>
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>
             {BUSINESSES.find(b => b.id === activeBusiness)?.label ?? ""} — {areaName}{period === "end" ? "月次" : `${period}日`}会議シート
