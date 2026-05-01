@@ -211,7 +211,12 @@ export default function MeetingPage() {
   );
 
   const displaySummary: DashboardSummary = useMemo(() => {
-    if (!monthlySummary || entries.length > 0) return periodSummary;
+    // monthly_summaries が存在すれば常に正規データソースとして優先する。
+    // 旧仕様 (entries.length > 0 で早期 return) は entries に全フィールド0の
+    // ゴミレコードが1件でもあると monthly_summaries が無視され、画面が ¥0 に
+    // なるバグが発生していた（九州/water/2026-04 で確認）。
+    // PR #23 (/dashboard) と同パターンの修正。KNOWN_ISSUES sec3 関連。
+    if (!monthlySummary) return periodSummary;
     const ms = monthlySummary;
     const dim = getDaysInMonth(year, month);
     return {
