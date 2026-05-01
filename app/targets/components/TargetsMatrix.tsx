@@ -34,9 +34,13 @@ const METRICS: MetricDef[] = [
   { key: "targetHelpCount", label: "HELP件数目標",  unit: "count" },
 ];
 
+// DB の target_sales 等は万円単位で保存されている。/meeting は manToYen() で
+// 円換算しているのに /targets は無加工で表示していたため数値が 1/10000 で見える
+// バグになっていた。表示専用 formatter で × 10000 して raw yen 表示に統一する
+// （DB スキーマ・編集 input の単位は変更しない）。
 function formatYen(v: number): string {
   if (!v || v <= 0) return "—";
-  return `¥${v.toLocaleString()}`;
+  return `¥${Math.round(v * 10000).toLocaleString()}`;
 }
 function formatCount(v: number): string {
   if (!v || v <= 0) return "—";

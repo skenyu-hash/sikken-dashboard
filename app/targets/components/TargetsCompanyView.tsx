@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { COMPANIES } from "../../lib/companies";
 import { AREA_NAMES, BUSINESSES, type BusinessCategory } from "../../lib/businesses";
 import { emptyTargets, type Targets } from "../../lib/calculations";
-import { TARGETS_METRICS, formatByUnit, type MetricKey } from "./TargetsMatrix";
+import { TARGETS_METRICS, formatByUnit, formatYen, type MetricKey } from "./TargetsMatrix";
 
 type Props = {
   activeCompanyId: string;
@@ -109,8 +109,8 @@ export default function TargetsCompanyView({ activeCompanyId, year, month, onCha
           {company.name} ({year}年{month}月) — 参照のみ・編集は事業別ビューで
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-          <BannerKpi label="売上目標合計" value={`¥${totals.targetSales.toLocaleString()}`} />
-          <BannerKpi label="粗利目標合計" value={`¥${totals.targetProfit.toLocaleString()}`} />
+          <BannerKpi label="売上目標合計" value={formatYen(totals.targetSales)} />
+          <BannerKpi label="粗利目標合計" value={formatYen(totals.targetProfit)} />
           <BannerKpi
             label="平均粗利率目標"
             value={
