@@ -28,9 +28,13 @@ type ByCategoryByArea = Record<string, Record<string, Targets>>;
 const ALL_BUSINESSES = BUSINESSES;
 const ALL_AREA_IDS = Object.keys(AREA_NAMES);
 
-export default function TargetsGroupView({ year, month }: Props) {
+export default function TargetsGroupView({ year, month, category }: Props) {
   const [data, setData] = useState<ByCategoryByArea>({});
   const [loading, setLoading] = useState(true);
+  const categoryLabel = useMemo(
+    () => BUSINESSES.find((b) => b.id === category)?.label ?? "",
+    [category]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -64,13 +68,12 @@ export default function TargetsGroupView({ year, month }: Props) {
     };
   }, [year, month]);
 
-  // トップバナー用: グループ全体合計
+  // トップバナー用: 選択業態のグループ全体合計（業態タブに追従）
   const groupTotals = useMemo(() => {
     let sales = 0,
       profit = 0;
-    for (const biz of ALL_BUSINESSES) {
-      const byArea = data[biz.id];
-      if (!byArea) continue;
+    const byArea = data[category];
+    if (byArea) {
       for (const aId of Object.keys(byArea)) {
         sales += Number(byArea[aId].targetSales ?? 0);
         profit += Number(byArea[aId].targetProfit ?? 0);
@@ -78,25 +81,25 @@ export default function TargetsGroupView({ year, month }: Props) {
     }
     const margin = sales > 0 ? Math.round((profit / sales) * 1000) / 10 : 0;
     return { sales, profit, margin };
-  }, [data]);
+  }, [data, category]);
 
-  // エリア別テーブル用: 全エリア横断合算（5業態合計）
+  // エリア別テーブル用: 選択業態の全エリア値（業態タブに追従）
   const areaSummary = useMemo(() => {
     const result: Record<string, Record<MetricKey, number>> = {};
+    const byArea = data[category] ?? {};
     for (const aId of ALL_AREA_IDS) {
       const row: Record<MetricKey, number> = {
         targetSales: 0, targetProfit: 0, targetAdCost: 0,
         targetCount: 0, targetHelpSales: 0, targetHelpCount: 0,
       };
-      for (const biz of ALL_BUSINESSES) {
-        const t = data[biz.id]?.[aId];
-        if (!t) continue;
+      const t = byArea[aId];
+      if (t) {
         for (const m of TARGETS_METRICS) row[m.key] += Number(t[m.key] ?? 0);
       }
       result[aId] = row;
     }
     return result;
-  }, [data]);
+  }, [data, category]);
 
   // 業態別クロス: 業態×指標、グループ計列含む
   const cross = useMemo(() => {
@@ -145,11 +148,11 @@ export default function TargetsGroupView({ year, month }: Props) {
         }}
       >
         <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.75, marginBottom: 12, letterSpacing: "0.06em" }}>
-          グループ全体目標 ({year}年{month}月)
+          {categoryLabel} グループ目標 ({year}年{month}月)
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-          <BannerKpi label="グループ売上目標" value={formatYen(groupTotals.sales)} />
-          <BannerKpi label="グループ粗利目標" value={formatYen(groupTotals.profit)} />
+          <BannerKpi label={`${categoryLabel} 売上目標`} value={formatYen(groupTotals.sales)} />
+          <BannerKpi label={`${categoryLabel} 粗利目標`} value={formatYen(groupTotals.profit)} />
           <BannerKpi
             label="平均粗利率目標"
             value={groupTotals.sales > 0 ? `${groupTotals.margin.toFixed(1)}%` : "—"}
@@ -171,7 +174,7 @@ export default function TargetsGroupView({ year, month }: Props) {
             textTransform: "uppercase", letterSpacing: "0.07em",
           }}
         >
-          エリア別目標値（全業態合算、参照のみ）
+          {categoryLabel} エリア別目標値（参照のみ）
         </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
@@ -198,10 +201,10 @@ export default function TargetsGroupView({ year, month }: Props) {
                   </tr>
                 );
               })}
-              {/* グループ計 */}
+              {/* 業態合計（選択業態のみ） */}
               <tr style={{ background: "#ecfdf5" }}>
                 <td style={{ ...tdLabel(), fontWeight: 800, color: "#065f46", borderTop: "2px solid #d1fae5" }}>
-                  グループ計
+                  {categoryLabel} 計
                 </td>
                 {TARGETS_METRICS.map((m) => {
                   const total = ALL_AREA_IDS.reduce((s, aId) => s + areaSummary[aId][m.key], 0);
