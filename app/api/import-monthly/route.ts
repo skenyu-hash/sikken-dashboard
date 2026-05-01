@@ -1,13 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql } from "../../lib/db";
+import { num } from "../../lib/utils/numberCoerce";
+
+type ImportRow = Record<string, unknown>;
+type RowError = { index: number; error: string; area_id?: string };
 
 export async function POST(req: NextRequest) {
+  let rows: ImportRow[] = [];
+  let cat: string = "water";
   try {
-    const { rows, category } = await req.json();
-    const cat: string = category ?? "water";
-    const sql = getSql();
-    let imported = 0;
-    for (const row of rows) {
+    const body = await req.json();
+    rows = Array.isArray(body?.rows) ? body.rows : [];
+    cat = typeof body?.category === "string" && body.category ? body.category : "water";
+  } catch {
+    return NextResponse.json(
+      { success: false, imported: 0, errors: [{ index: -1, error: "invalid JSON body" }] },
+      { status: 400 }
+    );
+  }
+
+  const sql = getSql();
+  let imported = 0;
+  const errors: RowError[] = [];
+
+  // 各行を独立した try/catch で処理。1件失敗しても他行は継続。
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i] ?? {};
+    try {
+      if (!row.area_id || typeof row.area_id !== "string") {
+        throw new Error("missing or invalid area_id");
+      }
+      const year = num(row.year);
+      const month = num(row.month);
+      if (year < 2000 || year > 2100) {
+        throw new Error(`invalid year: ${row.year}`);
+      }
+      if (month < 1 || month > 12) {
+        throw new Error(`invalid month: ${row.month}`);
+      }
+
       await sql`
         INSERT INTO monthly_summaries (
           area_id, business_category, year, month,
@@ -16,11 +47,11 @@ export async function POST(req: NextRequest) {
           call_count, call_unit_price, conv_rate, profit_rate,
           help_revenue, help_count, help_unit_price, vehicle_count
         ) VALUES (
-          ${row.area_id}, ${cat}, ${row.year}, ${row.month},
-          ${row.total_revenue ?? 0}, ${row.total_profit ?? 0}, ${row.total_count ?? 0}, ${row.unit_price ?? 0},
-          ${row.ad_cost ?? 0}, ${row.ad_rate ?? 0}, ${row.acquisition_count ?? 0}, ${row.cpa ?? 0},
-          ${row.call_count ?? 0}, ${row.call_unit_price ?? 0}, ${row.conv_rate ?? 0}, ${row.profit_rate ?? 0},
-          ${row.help_revenue ?? 0}, ${row.help_count ?? 0}, ${row.help_unit_price ?? 0}, ${row.vehicle_count ?? 0}
+          ${row.area_id}, ${cat}, ${year}, ${month},
+          ${num(row.total_revenue)}, ${num(row.total_profit)}, ${num(row.total_count)}, ${num(row.unit_price)},
+          ${num(row.ad_cost)}, ${num(row.ad_rate)}, ${num(row.acquisition_count)}, ${num(row.cpa)},
+          ${num(row.call_count)}, ${num(row.call_unit_price)}, ${num(row.conv_rate)}, ${num(row.profit_rate)},
+          ${num(row.help_revenue)}, ${num(row.help_count)}, ${num(row.help_unit_price)}, ${num(row.vehicle_count)}
         )
         ON CONFLICT (area_id, business_category, year, month) DO UPDATE SET
           total_revenue=EXCLUDED.total_revenue, total_profit=EXCLUDED.total_profit,
@@ -33,9 +64,17 @@ export async function POST(req: NextRequest) {
           help_unit_price=EXCLUDED.help_unit_price, vehicle_count=EXCLUDED.vehicle_count
       `;
       imported++;
+    } catch (e) {
+      errors.push({
+        index: i,
+        error: String(e instanceof Error ? e.message : e),
+        area_id: typeof row.area_id === "string" ? row.area_id : undefined,
+      });
     }
-    return NextResponse.json({ success: true, imported });
-  } catch (e) {
-    return NextResponse.json({ success: false, error: String(e) }, { status: 500 });
   }
+
+  // 既存クライアント互換: success フラグと imported カウントは従来通り。
+  // 加えて errors 配列で部分失敗を返却（既存の json.error は廃止）。
+  const success = errors.length === 0;
+  return NextResponse.json({ success, imported, errors });
 }
