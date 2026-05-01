@@ -20,7 +20,7 @@ const items = [
     { href: "/ranking",   label: "ランキング" },
     { href: "/trends",    label: "推移" },
     { href: "/matrix",    label: "マトリクス" },
-    { href: "/targets",   label: "目標" },
+    { href: "/targets",   label: "目標管理" },
     { href: "/meeting",   label: "会議" },
     { href: "/minutes",   label: "議事録" },
     { href: "/breakeven", label: "損益分岐" },
