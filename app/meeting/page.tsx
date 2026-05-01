@@ -67,6 +67,7 @@ function MetricRow({ label, actual, target, isEndPeriod, daysElapsed, daysInMont
       </td>
       <td style={{ ...td, whiteSpace: "nowrap" }}>
         {gap === null ? <span style={{ color: "#d1d5db", fontSize: 11 }}>{"\u2014"}</span> : (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: gapPositive ? "#059669" : "#dc2626" }}>
               {gap >= 0 ? "+" : "\u2212"}{format(Math.abs(gap))}
@@ -77,6 +78,16 @@ function MetricRow({ label, actual, target, isEndPeriod, daysElapsed, daysInMont
               {gapPositive ? "超過" : "不足"}
             </span>
           </span>
+          {target > 0 && (
+            <span style={{
+              fontSize: 10, color: "#6b7280", fontWeight: 500,
+              borderTop: "1px dashed #e5e7eb", paddingTop: 3,
+              whiteSpace: "nowrap", textAlign: "right",
+            }}>
+              🎯 目標: {format(target)}
+            </span>
+          )}
+          </div>
         )}
       </td>
       <td style={td}>
