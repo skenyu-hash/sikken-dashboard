@@ -333,16 +333,21 @@ export default function Dashboard() {
     return () => { cancelled = true; };
   }, [viewMode, activeCompany, viewYear, viewMonth]);
 
-  // ============ 過去月サマリー取得 ============
+  // ============ 月次サマリー取得（常時、エントリ有無問わず正規データソースとして優先）============
+  // 旧仕様: entries.length === 0 のときだけ fetch していたため、daily entries が
+  //        1件でもあると monthly_summaries が無視され、画面と DB が乖離していた。
+  // 新仕様: monthly_summaries が存在すれば常に displaySummary 側で優先され、
+  //        無ければ daily entries の集計（summary）にフォールバック。
+  // 関連: KNOWN_ISSUES sec3「月次/日次の集計経路の不整合」を本変更で解消。
   useEffect(() => {
-    if (entries.length === 0 && !isGroup && activeTab && viewMode === "business") {
+    if (!isGroup && activeTab && viewMode === "business") {
       fetch(`/api/monthly-summary?area=${activeTab}&year=${viewYear}&month=${viewMonth}&category=${activeBusiness}`)
         .then((r) => r.ok ? r.json() : { summary: null })
         .then((j) => setMonthlySummary(j.summary ?? null));
     } else {
       setMonthlySummary(null);
     }
-  }, [entries, activeTab, viewYear, viewMonth, isGroup, activeBusiness, viewMode]);
+  }, [activeTab, viewYear, viewMonth, isGroup, activeBusiness, viewMode]);
 
   // ============ 閲覧ログ ============
   useEffect(() => {
