@@ -4,6 +4,12 @@ import { emptyTargets, type Targets } from "../lib/calculations";
 import { useRole } from "../components/RoleProvider";
 import { CAN_EDIT_TARGETS } from "../lib/roles";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
+import { COMPANIES } from "../lib/companies";
+import TargetsMatrix, { TARGETS_METRICS, formatByUnit } from "./components/TargetsMatrix";
+import TargetsGroupView from "./components/TargetsGroupView";
+import TargetsCompanyView from "./components/TargetsCompanyView";
+import { useSaveStatus, type SaveStatus } from "./lib/useDebounceSave";
+import { buildTargetsCsv, buildTargetsFilename, downloadTargetsCsv } from "./lib/csvExport";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -12,15 +18,19 @@ const ALL_AREAS = [
   { id: "chugoku", name: "中国" }, { id: "shizuoka", name: "静岡" },
 ];
 
+const GROUP_TAB_ID = "__group__";
+type ViewMode = "business" | "company";
+
 export default function TargetsPage() {
   const now = new Date();
   const role = useRole();
   const canEdit = role !== null && CAN_EDIT_TARGETS.includes(role);
+
+  // 月選択（無制限、PR #19 と同パターン）
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(currentMonth);
-  // 月送りは過去・未来とも無制限（経営層が任意の月の目標を確認・編集可能）。
   function gotoPrevMonth() {
     const d = new Date(year, month - 2, 1);
     setYear(d.getFullYear());
@@ -31,241 +41,365 @@ export default function TargetsPage() {
     setYear(d.getFullYear());
     setMonth(d.getMonth() + 1);
   }
+
+  // 表示モード
+  const [viewMode, setViewMode] = useState<ViewMode>("business");
+
+  // 事業別モード state
   const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
   const businessAreas = useMemo(() => {
-    const biz = BUSINESSES.find(b => b.id === activeBusiness);
+    const biz = BUSINESSES.find((b) => b.id === activeBusiness);
     if (!biz) return ALL_AREAS;
-    return biz.areas.map(id => ALL_AREAS.find(a => a.id === id)).filter(Boolean) as typeof ALL_AREAS;
+    return biz.areas.map((id) => ALL_AREAS.find((a) => a.id === id)).filter(Boolean) as typeof ALL_AREAS;
   }, [activeBusiness]);
-  const [areaId, setAreaId] = useState(ALL_AREAS[0].id);
-  const [targets, setTargets] = useState<Targets>(emptyTargets());
-  const [saving, setSaving] = useState(false);
-  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  // 事業別エリアタブ: areaId or GROUP_TAB_ID
+  const [activeAreaTab, setActiveAreaTab] = useState<string>(GROUP_TAB_ID);
 
-  // 事業切替時にエリアリセット
-  useEffect(() => {
-    const biz = BUSINESSES.find(b => b.id === activeBusiness);
-    if (biz && !biz.areas.includes(areaId)) {
-      setAreaId(biz.areas[0]);
+  // 会社別モード state
+  const [activeCompanyId, setActiveCompanyId] = useState<string>(COMPANIES[0]?.id ?? "");
+
+  // 保存状態（TargetsMatrix から伝播）
+  const { status: matrixStatus, flash: matrixFlash } = useSaveStatus();
+  const [bubbledStatus, setBubbledStatus] = useState<SaveStatus>("idle");
+  const [bubbledFlash, setBubbledFlash] = useState(false);
+  const displayStatus: SaveStatus = bubbledStatus !== "idle" ? bubbledStatus : matrixStatus;
+  const displayFlash = bubbledFlash || matrixFlash;
+
+  // 「前月の値をコピー」: confirm → /api/targets-bulk から前月取得 → 全エリア upsert
+  const [copyingPrev, setCopyingPrev] = useState(false);
+  const [copyMsg, setCopyMsg] = useState<string | null>(null);
+  async function copyPreviousMonth() {
+    if (!canEdit) return;
+    if (!confirm(`前月（${month === 1 ? year - 1 : year}年${month === 1 ? 12 : month - 1}月）の値を ${year}年${month}月 の全エリアに上書きコピーします。よろしいですか？`)) return;
+    setCopyingPrev(true);
+    setCopyMsg(null);
+    try {
+      const prevY = month === 1 ? year - 1 : year;
+      const prevM = month === 1 ? 12 : month - 1;
+      const fetched = await Promise.all(
+        businessAreas.map(async (a) => {
+          const r = await fetch(
+            `/api/targets?area=${a.id}&year=${prevY}&month=${prevM}&category=${activeBusiness}`
+          );
+          const j = r.ok ? await r.json() : { targets: emptyTargets() };
+          return { areaId: a.id, targets: { ...emptyTargets(), ...(j.targets ?? {}) } };
+        })
+      );
+      const results = await Promise.all(
+        fetched.map((row) =>
+          fetch("/api/targets", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ areaId: row.areaId, year, month, targets: row.targets, category: activeBusiness }),
+          }).then((r) => r.ok)
+        )
+      );
+      const okCount = results.filter(Boolean).length;
+      setCopyMsg(`${okCount}/${results.length} エリアにコピーしました（要画面リロードで反映確認）`);
+    } catch {
+      setCopyMsg("コピー中にエラーが発生しました");
     }
-  }, [activeBusiness, areaId]);
+    setCopyingPrev(false);
+  }
 
+  // 「全エリア同じ値を設定」: 簡易 prompt 実装
+  const [bulkSetting, setBulkSetting] = useState(false);
+  async function setAllAreasSameValue() {
+    if (!canEdit) return;
+    const fieldList = TARGETS_METRICS.map((m) => m.label).join(" / ");
+    const fieldLabel = prompt(
+      `どの指標を全エリアに同値設定しますか？\n選択肢: ${fieldList}\n（正確な指標名を入力してください）`
+    );
+    if (!fieldLabel) return;
+    const metric = TARGETS_METRICS.find((m) => m.label === fieldLabel.trim());
+    if (!metric) {
+      alert("指標名が一致しません。キャンセルします。");
+      return;
+    }
+    const valStr = prompt(`「${metric.label}」を全エリアに設定する値（数値）を入力してください`);
+    if (valStr === null) return;
+    const val = parseFloat(valStr) || 0;
+    setBulkSetting(true);
+    try {
+      const fetched = await Promise.all(
+        businessAreas.map(async (a) => {
+          const r = await fetch(
+            `/api/targets?area=${a.id}&year=${year}&month=${month}&category=${activeBusiness}`
+          );
+          const j = r.ok ? await r.json() : { targets: emptyTargets() };
+          const t = { ...emptyTargets(), ...(j.targets ?? {}), [metric.key]: val };
+          return { areaId: a.id, targets: t };
+        })
+      );
+      await Promise.all(
+        fetched.map((row) =>
+          fetch("/api/targets", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ areaId: row.areaId, year, month, targets: row.targets, category: activeBusiness }),
+          })
+        )
+      );
+      setCopyMsg(`「${metric.label}」を全${businessAreas.length}エリアに ${val} を設定しました（要画面リロード）`);
+    } catch {
+      setCopyMsg("一括設定中にエラーが発生しました");
+    }
+    setBulkSetting(false);
+  }
+
+  // 「CSVエクスポート」: 現在のエリア別ビューを CSV 化
+  async function exportCsv() {
+    const fetched = await Promise.all(
+      businessAreas.map(async (a) => {
+        const r = await fetch(
+          `/api/targets?area=${a.id}&year=${year}&month=${month}&category=${activeBusiness}`
+        );
+        const j = r.ok ? await r.json() : { targets: emptyTargets() };
+        return { areaId: a.id, areaName: a.name, targets: { ...emptyTargets(), ...(j.targets ?? {}) } };
+      })
+    );
+    const headers = ["エリアID", "エリア", ...TARGETS_METRICS.map((m) => m.label)];
+    const rows = fetched.map((row) => [
+      row.areaId,
+      row.areaName,
+      ...TARGETS_METRICS.map((m) => Number(row.targets[m.key as keyof Targets] ?? 0)),
+    ]);
+    const csv = buildTargetsCsv(headers, rows);
+    const filename = buildTargetsFilename(activeBusiness, year, month);
+    downloadTargetsCsv(filename, csv);
+  }
+
+  // 表示モード変更時にエリアタブ初期化
   useEffect(() => {
-    fetch(`/api/targets?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
-      .then((r) => (r.ok ? r.json() : { targets: emptyTargets() }))
-      .then((j) => setTargets({ ...emptyTargets(), ...j.targets }));
-  }, [areaId, year, month, activeBusiness]);
+    if (viewMode === "business") {
+      const biz = BUSINESSES.find((b) => b.id === activeBusiness);
+      if (biz && activeAreaTab !== GROUP_TAB_ID && !biz.areas.includes(activeAreaTab)) {
+        setActiveAreaTab(GROUP_TAB_ID);
+      }
+    }
+  }, [viewMode, activeBusiness, activeAreaTab]);
 
-  async function save() {
-    setSaving(true);
-    setSavedMsg(null);
-    const res = await fetch("/api/targets", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ areaId, year, month, targets, category: activeBusiness }),
-    });
-    setSaving(false);
-    setSavedMsg(res.ok ? "保存しました" : "保存に失敗しました");
-  }
-
-  function setField(k: keyof Targets, raw: string) {
-    const num = raw === "" ? 0 : parseFloat(raw) || 0;
-    setTargets((t) => ({ ...t, [k]: num }));
-  }
-  function displayVal(k: keyof Targets): string {
-    const v = targets[k] ?? 0;
-    if (!v) return "";
-    return String(v);
-  }
+  // 業態切替時はグループ全体タブに戻す（既存動作の安全側維持）
+  useEffect(() => {
+    setActiveAreaTab(GROUP_TAB_ID);
+  }, [activeBusiness]);
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
+      {/* ヘッダー（緑グラデ） */}
       <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
-        {/* 事業タブ */}
-        <div style={{ display: "flex", gap: 4, padding: "8px 24px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-          {BUSINESSES.map((b) => (
-            <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
-              style={{
-                padding: "5px 12px", borderRadius: "6px 6px 0 0",
-                fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
-                background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
-                color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
-                whiteSpace: "nowrap",
-              }}>
-              {b.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 24px 8px" }}>
-          <select
-            value={areaId}
-            onChange={(e) => setAreaId(e.target.value)}
-            style={{
-              background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.35)",
-              color: "#fff", borderRadius: "8px", padding: "6px 12px", fontSize: "13px", fontWeight: 700,
-            }}
-          >
-            {businessAreas.map((a) => (
-              <option key={a.id} value={a.id} style={{ color: "#111" }}>{a.name}エリア</option>
-            ))}
-          </select>
-          {canEdit ? (
-            <button
-              onClick={save}
-              disabled={saving}
-              style={{
-                background: "#fff", color: "#059669", border: "none", borderRadius: "8px",
-                padding: "8px 24px", fontSize: "13px", fontWeight: 700, cursor: "pointer",
-                opacity: saving ? 0.6 : 1,
-              }}
-            >
-              {saving ? "保存中..." : "目標を保存"}
-            </button>
+        {/* 表示モードトグル + タブ列 */}
+        <div style={{ padding: "8px 24px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          {/* タブ群（事業 or 会社） */}
+          {viewMode === "business" ? (
+            <div style={{ display: "flex", gap: 4, overflowX: "auto" }}>
+              {BUSINESSES.map((b) => (
+                <button
+                  key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+                  style={{
+                    padding: "5px 12px", borderRadius: "6px 6px 0 0",
+                    fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                    background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
+                    color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                    whiteSpace: "nowrap",
+                  }}
+                >{b.label}</button>
+              ))}
+            </div>
           ) : (
-            <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.7)" }}>閲覧のみ（役員・管理職のみ編集可）</span>
+            <div style={{ display: "flex", gap: 4, overflowX: "auto" }}>
+              {COMPANIES.map((c) => (
+                <button
+                  key={c.id} type="button" onClick={() => setActiveCompanyId(c.id)}
+                  style={{
+                    padding: "5px 12px", borderRadius: "6px 6px 0 0",
+                    fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                    background: activeCompanyId === c.id ? "rgba(255,255,255,0.25)" : "transparent",
+                    color: activeCompanyId === c.id ? "#fff" : "rgba(255,255,255,0.55)",
+                    whiteSpace: "nowrap",
+                  }}
+                >{c.name}</button>
+              ))}
+            </div>
           )}
+          {/* 表示モードトグル */}
+          <div style={{ display: "flex", gap: 4 }}>
+            <button
+              type="button" onClick={() => setViewMode("business")}
+              style={modeBtnStyle(viewMode === "business")}
+            >事業別</button>
+            <button
+              type="button" onClick={() => setViewMode("company")}
+              style={modeBtnStyle(viewMode === "company")}
+            >会社別</button>
+          </div>
         </div>
+
+        {/* エリア + 保存状態 */}
+        <div style={{ padding: "10px 24px 8px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          {viewMode === "business" ? (
+            <div style={{ display: "flex", gap: 4, overflowX: "auto", flexWrap: "wrap" }}>
+              {[...businessAreas, { id: GROUP_TAB_ID, name: "グループ全体" }].map((a) => (
+                <button
+                  key={a.id} type="button" onClick={() => setActiveAreaTab(a.id)}
+                  style={{
+                    padding: "5px 14px", borderRadius: 16, fontSize: 11, fontWeight: 700,
+                    cursor: "pointer",
+                    border: a.id === GROUP_TAB_ID ? "1px solid rgba(255,255,255,0.5)" : "1px solid rgba(255,255,255,0.2)",
+                    background: activeAreaTab === a.id ? "rgba(255,255,255,0.3)" : "transparent",
+                    color: activeAreaTab === a.id ? "#fff" : "rgba(255,255,255,0.75)",
+                    whiteSpace: "nowrap",
+                  }}
+                >{a.name}{a.id === GROUP_TAB_ID && " 🌐"}</button>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>
+              ※ 会社別ビューは参照のみ。編集は「事業別」モードに切替えてください。
+            </div>
+          )}
+          {/* 保存ステータス */}
+          <SaveIndicator status={displayStatus} flash={displayFlash} />
+        </div>
+
+        {/* タイトル + 月ナビ */}
         <div style={{ padding: "0 24px 14px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <button type="button" onClick={gotoPrevMonth}
-              style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 14 }}>◀</button>
-            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{year}年{month}月</span>
-            <button type="button" onClick={gotoNextMonth}
-              style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 14 }}>▶</button>
+            <button type="button" onClick={gotoPrevMonth} style={navBtn()}>◀</button>
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>
+              {year}年{month}月
+            </span>
+            <button type="button" onClick={gotoNextMonth} style={navBtn()}>▶</button>
           </div>
-          <h1 style={{ fontSize: "20px", fontWeight: 800, color: "#fff" }}>月次目標設定</h1>
+          <h1 style={{ fontSize: "20px", fontWeight: 800, color: "#fff" }}>月次目標管理</h1>
           <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.65)", marginTop: "3px" }}>
-            {year}年{month}月 ／ {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {ALL_AREAS.find((a) => a.id === areaId)?.name}エリア
+            {viewMode === "business" ? (
+              <>
+                {year}年{month}月 ／ {BUSINESSES.find((b) => b.id === activeBusiness)?.label}
+                {activeAreaTab === GROUP_TAB_ID
+                  ? " ／ グループ全体"
+                  : ` ／ ${ALL_AREAS.find((a) => a.id === activeAreaTab)?.name ?? ""}エリア`}
+              </>
+            ) : (
+              <>
+                {year}年{month}月 ／ {COMPANIES.find((c) => c.id === activeCompanyId)?.name ?? ""}
+              </>
+            )}
           </p>
         </div>
       </div>
 
-      {savedMsg && (
-        <div
-          style={{
-            background: savedMsg.includes("失敗") ? "#fee2e2" : "#d1fae5",
-            color: savedMsg.includes("失敗") ? "#7f1d1d" : "#064e3b",
-            padding: "10px 24px", fontSize: "13px", fontWeight: 600, textAlign: "center",
-          }}
-        >
-          {savedMsg}
+      {/* 便利機能バー（事業別 + 通常エリアタブ時のみ） */}
+      {viewMode === "business" && activeAreaTab !== GROUP_TAB_ID && (
+        <div style={{ padding: "12px 24px 0", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {canEdit && (
+            <button type="button" onClick={copyPreviousMonth} disabled={copyingPrev} style={utilBtn(copyingPrev)}>
+              📋 前月の値をコピー
+            </button>
+          )}
+          {canEdit && (
+            <button type="button" onClick={setAllAreasSameValue} disabled={bulkSetting} style={utilBtn(bulkSetting)}>
+              📐 全エリア同じ値を設定
+            </button>
+          )}
+          <button type="button" onClick={exportCsv} style={utilBtn(false)}>📤 CSVエクスポート</button>
+          {copyMsg && (
+            <span style={{ fontSize: 11, color: "#065f46", fontWeight: 700, alignSelf: "center", marginLeft: 8 }}>
+              {copyMsg}
+            </span>
+          )}
         </div>
       )}
 
+      {/* メインビュー */}
       <div style={{ padding: "16px 20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
-          <FieldSection title="① 全体KPI" fields={[
-            { key: "targetSales", label: "売上目標", unit: "万円", color: "#059669", step: "any" },
-            { key: "targetProfit", label: "粗利目標", unit: "万円", color: "#059669", step: "any" },
-            { key: "targetCount", label: "獲得件数目標", unit: "件", color: "#3b82f6", step: "any" },
-            { key: "targetUnitPrice", label: "客単価目標", unit: "円", color: "#3b82f6", step: "any" },
-            { key: "targetCpa", label: "CPA目標", unit: "円", color: "#3b82f6", step: "any" },
-            { key: "targetConversionRate", label: "成約率目標", unit: "%", color: "#3b82f6", step: "any" },
-          ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
-
-          <FieldSection title="② HELP部門目標" fields={[
-            { key: "targetHelpSales", label: "HELP売上目標", unit: "万円", color: "#0891b2", step: "any" },
-            { key: "targetHelpCount", label: "HELP件数目標", unit: "件", color: "#0891b2", step: "any" },
-            { key: "targetHelpUnitPrice", label: "HELP客単価目標", unit: "円", color: "#0891b2", step: "any" },
-            { key: "targetHelpRate", label: "HELP率目標", unit: "%", color: "#0891b2", step: "any" },
-          ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
-          <FieldSection title="③ 部門別目標 — 自社施工" fields={[
-            { key: "targetSelfSales", label: "売上目標", unit: "万円", color: "#059669", step: "any" },
-            { key: "targetSelfProfit", label: "粗利目標", unit: "万円", color: "#059669", step: "any" },
-            { key: "targetSelfCount", label: "件数目標", unit: "件", color: "#3b82f6", step: "any" },
-          ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
-
-          <FieldSection title="③ 部門別目標 — 新規営業" fields={[
-            { key: "targetNewSales", label: "売上目標", unit: "万円", color: "#3b82f6", step: "any" },
-            { key: "targetNewProfit", label: "粗利目標", unit: "万円", color: "#3b82f6", step: "any" },
-            { key: "targetNewCount", label: "件数目標", unit: "件", color: "#3b82f6", step: "any" },
-          ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
-          <FieldSection title="④ コスト指標" fields={[
-            { key: "targetAdCost", label: "広告費目標", unit: "万円", color: "#d97706", step: "any" },
-            { key: "targetAdRate", label: "広告費率目標", unit: "%", color: "#d97706", step: "any" },
-            { key: "targetLaborRate", label: "職人費率目標", unit: "%", color: "#d97706", step: "any" },
-            { key: "targetMaterialRate", label: "材料費率目標", unit: "%", color: "#d97706", step: "any" },
-          ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
-
-          <FieldSection title="⑤ その他KPI" fields={[
-            { key: "targetVehicleCount", label: "車両数", unit: "台", color: "#dc2626", step: "any" },
-            { key: "targetCallCount", label: "入電件数目標", unit: "件", color: "#3b82f6", step: "any" },
-            { key: "targetCallUnitPrice", label: "入電単価目標", unit: "円", color: "#3b82f6", step: "any" },
-            { key: "targetConstructionRate", label: "工事取得率目標", unit: "%", color: "#dc2626", step: "any" },
-            { key: "targetPassRate", label: "パス率目標", unit: "%", color: "#dc2626", step: "any" },
-          ]} setField={setField} displayVal={displayVal} canEdit={canEdit} />
-        </div>
+        {viewMode === "business" && activeAreaTab === GROUP_TAB_ID && (
+          <TargetsGroupView
+            areas={businessAreas}
+            category={activeBusiness}
+            year={year}
+            month={month}
+          />
+        )}
+        {viewMode === "business" && activeAreaTab !== GROUP_TAB_ID && (
+          <TargetsMatrix
+            areas={businessAreas.filter((a) => a.id === activeAreaTab)}
+            category={activeBusiness}
+            year={year}
+            month={month}
+            canEdit={canEdit}
+            onSaveStatusChange={(s, f) => {
+              setBubbledStatus(s);
+              setBubbledFlash(f);
+            }}
+          />
+        )}
+        {viewMode === "company" && (
+          <TargetsCompanyView
+            activeCompanyId={activeCompanyId}
+            year={year}
+            month={month}
+            onChangeBusinessRequest={(category, areaId) => {
+              setViewMode("business");
+              setActiveBusiness(category);
+              setActiveAreaTab(areaId);
+            }}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-type FieldDef = {
-  key: keyof Targets;
-  label: string;
-  unit: string;
-  color: string;
-  step?: string;
-};
+// formatByUnit は意図的に未使用（page.tsx 内では子コンポーネントが使用）
+void formatByUnit;
 
-function FieldSection({
-  title, fields, setField, displayVal, canEdit,
-}: {
-  title: string;
-  fields: FieldDef[];
-  setField: (k: keyof Targets, v: string) => void;
-  displayVal: (k: keyof Targets) => string;
-  canEdit: boolean;
-}) {
+function modeBtnStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "4px 12px", fontSize: 11, fontWeight: 700,
+    border: "1px solid rgba(255,255,255,0.4)", borderRadius: 6,
+    background: active ? "rgba(255,255,255,0.25)" : "transparent",
+    color: "#fff", cursor: "pointer",
+  };
+}
+
+function navBtn(): React.CSSProperties {
+  return {
+    background: "rgba(255,255,255,0.15)", border: "none", color: "#fff",
+    borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 14,
+  };
+}
+
+function utilBtn(disabled: boolean): React.CSSProperties {
+  return {
+    padding: "6px 12px", fontSize: 11, fontWeight: 700,
+    border: "1px solid #d1fae5", borderRadius: 8,
+    background: disabled ? "#f3f4f6" : "#fff",
+    color: disabled ? "#9ca3af" : "#065f46",
+    cursor: disabled ? "default" : "pointer",
+    opacity: disabled ? 0.6 : 1,
+  };
+}
+
+function SaveIndicator({ status, flash }: { status: SaveStatus; flash: boolean }) {
+  if (status === "idle" && !flash) {
+    return <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>—</span>;
+  }
+  const dotStyle: React.CSSProperties = {
+    display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+    background: status === "saving" ? "#fbbf24" : status === "error" ? "#ef4444" : "#10b981",
+    boxShadow: flash ? "0 0 0 4px rgba(16,185,129,0.3)" : "none",
+    transition: "box-shadow 0.4s ease",
+  };
+  const label =
+    status === "saving" ? "保存中..."
+    : status === "error" ? "保存失敗"
+    : flash ? "保存済み ✓"
+    : "保存済み";
   return (
-    <div style={{ background: "#fff", borderRadius: "10px", border: "1px solid #d1fae5", overflow: "hidden" }}>
-      <div
-        style={{
-          background: "#ecfdf5", padding: "8px 14px", borderBottom: "1px solid #d1fae5",
-          fontSize: "11px", fontWeight: 700, color: "#065f46",
-          textTransform: "uppercase", letterSpacing: "0.07em",
-        }}
-      >
-        {title}
-      </div>
-      <div style={{ padding: "4px 14px 8px" }}>
-        {fields.map((f) => (
-          <div
-            key={f.key}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "8px 0", borderBottom: "1px solid #f5faf5",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-              <div style={{ width: "3px", height: "14px", borderRadius: "1px", background: f.color, flexShrink: 0 }} />
-              <span style={{ fontSize: "12px", fontWeight: 700, color: "#374151" }}>{f.label}</span>
-              <span style={{ fontSize: "10px", color: "#9ca3af" }}>（{f.unit}）</span>
-            </div>
-            <input
-              type="number"
-              step={f.step ?? "any"}
-              disabled={!canEdit}
-              value={displayVal(f.key)}
-              onChange={(e) => setField(f.key, e.target.value)}
-              placeholder="0"
-              style={{
-                width: "130px", height: "32px",
-                border: "1px solid #d1fae5", borderRadius: "6px",
-                padding: "0 10px", fontSize: "12px", fontWeight: 600,
-                textAlign: "right", color: "#111", background: "#fff",
-                outline: "none", opacity: canEdit ? 1 : 0.6,
-              }}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "#fff", fontWeight: 600 }}>
+      <span style={dotStyle} />
+      <span>{label}</span>
+    </span>
   );
 }
