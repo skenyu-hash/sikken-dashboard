@@ -172,3 +172,40 @@ PR-B では **テンプレート出力側のみ**を実装する：
 
 ### 月次テンプレ列の除外メモ
 - テンプレ列から `call_unit_price` を除外（22→21列、計算項目のため入力不要）
+
+---
+
+## 5. デバッグエンドポイント `/api/debug/monthly-summary` の暫定運用
+
+### 概要
+PR #20 (`fix/import-monthly-error-handling`) マージ後も nagoya/kyushu の集計値が期待値と乖離する事象を調査するため、`monthly_summaries` テーブルの生レコードを読み取るデバッグ用 GET エンドポイントを暫定追加した。
+
+### 仕様
+- **パス**: `GET /api/debug/monthly-summary?year=YYYY&month=M&area_id=xxx`
+- **認証**: executive ロールのみ（他ロールは 403）
+- **CORS**: 同一オリジンのみ許可（Origin ヘッダが host と異なる場合 403）
+- **副作用**: なし（SELECT 4 種を実行するのみ）
+- **アクセスログ**: Vercel Functions Logs に呼出ユーザー（メール/ID）/ クエリ内容 / 時刻を記録
+- **返却内容**: rows / duplicates / distinctCategories / nullCategoryCount / summary（perArea, perCategory）
+
+### 解決すべき仮説
+- A. 多重レコード（PK 制約破損）→ duplicates で検出
+- B. business_category 表記ゆれ → distinctCategories で検出
+- C. ダッシュボード側集計バグ → rows と画面値の照合で判定
+- D. 過去のテストデータ残存（NULL business_category）→ nullCategoryCount で検出
+
+### 使用期限と削除計画
+
+**Phase 9.5 で削除 or admin UI に統合する**。本エンドポイントは：
+- DB の全カラムを露出する（経営機密データ）
+- 認証は executive のみだが、永続化すべき設計ではない
+- 調査目的の暫定追加であり、長期運用は想定していない
+
+Phase 9.5 の作業内容に「`/api/debug/monthly-summary` の削除 or 管理画面統合」を含めること。具体的には：
+- 削除案: PR で `app/api/debug/` ディレクトリごと削除
+- 統合案: `/admin` 配下に admin 専用 UI として組み込み、フィルタ・ソート機能を追加
+
+### 関連 PR
+
+- 追加 PR: `feat/debug-monthly-data`（本エントリ追記時点で作業中）
+- 起点となった事象: PR #20 マージ後の nagoya/kyushu 集計乖離（2026-05-01 報告）
