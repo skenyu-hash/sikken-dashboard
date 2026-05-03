@@ -8,13 +8,24 @@ type RowError = { index: number; error: string; area_id?: string };
 export async function POST(req: NextRequest) {
   let rows: ImportRow[] = [];
   let cat: string = "water";
+  let asOfDay: number = 0;
   try {
     const body = await req.json();
     rows = Array.isArray(body?.rows) ? body.rows : [];
     cat = typeof body?.category === "string" && body.category ? body.category : "water";
+    asOfDay = Number(body?.as_of_day);
   } catch {
     return NextResponse.json(
       { success: false, imported: 0, errors: [{ index: -1, error: "invalid JSON body" }] },
+      { status: 400 }
+    );
+  }
+
+  // Phase 9.5: as_of_day はリクエストトップレベルの必須フィールド。
+  // 「このインポートが何日時点のスナップショットか」を画面に表示するため。
+  if (!Number.isInteger(asOfDay) || asOfDay < 1 || asOfDay > 31) {
+    return NextResponse.json(
+      { success: false, imported: 0, errors: [{ index: -1, error: "as_of_day is required (1-31)" }] },
       { status: 400 }
     );
   }
@@ -45,13 +56,15 @@ export async function POST(req: NextRequest) {
           total_revenue, total_profit, total_count, unit_price,
           ad_cost, ad_rate, acquisition_count, cpa,
           call_count, call_unit_price, conv_rate, profit_rate,
-          help_revenue, help_count, help_unit_price, vehicle_count
+          help_revenue, help_count, help_unit_price, vehicle_count,
+          as_of_day
         ) VALUES (
           ${row.area_id}, ${cat}, ${year}, ${month},
           ${num(row.total_revenue)}, ${num(row.total_profit)}, ${num(row.total_count)}, ${num(row.unit_price)},
           ${num(row.ad_cost)}, ${num(row.ad_rate)}, ${num(row.acquisition_count)}, ${num(row.cpa)},
           ${num(row.call_count)}, ${num(row.call_unit_price)}, ${num(row.conv_rate)}, ${num(row.profit_rate)},
-          ${num(row.help_revenue)}, ${num(row.help_count)}, ${num(row.help_unit_price)}, ${num(row.vehicle_count)}
+          ${num(row.help_revenue)}, ${num(row.help_count)}, ${num(row.help_unit_price)}, ${num(row.vehicle_count)},
+          ${asOfDay}
         )
         ON CONFLICT (area_id, business_category, year, month) DO UPDATE SET
           total_revenue=EXCLUDED.total_revenue, total_profit=EXCLUDED.total_profit,
@@ -61,7 +74,8 @@ export async function POST(req: NextRequest) {
           call_count=EXCLUDED.call_count, call_unit_price=EXCLUDED.call_unit_price,
           conv_rate=EXCLUDED.conv_rate, profit_rate=EXCLUDED.profit_rate,
           help_revenue=EXCLUDED.help_revenue, help_count=EXCLUDED.help_count,
-          help_unit_price=EXCLUDED.help_unit_price, vehicle_count=EXCLUDED.vehicle_count
+          help_unit_price=EXCLUDED.help_unit_price, vehicle_count=EXCLUDED.vehicle_count,
+          as_of_day=EXCLUDED.as_of_day
       `;
       imported++;
     } catch (e) {

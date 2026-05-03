@@ -33,7 +33,14 @@ export default function ImportPage() {
   const [jsonImported, setJsonImported] = useState<number>(0);
   const [jsonErrors, setJsonErrors] = useState<Array<{ index: number; error: string; area_id?: string }>>([]);
   const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
+  // Phase 9.5: 「このインポートが何日時点のスナップショットか」を保持。
+  // 月中投入が運用上多いため末日固定ではなく「今日」をデフォルトとする。
+  const [asOfDay, setAsOfDay] = useState<number>(new Date().getDate());
   const fileRef = useRef<HTMLInputElement>(null);
+
+  function isValidAsOfDay(v: number): boolean {
+    return Number.isInteger(v) && v >= 1 && v <= 31;
+  }
 
   function handleFile(file: File) {
     setImageFile(file);
@@ -72,19 +79,26 @@ export default function ImportPage() {
 
   async function handleImport() {
     if (extracted.length === 0) return;
-    setImporting(true); setStatus(null);
+    if (!isValidAsOfDay(asOfDay)) {
+      setError("「データの基準日」は 1〜31 の整数で入力してください");
+      return;
+    }
+    setImporting(true); setStatus(null); setError(null);
     try {
       const res = await fetch("/api/import-monthly", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rows: extracted, category: activeBusiness }),
+        body: JSON.stringify({ rows: extracted, category: activeBusiness, as_of_day: asOfDay }),
       });
       const json = await res.json();
       if (json.success) {
-        setStatus(`${json.imported}件のデータをインポートしました`);
+        setStatus(`${json.imported}件のデータをインポートしました（${asOfDay}日時点）`);
         setExtracted([]); setImage(null);
       } else {
-        setError(`インポートエラー: ${json.error}`);
+        const apiErr = Array.isArray(json.errors) && json.errors[0]?.error
+          ? json.errors[0].error
+          : (json.error ?? "unknown");
+        setError(`インポートエラー: ${apiErr}`);
       }
     } catch (e) {
       setError(`エラー: ${String(e)}`);
@@ -103,10 +117,23 @@ export default function ImportPage() {
         ...r,
         area_id: AREA_MAP[r.area_name] ?? r.area_id ?? r.area_name,
       }));
+      // parsed.as_of_day を優先、無ければ画面入力欄からフォールバック。
+      const effectiveAsOfDay = Number.isInteger(Number(parsed.as_of_day))
+        ? Number(parsed.as_of_day)
+        : asOfDay;
+      if (!isValidAsOfDay(effectiveAsOfDay)) {
+        setJsonStatus("as_of_day は 1〜31 の整数で指定してください（JSONトップレベル または 画面の入力欄）");
+        setImportingJson(false);
+        return;
+      }
       const res = await fetch("/api/import-monthly", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rows, category: parsed.category ?? activeBusiness }),
+        body: JSON.stringify({
+          rows,
+          category: parsed.category ?? activeBusiness,
+          as_of_day: effectiveAsOfDay,
+        }),
       });
       const json = await res.json();
       const imported: number = Number(json.imported ?? 0);
@@ -134,20 +161,37 @@ export default function ImportPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
       <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
-        {/* 事業タブ */}
-        <div style={{ display: "flex", gap: 4, padding: "8px 24px 0", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-          {BUSINESSES.map((b) => (
-            <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+        {/* 事業タブ + データ基準日 */}
+        <div style={{ display: "flex", gap: 12, padding: "8px 24px 0", alignItems: "flex-end", borderBottom: "1px solid rgba(255,255,255,0.1)", overflowX: "auto" }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            {BUSINESSES.map((b) => (
+              <button key={b.id} type="button" onClick={() => setActiveBusiness(b.id)}
+                style={{
+                  padding: "5px 12px", borderRadius: "6px 6px 0 0",
+                  fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                  background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
+                  color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
+                  whiteSpace: "nowrap",
+                }}>
+                {b.label}
+              </button>
+            ))}
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto", marginBottom: 4, fontSize: 11, color: "rgba(255,255,255,0.85)", fontWeight: 700, whiteSpace: "nowrap" }}>
+            データは何日時点ですか？
+            <input
+              type="number" min={1} max={31} step={1}
+              value={asOfDay}
+              onChange={(e) => setAsOfDay(parseInt(e.target.value, 10) || 0)}
               style={{
-                padding: "5px 12px", borderRadius: "6px 6px 0 0",
-                fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
-                background: activeBusiness === b.id ? "rgba(255,255,255,0.25)" : "transparent",
-                color: activeBusiness === b.id ? "#fff" : "rgba(255,255,255,0.55)",
-                whiteSpace: "nowrap",
-              }}>
-              {b.label}
-            </button>
-          ))}
+                width: 56, padding: "4px 6px", borderRadius: 6,
+                border: "1px solid rgba(255,255,255,0.4)",
+                background: isValidAsOfDay(asOfDay) ? "rgba(255,255,255,0.95)" : "#fee2e2",
+                color: "#111", fontWeight: 700, fontSize: 12, textAlign: "right",
+              }}
+            />
+            <span style={{ opacity: 0.7, fontWeight: 500 }}>日</span>
+          </label>
         </div>
         <div style={{ padding: "12px 24px 16px" }}>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>写真から月次データをインポート</h1>
@@ -234,10 +278,13 @@ export default function ImportPage() {
           <textarea
             value={jsonText}
             onChange={(e) => setJsonText(e.target.value)}
-            placeholder={'{\n  "rows": [...]\n}'}
+            placeholder={'{\n  "category": "water",\n  "as_of_day": 20,\n  "rows": [...]\n}'}
             style={{ width: "100%", height: 160, border: "1px solid #d1fae5", borderRadius: 6,
-              padding: 10, fontSize: 11, fontFamily: "monospace", resize: "vertical", marginBottom: 10 }}
+              padding: 10, fontSize: 11, fontFamily: "monospace", resize: "vertical", marginBottom: 6 }}
           />
+          <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 10 }}>
+            ※ JSON に <code>as_of_day</code> が無い場合は画面上部の入力欄の値を使用します
+          </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button onClick={handleJsonImport} disabled={importingJson || !jsonText.trim()}
               style={{ padding: "8px 24px", borderRadius: 8, border: "none",
