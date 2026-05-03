@@ -406,7 +406,7 @@ export async function upsertEntry(
   await getSql()`
     INSERT INTO entries (area_id, entry_date, data, business_category, updated_at)
     VALUES (${areaId}, ${entry.date}, ${JSON.stringify(entry)}::jsonb, ${category}, NOW())
-    ON CONFLICT (area_id, entry_date)
-    DO UPDATE SET data = EXCLUDED.data, business_category = EXCLUDED.business_category, updated_at = NOW()
+    ON CONFLICT (area_id, business_category, entry_date)
+    DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
   `;
 }
