@@ -15,6 +15,7 @@ import { CAN_EDIT_DASHBOARD, canViewAdminPages } from "../lib/roles";
 import { logAction } from "../lib/logger";
 import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../lib/businesses";
 import { COMPANIES } from "../lib/companies";
+import AsOfBadge from "./AsOfBadge";
 
 // ============ エリア定義 ============
 type Area = { id: string; name: string };
@@ -807,6 +808,25 @@ export default function Dashboard() {
                 {viewMode === "business" && activeBusiness !== "water" && (
                   <span style={{ fontSize: 13, fontWeight: 600, marginLeft: 8, opacity: 0.7 }}>({activeBusinessLabel})</span>
                 )}
+                {(() => {
+                  const days: number[] = [];
+                  if (isGroup) {
+                    for (const ms of Object.values(groupMonthlySummaries)) {
+                      const aod = Number((ms as Record<string, unknown> | null)?.as_of_day);
+                      if (Number.isInteger(aod)) days.push(aod);
+                    }
+                  } else if (monthlySummary) {
+                    const aod = Number(monthlySummary.as_of_day);
+                    if (Number.isInteger(aod)) days.push(aod);
+                  }
+                  return days.length > 0 ? (
+                    <AsOfBadge
+                      asOfDays={days}
+                      month={viewMonth}
+                      style={{ marginLeft: 12, background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.95)", opacity: 1, fontSize: 11, verticalAlign: "middle" }}
+                    />
+                  ) : null;
+                })()}
               </h1>
               <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
                 {viewYear}年{viewMonth}月 / {isCurrentMonth ? now.getDate() : displaySummary.daysInMonth}日時点 ｜ 月末着地予測 {(() => {

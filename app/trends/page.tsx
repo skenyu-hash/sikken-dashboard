@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { calculateDashboard, getDaysInMonth, yen } from "../lib/calculations";
 import type { DailyEntry, Targets } from "../lib/calculations";
 import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../lib/businesses";
+import AsOfBadge from "../components/AsOfBadge";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ReferenceLine, ResponsiveContainer,
@@ -249,9 +250,23 @@ export default function TrendsPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>月次推移グラフ</h1>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
-              {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ 年間12ヶ月の推移を確認
-            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 3 }}>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>
+                {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ 年間12ヶ月の推移を確認
+              </span>
+              {(() => {
+                const m = now.getMonth() + 1;
+                const cur = monthlyData[m]?.summary;
+                const aod = cur != null ? Number((cur as Record<string, unknown>).as_of_day) : NaN;
+                return Number.isInteger(aod) ? (
+                  <AsOfBadge
+                    asOfDays={[aod]}
+                    month={m}
+                    style={{ background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.95)", opacity: 1 }}
+                  />
+                ) : null;
+              })()}
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <select value={areaId} onChange={(e) => setAreaId(e.target.value)}

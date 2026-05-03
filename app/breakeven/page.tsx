@@ -7,6 +7,7 @@ import {
 } from "../lib/calculations";
 import { useRole } from "../components/RoleProvider";import { canViewAdminPages } from "../lib/roles";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
+import AsOfBadge from "../components/AsOfBadge";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -205,9 +206,18 @@ export default function BreakevenPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>損益分岐エンジン</h1>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
-                {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {year}年{month}月 ／ 固定費から達成必要件数を逆算
-              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 3 }}>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>
+                  {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {year}年{month}月 ／ 固定費から達成必要件数を逆算
+                </span>
+                {monthlySummary?.as_of_day != null && (
+                  <AsOfBadge
+                    asOfDays={[Number(monthlySummary.as_of_day)]}
+                    month={month}
+                    style={{ background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.95)", opacity: 1 }}
+                  />
+                )}
+              </div>
             </div>
             <select value={areaId} onChange={(e) => setAreaId(e.target.value)}
               style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.35)",

@@ -5,6 +5,7 @@ import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import { useRole } from "../components/RoleProvider";
 import { canViewAdminPages } from "../lib/roles";
 import CrossMatrixSection from "../components/CrossMatrixSection";
+import AsOfBadge from "../components/AsOfBadge";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -49,6 +50,7 @@ export default function MatrixPage() {
   const [adRatePct, setAdRatePct] = useState(20); // %（読み取り専用・自動取得）
   const [fixedCostMan, setFixedCostMan] = useState(0); // 万円（admin編集可）
   const [cfExtraMan, setCfExtraMan] = useState(0); // 万円（admin編集可）
+  const [asOfDay, setAsOfDay] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   // monthly-summary + fixed-costs を取得
@@ -71,8 +73,11 @@ export default function MatrixPage() {
         if (pr > 0) nextProfit = pr;
         const ar = Number(s.ad_rate ?? 0);
         if (ar > 0) nextAd = ar;
+        const aod = Number(s.as_of_day);
+        setAsOfDay(Number.isInteger(aod) ? aod : null);
       } else {
         setCurrentRevenue(0);
+        setAsOfDay(null);
       }
       setProfitRatePct(nextProfit);
       setAdRatePct(nextAd);
@@ -245,9 +250,12 @@ export default function MatrixPage() {
             >
               損益分岐マトリクス
             </h1>
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: "#6B7280" }}>
-              {BUSINESSES.find((b) => b.id === activeBusiness)?.label} ・ {year}年{month}月 ・ 着地予測と現在実績の2軸で経営判断
-            </p>
+            <div style={{ margin: "6px 0 0", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, color: "#6B7280" }}>
+                {BUSINESSES.find((b) => b.id === activeBusiness)?.label} ・ {year}年{month}月 ・ 着地予測と現在実績の2軸で経営判断
+              </span>
+              {asOfDay != null && <AsOfBadge asOfDays={[asOfDay]} month={month} />}
+            </div>
           </div>
           <select
             value={areaId}
