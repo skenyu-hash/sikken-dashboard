@@ -144,12 +144,25 @@ export function ensureSchema(): Promise<void> {
           help_revenue BIGINT NOT NULL DEFAULT 0,
           help_count INT NOT NULL DEFAULT 0,
           help_unit_price INT NOT NULL DEFAULT 0,
+          as_of_day INT NOT NULL,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           UNIQUE(area_id, year, month)
         )
       `);
 
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS vehicle_count INT NOT NULL DEFAULT 0`);
+      // Phase 9.5: as_of_day カラム追加。
+      // 「画面に表示している数値が何日時点のスナップショットか」を保持する。
+      // 既存行は当該月の末日で埋めて、確定値とみなす。NOT NULL 化後は
+      // import-monthly API が必ず as_of_day を要求する。
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS as_of_day INT`);
+      await safe(sql`
+        UPDATE monthly_summaries
+        SET as_of_day = EXTRACT(DAY FROM (DATE_TRUNC('month', MAKE_DATE(year, month, 1))
+                                          + INTERVAL '1 month - 1 day'))::INT
+        WHERE as_of_day IS NULL
+      `);
+      await safe(sql`ALTER TABLE monthly_summaries ALTER COLUMN as_of_day SET NOT NULL`);
 
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
