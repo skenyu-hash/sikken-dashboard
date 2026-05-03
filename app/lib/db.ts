@@ -22,12 +22,24 @@ export function ensureSchema(): Promise<void> {
       await safe(sql`
         CREATE TABLE IF NOT EXISTS entries (
           area_id TEXT NOT NULL,
+          business_category VARCHAR(20) NOT NULL DEFAULT 'water',
           entry_date DATE NOT NULL,
           data JSONB NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          PRIMARY KEY (area_id, entry_date)
+          PRIMARY KEY (area_id, business_category, entry_date)
         )
       `);
+      // Phase 9.5: 既存DBに対する冪等マイグレーション。
+      // entries テーブルは長らく PK=(area_id, entry_date) で
+      // business_category を含まない構造だったため、業態別の同日レコードが
+      // PK衝突で1行に圧縮されてしまう設計バグがあった。新スキーマに揃える。
+      await safe(sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS business_category VARCHAR(20) DEFAULT 'water'`);
+      await safe(sql`UPDATE entries SET business_category = 'water' WHERE business_category IS NULL`);
+      await safe(sql`ALTER TABLE entries ALTER COLUMN business_category SET NOT NULL`);
+      await safe(sql`ALTER TABLE entries ALTER COLUMN business_category SET DEFAULT 'water'`);
+      await safe(sql`ALTER TABLE entries DROP CONSTRAINT IF EXISTS entries_pkey`);
+      await safe(sql`ALTER TABLE entries DROP CONSTRAINT IF EXISTS entries_area_cat_date_key`);
+      await safe(sql`ALTER TABLE entries ADD CONSTRAINT entries_pkey PRIMARY KEY (area_id, business_category, entry_date)`);
       await safe(sql`
         CREATE TABLE IF NOT EXISTS fixed_costs (
           area_id TEXT NOT NULL,
