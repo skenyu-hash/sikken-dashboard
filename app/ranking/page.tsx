@@ -5,6 +5,7 @@ import {
   type DailyEntry, type DashboardSummary, type Targets, emptyTargets, manToYen,
 } from "../lib/calculations";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
+import AsOfBadge from "../components/AsOfBadge";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -146,9 +147,16 @@ export default function RankingPage() {
         </div>
         <div style={{ padding: "12px 20px 14px" }}>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>エリアランキング</h1>
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
-            {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {year}年{month}月 ／ 経過{daysElapsed}日時点
-          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 3 }}>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>
+              {BUSINESSES.find(b => b.id === activeBusiness)?.label} ／ {year}年{month}月 ／ 経過{daysElapsed}日時点
+            </span>
+            <AsOfBadge
+              asOfDays={Object.values(allMonthlySummaries).map((m) => Number(m.as_of_day)).filter((d) => Number.isInteger(d))}
+              month={month}
+              style={{ background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.95)", opacity: 1 }}
+            />
+          </div>
         </div>
       </div>
       <div style={{ padding: "16px 20px" }}>

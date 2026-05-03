@@ -22,12 +22,28 @@ export function ensureSchema(): Promise<void> {
       await safe(sql`
         CREATE TABLE IF NOT EXISTS entries (
           area_id TEXT NOT NULL,
+          business_category VARCHAR(20) NOT NULL DEFAULT 'water',
           entry_date DATE NOT NULL,
           data JSONB NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          PRIMARY KEY (area_id, entry_date)
+          PRIMARY KEY (area_id, business_category, entry_date)
         )
       `);
+      // Phase 9.5: 既存DBに対する冪等マイグレーション。
+      // entries テーブルは長らく PK=(area_id, entry_date) で
+      // business_category を含まない構造だったため、業態別の同日レコードが
+      // PK衝突で1行に圧縮されてしまう設計バグがあった。新スキーマに揃える。
+      await safe(sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS business_category VARCHAR(20) DEFAULT 'water'`);
+      await safe(sql`UPDATE entries SET business_category = 'water' WHERE business_category IS NULL`);
+      await safe(sql`ALTER TABLE entries ALTER COLUMN business_category SET NOT NULL`);
+      await safe(sql`ALTER TABLE entries ALTER COLUMN business_category SET DEFAULT 'water'`);
+      await safe(sql`ALTER TABLE entries DROP CONSTRAINT IF EXISTS entries_pkey`);
+      await safe(sql`ALTER TABLE entries DROP CONSTRAINT IF EXISTS entries_area_cat_date_key`);
+      await safe(sql`ALTER TABLE entries ADD CONSTRAINT entries_pkey PRIMARY KEY (area_id, business_category, entry_date)`);
+      // 旧 UNIQUE 制約は CONSTRAINT ではなく INDEX として登録されていたため
+      // ALTER TABLE DROP CONSTRAINT では消えない。新 PK と完全に同じカラム
+      // セットの冗長 INDEX なので明示的に DROP INDEX で削除する。
+      await safe(sql`DROP INDEX IF EXISTS entries_area_cat_date_key`);
       await safe(sql`
         CREATE TABLE IF NOT EXISTS fixed_costs (
           area_id TEXT NOT NULL,
@@ -128,12 +144,25 @@ export function ensureSchema(): Promise<void> {
           help_revenue BIGINT NOT NULL DEFAULT 0,
           help_count INT NOT NULL DEFAULT 0,
           help_unit_price INT NOT NULL DEFAULT 0,
+          as_of_day INT NOT NULL,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           UNIQUE(area_id, year, month)
         )
       `);
 
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS vehicle_count INT NOT NULL DEFAULT 0`);
+      // Phase 9.5: as_of_day カラム追加。
+      // 「画面に表示している数値が何日時点のスナップショットか」を保持する。
+      // 既存行は当該月の末日で埋めて、確定値とみなす。NOT NULL 化後は
+      // import-monthly API が必ず as_of_day を要求する。
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS as_of_day INT`);
+      await safe(sql`
+        UPDATE monthly_summaries
+        SET as_of_day = EXTRACT(DAY FROM (DATE_TRUNC('month', MAKE_DATE(year, month, 1))
+                                          + INTERVAL '1 month - 1 day'))::INT
+        WHERE as_of_day IS NULL
+      `);
+      await safe(sql`ALTER TABLE monthly_summaries ALTER COLUMN as_of_day SET NOT NULL`);
 
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
@@ -394,7 +423,7 @@ export async function upsertEntry(
   await getSql()`
     INSERT INTO entries (area_id, entry_date, data, business_category, updated_at)
     VALUES (${areaId}, ${entry.date}, ${JSON.stringify(entry)}::jsonb, ${category}, NOW())
-    ON CONFLICT (area_id, entry_date)
-    DO UPDATE SET data = EXCLUDED.data, business_category = EXCLUDED.business_category, updated_at = NOW()
+    ON CONFLICT (area_id, business_category, entry_date)
+    DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
   `;
 }

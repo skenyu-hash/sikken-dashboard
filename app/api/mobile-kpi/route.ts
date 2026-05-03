@@ -4,6 +4,15 @@ import { getSql } from "../../lib/db";
 export async function GET(req: NextRequest) {
   const sql = getSql();
 
+  const { searchParams } = new URL(req.url);
+  // area / category は optional。未指定ならグループ全体合算（既存動作）。
+  // 指定された場合は entries テーブルへのフィルタを効かせる。Phase 9.5 で
+  // entries の PK が (area_id, business_category, entry_date) に拡張された
+  // ため、最新日の集計が業態混在で歪まないように呼び出し元から絞れるように
+  // した。
+  const area = searchParams.get("area") ?? null;
+  const category = searchParams.get("category") ?? null;
+
   const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth() + 1;
@@ -33,6 +42,8 @@ export async function GET(req: NextRequest) {
   const adRatio = totalRevenue > 0 ? totalAdCost / totalRevenue : 0;
 
   // 4) 本日売上 = 直近入力日の entries の売上系キー合算
+  //    area/category フィルタは内側 MAX サブクエリと外側 SELECT の両方に
+  //    適用しないと「最新日」と「集計対象」が食い違うので両方に効かせる。
   const latestRows = await sql`
     SELECT
       COALESCE(SUM(
@@ -43,8 +54,13 @@ export async function GET(req: NextRequest) {
       ), 0) AS revenue
     FROM entries
     WHERE entry_date = (
-      SELECT MAX(entry_date) FROM entries WHERE entry_date >= ${monthStart}
+      SELECT MAX(entry_date) FROM entries
+      WHERE entry_date >= ${monthStart}
+        AND (${area}::text IS NULL OR area_id = ${area})
+        AND (${category}::text IS NULL OR business_category = ${category})
     )
+      AND (${area}::text IS NULL OR area_id = ${area})
+      AND (${category}::text IS NULL OR business_category = ${category})
   `;
 
   const todayRevenue = Number(latestRows[0]?.revenue ?? 0);

@@ -6,6 +6,7 @@ import {
   emptyTargets, manToYen, yen, type DailyEntry, type Targets, type DashboardSummary,
 } from "../lib/calculations";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
+import AsOfBadge from "../components/AsOfBadge";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -315,13 +316,20 @@ export default function MeetingPage() {
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>
             {BUSINESSES.find(b => b.id === activeBusiness)?.label ?? ""} — {areaName}{period === "end" ? "月次" : `${period}日`}会議シート
           </h1>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
-            {year}年{month}月 ／ {areaName} ／ 1〜{period === "end" ? daysInMonth : period}日
-            {isPastData && <span style={{ marginLeft: 10, fontSize: 11, background: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "2px 8px" }}>過去データ</span>}
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span>{year}年{month}月 ／ {areaName} ／ 1〜{period === "end" ? daysInMonth : period}日</span>
+            {isPastData && <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "2px 8px" }}>過去データ</span>}
             {!isEndPeriod && !isPastData && (
-              <span style={{ marginLeft: 10, fontSize: 11, background: "rgba(255,255,255,0.15)", borderRadius: 4, padding: "2px 8px" }}>
+              <span style={{ fontSize: 11, background: "rgba(255,255,255,0.15)", borderRadius: 4, padding: "2px 8px" }}>
                 着地予測 = {period}日ペースで月末換算
               </span>
+            )}
+            {monthlySummary?.as_of_day != null && (
+              <AsOfBadge
+                asOfDays={[Number(monthlySummary.as_of_day)]}
+                month={month}
+                style={{ background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.95)", opacity: 1 }}
+              />
             )}
           </div>
         </div>
