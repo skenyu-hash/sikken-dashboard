@@ -40,6 +40,10 @@ export function ensureSchema(): Promise<void> {
       await safe(sql`ALTER TABLE entries DROP CONSTRAINT IF EXISTS entries_pkey`);
       await safe(sql`ALTER TABLE entries DROP CONSTRAINT IF EXISTS entries_area_cat_date_key`);
       await safe(sql`ALTER TABLE entries ADD CONSTRAINT entries_pkey PRIMARY KEY (area_id, business_category, entry_date)`);
+      // 旧 UNIQUE 制約は CONSTRAINT ではなく INDEX として登録されていたため
+      // ALTER TABLE DROP CONSTRAINT では消えない。新 PK と完全に同じカラム
+      // セットの冗長 INDEX なので明示的に DROP INDEX で削除する。
+      await safe(sql`DROP INDEX IF EXISTS entries_area_cat_date_key`);
       await safe(sql`
         CREATE TABLE IF NOT EXISTS fixed_costs (
           area_id TEXT NOT NULL,
