@@ -5,6 +5,13 @@ import { num } from "../../lib/utils/numberCoerce";
 type ImportRow = Record<string, unknown>;
 type RowError = { index: number; error: string; area_id?: string };
 
+// 受け入れキー名のエイリアス解決。プライマリキー（DB真キー）を最優先で
+// 拾い、無ければレガシー命名（外部 JSON 由来）にフォールバック。
+// PR #29 で発生した API キー名ミスマッチ事故（売上系が ¥0 で保存される）
+// を再発させないための後方互換レイヤ。両方ある場合は必ずプライマリ勝ち。
+const pick = (row: ImportRow, ...keys: string[]): unknown =>
+  keys.map((k) => row[k]).find((v) => v !== undefined && v !== null && v !== "");
+
 export async function POST(req: NextRequest) {
   let rows: ImportRow[] = [];
   let cat: string = "water";
@@ -60,10 +67,18 @@ export async function POST(req: NextRequest) {
           as_of_day
         ) VALUES (
           ${row.area_id}, ${cat}, ${year}, ${month},
-          ${num(row.total_revenue)}, ${num(row.total_profit)}, ${num(row.total_count)}, ${num(row.unit_price)},
-          ${num(row.ad_cost)}, ${num(row.ad_rate)}, ${num(row.acquisition_count)}, ${num(row.cpa)},
-          ${num(row.call_count)}, ${num(row.call_unit_price)}, ${num(row.conv_rate)}, ${num(row.profit_rate)},
-          ${num(row.help_revenue)}, ${num(row.help_count)}, ${num(row.help_unit_price)}, ${num(row.vehicle_count)},
+          ${num(pick(row, "total_revenue", "revenue"))},
+          ${num(pick(row, "total_profit", "gross_profit"))},
+          ${num(pick(row, "total_count"))},
+          ${num(pick(row, "unit_price"))},
+          ${num(pick(row, "ad_cost"))}, ${num(pick(row, "ad_rate"))},
+          ${num(pick(row, "acquisition_count"))},
+          ${num(pick(row, "cpa", "acquisition_unit_price"))},
+          ${num(pick(row, "call_count"))}, ${num(pick(row, "call_unit_price"))},
+          ${num(pick(row, "conv_rate", "acquisition_rate"))},
+          ${num(pick(row, "profit_rate", "gross_margin_rate"))},
+          ${num(pick(row, "help_revenue"))}, ${num(pick(row, "help_count"))},
+          ${num(pick(row, "help_unit_price"))}, ${num(pick(row, "vehicle_count"))},
           ${asOfDay}
         )
         ON CONFLICT (area_id, business_category, year, month) DO UPDATE SET
