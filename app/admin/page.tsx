@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "../components/RoleProvider";
 import type { Role } from "../lib/auth";
+import { ROLE_LABELS } from "../lib/roles";
 import { formatJST } from "../lib/utils";
 import { BUSINESSES } from "../lib/businesses";
 
@@ -210,10 +211,9 @@ export default function AdminPage() {
                   <span style={{ display: "block", fontSize: 10, color: "#6b7280", marginBottom: 4 }}>ロール</span>
                   <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))}
                     style={{ width: "100%", height: 34, border: "1px solid #d1fae5", borderRadius: 6, padding: "0 6px", fontSize: 11 }}>
-                    <option value="executive">役員</option>
-                    <option value="manager">部長</option>
-                    <option value="staff">内勤・役職者</option>
-                    <option value="input">事務員</option>
+                    {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
                 </label>
                 <label>
@@ -278,10 +278,9 @@ export default function AdminPage() {
                       <select value={u.role} onChange={(e) => changeRole(u, e.target.value as Role)}
                         style={{ border: "1px solid #d1fae5", borderRadius: 6, padding: "4px 6px",
                           fontSize: 11, fontWeight: 600, color: "#065f46", background: "#f0fdf4", width: "100%" }}>
-                        <option value="executive">役員</option>
-                        <option value="manager">部長</option>
-                        <option value="staff">内勤</option>
-                        <option value="input">事務員</option>
+                        {(Object.entries(ROLE_LABELS) as [Role, string][]).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
                       </select>
                     </td>
                     <td style={{ padding: "6px 10px" }}>
