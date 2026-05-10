@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:utils": "tsx scripts/test-numberCoerce.ts",
-    "test:permissions": "tsx scripts/test-permissions.ts"
+    "test:permissions": "tsx scripts/test-permissions.ts",
+    "test:integration:import-monthly": "tsx scripts/test-import-monthly-integration.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.87.0",

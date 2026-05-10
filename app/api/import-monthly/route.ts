@@ -57,6 +57,9 @@ export async function POST(req: NextRequest) {
         throw new Error(`invalid month: ${row.month}`);
       }
 
+      // PR #41: PR #38 で追加した新 15 列が INSERT/VALUES/ON CONFLICT から
+      // 漏れていた構造的バグを修正。3 ヶ所すべてに新 15 列を追加。
+      // ① 新規対応 7 / ② コスト 4 / ④ 施工 4 = 計 15 列。
       await sql`
         INSERT INTO monthly_summaries (
           area_id, business_category, year, month,
@@ -64,7 +67,13 @@ export async function POST(req: NextRequest) {
           ad_cost, ad_rate, acquisition_count, cpa,
           call_count, call_unit_price, conv_rate, profit_rate,
           help_revenue, help_count, help_unit_price, vehicle_count,
-          as_of_day
+          as_of_day,
+          outsourced_sales_revenue, internal_staff_revenue,
+          outsourced_response_count, internal_staff_response_count,
+          repeat_count, revisit_count, review_count,
+          total_labor_cost, material_cost, sales_outsourcing_cost, card_processing_fee,
+          outsourced_construction_count, internal_construction_count,
+          outsourced_construction_cost, internal_construction_profit
         ) VALUES (
           ${row.area_id}, ${cat}, ${year}, ${month},
           ${num(pick(row, "total_revenue", "revenue"))},
@@ -79,7 +88,14 @@ export async function POST(req: NextRequest) {
           ${num(pick(row, "profit_rate", "gross_margin_rate"))},
           ${num(pick(row, "help_revenue"))}, ${num(pick(row, "help_count"))},
           ${num(pick(row, "help_unit_price"))}, ${num(pick(row, "vehicle_count"))},
-          ${asOfDay}
+          ${asOfDay},
+          ${num(pick(row, "outsourced_sales_revenue"))}, ${num(pick(row, "internal_staff_revenue"))},
+          ${num(pick(row, "outsourced_response_count"))}, ${num(pick(row, "internal_staff_response_count"))},
+          ${num(pick(row, "repeat_count"))}, ${num(pick(row, "revisit_count"))}, ${num(pick(row, "review_count"))},
+          ${num(pick(row, "total_labor_cost"))}, ${num(pick(row, "material_cost"))},
+          ${num(pick(row, "sales_outsourcing_cost"))}, ${num(pick(row, "card_processing_fee"))},
+          ${num(pick(row, "outsourced_construction_count"))}, ${num(pick(row, "internal_construction_count"))},
+          ${num(pick(row, "outsourced_construction_cost"))}, ${num(pick(row, "internal_construction_profit"))}
         )
         ON CONFLICT (area_id, business_category, year, month) DO UPDATE SET
           total_revenue=EXCLUDED.total_revenue, total_profit=EXCLUDED.total_profit,
@@ -90,7 +106,21 @@ export async function POST(req: NextRequest) {
           conv_rate=EXCLUDED.conv_rate, profit_rate=EXCLUDED.profit_rate,
           help_revenue=EXCLUDED.help_revenue, help_count=EXCLUDED.help_count,
           help_unit_price=EXCLUDED.help_unit_price, vehicle_count=EXCLUDED.vehicle_count,
-          as_of_day=EXCLUDED.as_of_day
+          as_of_day=EXCLUDED.as_of_day,
+          outsourced_sales_revenue=EXCLUDED.outsourced_sales_revenue,
+          internal_staff_revenue=EXCLUDED.internal_staff_revenue,
+          outsourced_response_count=EXCLUDED.outsourced_response_count,
+          internal_staff_response_count=EXCLUDED.internal_staff_response_count,
+          repeat_count=EXCLUDED.repeat_count, revisit_count=EXCLUDED.revisit_count,
+          review_count=EXCLUDED.review_count,
+          total_labor_cost=EXCLUDED.total_labor_cost,
+          material_cost=EXCLUDED.material_cost,
+          sales_outsourcing_cost=EXCLUDED.sales_outsourcing_cost,
+          card_processing_fee=EXCLUDED.card_processing_fee,
+          outsourced_construction_count=EXCLUDED.outsourced_construction_count,
+          internal_construction_count=EXCLUDED.internal_construction_count,
+          outsourced_construction_cost=EXCLUDED.outsourced_construction_cost,
+          internal_construction_profit=EXCLUDED.internal_construction_profit
       `;
       imported++;
     } catch (e) {
