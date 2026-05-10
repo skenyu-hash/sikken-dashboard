@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "./RoleProvider";
-import { canAccessPage, ROLE_LABELS } from "../lib/roles";
+import { hasPageAccess, pathToPage, ROLE_LABELS } from "../lib/permissions";
 
 export function NavBar() {
   const pathname = usePathname();
@@ -28,7 +28,10 @@ const items = [
     { href: "/import",    label: "インポート" },
     { href: "/data-io",   label: "データ入出力" },
     { href: "/admin",     label: "管理者" },
-  ].filter((item) => canAccessPage(role, item.href));
+  ].filter((item) => {
+    const page = pathToPage(item.href);
+    return page !== null && hasPageAccess({ role }, page, "view");
+  });
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });

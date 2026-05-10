@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import { useRole } from "../components/RoleProvider";
-import { canViewAdminPages } from "../lib/roles";
+import { hasPageAccess } from "../lib/permissions";
 import CrossMatrixSection from "../components/CrossMatrixSection";
 import AsOfBadge from "../components/AsOfBadge";
 
@@ -20,7 +20,9 @@ function getDaysInMonth(year: number, month: number): number {
 
 export default function MatrixPage() {
   const role = useRole();
-  const isAdmin = role !== null && canViewAdminPages(role);
+  // 元実装の canViewAdminPages は executive 限定 (PAGE_ACCESS["/breakeven"]=[executive])。
+  // 同義の admin edit 権限で再現。
+  const isAdmin = role !== null && hasPageAccess({ role }, "admin", "edit");
   const now = useMemo(() => new Date(), []);
   const year = now.getFullYear();
   const month = now.getMonth() + 1;

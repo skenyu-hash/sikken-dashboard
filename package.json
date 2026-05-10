@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:utils": "tsx scripts/test-numberCoerce.ts"
+    "test:utils": "tsx scripts/test-numberCoerce.ts",
+    "test:permissions": "tsx scripts/test-permissions.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.87.0",
