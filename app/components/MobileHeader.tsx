@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useRole } from "./RoleProvider";
-import { canAccessPage, ROLE_LABELS } from "../lib/roles";
+import { hasPageAccess, pathToPage, ROLE_LABELS } from "../lib/permissions";
 
 const NAV_ITEMS = [
   { href: "/", label: "ダッシュボード" },
@@ -41,9 +41,11 @@ export function MobileHeader() {
 
   if (path === "/login") return null;
 
-  const items = NAV_ITEMS.filter((item) =>
-    role !== null ? canAccessPage(role, item.href) : false
-  );
+  const items = NAV_ITEMS.filter((item) => {
+    if (role === null) return false;
+    const page = pathToPage(item.href);
+    return page !== null && hasPageAccess({ role }, page, "view");
+  });
 
   return (
     <>

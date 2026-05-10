@@ -6,7 +6,7 @@ import { getSql, ensureSchema } from "./db";
 export const AUTH_COOKIE = "sd_session";
 export const TOKEN_TTL_SEC = 60 * 60 * 8; // 8 hours
 
-import type { Role } from "./roles";
+import type { Role } from "./permissions";
 export type { Role };
 export type SessionUser = {
   id: number;
@@ -276,20 +276,7 @@ export async function logAudit(opts: {
 }
 
 // ============ エリアアクセス制御 ============
-// 閲覧は全員OK（ページ権限のみで制御）
-export function canAccessArea(_user: SessionUser, _areaId: string): boolean {
-  return true;
-}
-// 編集はロール＋エリアで制御
-export function canEditArea(user: SessionUser, targetAreaId: string): boolean {
-// 役員・副社長: 全エリア編集可
-  if (user.role === "executive" || user.role === "vice") return true;
-  // 社員: 編集不可
-  if (user.role === "staff") return false;
-  // 部長・課長・事務員: エリア未設定→全エリア編集可、設定あり→担当のみ
-  if (user.role === "manager" || user.role === "chief" || user.role === "clerk") {
-    if (!user.areaId) return true;
-    return user.areaId === targetAreaId;
-  }
-  return false;  
-}
+//
+// 旧 canAccessArea / canEditArea は lib/permissions.ts の hasDataAccess() に
+// 統合されたため削除。呼び出し元は import { hasDataAccess } from "./permissions"
+// に切替済 (PR #36)。

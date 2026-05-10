@@ -5,7 +5,8 @@ import {
   calculateBreakeven, calculateDashboard, getDaysInMonth,
   type DailyEntry, type DashboardSummary, type FixedCosts, yen,
 } from "../lib/calculations";
-import { useRole } from "../components/RoleProvider";import { canViewAdminPages } from "../lib/roles";
+import { useRole } from "../components/RoleProvider";
+import { hasPageAccess } from "../lib/permissions";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import AsOfBadge from "../components/AsOfBadge";
 
@@ -28,7 +29,11 @@ type AreaBreakeven = {
 
 export default function BreakevenPage() {
   const role = useRole();
-  const canEdit = role !== null && canViewAdminPages(role);
+  // 元実装の canViewAdminPages は PAGE_ACCESS["/breakeven"]=[executive] と同義
+  // だったので、executive 限定の「admin edit 権限」で同じ挙動を再現する。
+  // 仕様書では breakeven は executive/vice の view 可だが、固定費編集は
+  // executive 限定 (vice は閲覧のみ) のため、この表現が筋通り。
+  const canEdit = role !== null && hasPageAccess({ role }, "admin", "edit");
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;

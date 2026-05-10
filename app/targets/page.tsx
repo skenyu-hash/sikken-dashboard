@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { emptyTargets, type Targets } from "../lib/calculations";
 import { useRole } from "../components/RoleProvider";
-import { CAN_EDIT_TARGETS } from "../lib/roles";
+import { hasPageAccess } from "../lib/permissions";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import { COMPANIES } from "../lib/companies";
 import TargetsMatrix, { TARGETS_METRICS, formatByUnit } from "./components/TargetsMatrix";
@@ -24,7 +24,7 @@ type ViewMode = "business" | "company";
 export default function TargetsPage() {
   const now = new Date();
   const role = useRole();
-  const canEdit = role !== null && CAN_EDIT_TARGETS.includes(role);
+  const canEdit = role !== null && hasPageAccess({ role }, "targets", "edit");
 
   // 月選択（無制限、PR #19 と同パターン）
   const currentYear = now.getFullYear();

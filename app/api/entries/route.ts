@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { currentUser, canAccessArea, canEditArea, logAudit } from "../../lib/auth";
+import { currentUser, logAudit } from "../../lib/auth";
+import { hasDataAccess } from "../../lib/permissions";
 import { listEntries, upsertEntry } from "../../lib/db";
 import type { DailyEntry } from "../../lib/calculations";
 
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
   if (!AREA_IDS.has(area) || !year || !month) {
     return NextResponse.json({ error: "bad params" }, { status: 400 });
   }
-  if (!canAccessArea(user, area)) {
+  if (!hasDataAccess({ role: user.role, area_id: user.areaId }, area, category, "view")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   try {
@@ -45,7 +46,8 @@ export async function POST(req: Request) {
   if (!body?.areaId || !body.entry || !AREA_IDS.has(body.areaId)) {
     return NextResponse.json({ error: "bad body" }, { status: 400 });
   }
-  if (!canEditArea(user, body.areaId)) {
+  const cat = body.category ?? "water";
+  if (!hasDataAccess({ role: user.role, area_id: user.areaId }, body.areaId, cat, "edit")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(body.entry.date)) {
@@ -53,7 +55,6 @@ export async function POST(req: Request) {
   }
 
   try {
-    const cat = body.category ?? "water";
     // 既存値を取得して監査ログのbeforeに記録
     const before = (await listEntries(
       body.areaId,

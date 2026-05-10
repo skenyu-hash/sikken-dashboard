@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "../components/RoleProvider";
-import type { Role } from "../lib/auth";
-import { ROLE_LABELS } from "../lib/roles";
+import { hasPageAccess, ROLE_LABELS, type Role } from "../lib/permissions";
 import { formatJST } from "../lib/utils";
 import { BUSINESSES } from "../lib/businesses";
 
@@ -63,7 +62,7 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (session?.role !== "executive") return;
+    if (!session || !hasPageAccess({ role: session.role }, "admin", "edit")) return;
     if (tab === "users") loadUsers();
     else if (tab === "audit") loadLogs();
     else if (tab === "logs") {
@@ -72,7 +71,7 @@ export default function AdminPage() {
     }
   }, [tab, areaFilter, logFilter, session]);
 
-  if (session && session.role !== "executive") {
+  if (session && !hasPageAccess({ role: session.role }, "admin", "edit")) {
     return <div className="p-8 text-center text-zinc-500">役員のみアクセス可能です</div>;
   }
 

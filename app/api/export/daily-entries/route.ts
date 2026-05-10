@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql } from "../../../lib/db";
 import { currentRole } from "../../../lib/auth";
-import { canAccessPage } from "../../../lib/roles";
+import { hasPageAccess } from "../../../lib/permissions";
 import { AREA_NAMES, BUSINESSES } from "../../../lib/businesses";
 
 export const runtime = "nodejs";
@@ -32,7 +32,7 @@ function diffDays(from: string, to: string): number {
 export async function GET(req: NextRequest) {
   const role = await currentRole();
   if (!role) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!canAccessPage(role, "/data-io")) {
+  if (!hasPageAccess({ role }, "data-io", "view")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

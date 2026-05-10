@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRole } from "../components/RoleProvider";
-import { canAccessPage } from "../lib/roles";
+import { hasPageAccess } from "../lib/permissions";
 import TemplatePanel from "./components/TemplatePanel";
 import ImportPanel from "./components/ImportPanel";
 import ExportPanel from "./components/ExportPanel";
@@ -28,7 +28,7 @@ export default function DataIoPage() {
       </div>
     );
   }
-  if (!canAccessPage(role, "/data-io")) {
+  if (!hasPageAccess({ role }, "data-io", "view")) {
     router.replace("/");
     return null;
   }
