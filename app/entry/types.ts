@@ -22,6 +22,9 @@ export interface EntryFormState {
   area_id: string;
   year: number;
   month: number;
+  // day: 月内の何日時点のスナップショットか (1-31)。
+  // 既存 as_of_day 運用と統合: handleSave 時に as_of_day としてそのまま送信。
+  day: number;
   category: BusinessCategory;
 
   // ① 新規対応 (入力 7)
