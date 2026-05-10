@@ -164,6 +164,33 @@ export function ensureSchema(): Promise<void> {
       `);
       await safe(sql`ALTER TABLE monthly_summaries ALTER COLUMN as_of_day SET NOT NULL`);
 
+      // PR #38: 新フォーム (水道 31 フィールド) 対応の列追加。
+      // 仕様書 docs/specs/spec-form-redesign.md §B-2-1 参照。
+      // 設計方針 (A2 + B1 + C3):
+      //   - auto 計算項目は DB 保存せず (A2)
+      //   - 既存 ad_cost / call_count / call_unit_price / conv_rate は
+      //     リネームせず pick() でエイリアス対応 (B1)
+      //   - 粗利 f30/f31 は計算のみで DB 保存しない (C3)
+      // 全列 NULL 許容 (NOT NULL DEFAULT 0) で既存データは自動補完。
+      // ① 新規対応 (7列)
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS outsourced_sales_revenue NUMERIC NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS internal_staff_revenue NUMERIC NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS outsourced_response_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS internal_staff_response_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS repeat_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS revisit_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0`);
+      // ② コスト (4列)
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS total_labor_cost NUMERIC NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS material_cost NUMERIC NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS sales_outsourcing_cost NUMERIC NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS card_processing_fee NUMERIC NOT NULL DEFAULT 0`);
+      // ④ 施工 (4列)
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS outsourced_construction_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS internal_construction_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS outsourced_construction_cost NUMERIC NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS internal_construction_profit NUMERIC NOT NULL DEFAULT 0`);
+
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,
