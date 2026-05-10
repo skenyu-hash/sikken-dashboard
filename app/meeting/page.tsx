@@ -247,9 +247,18 @@ export default function MeetingPage() {
     };
   }, [periodSummary, monthlySummary, entries, year, month]);
 
-  const callCount = isPastData ? Number(monthlySummary!.call_count ?? 0) : filteredEntries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
-  const acquisitionCount = isPastData ? Number(monthlySummary!.acquisition_count ?? 0) : displaySummary.totalCount;
-  const convRate = isPastData ? Number(monthlySummary!.conv_rate ?? 0) : (callCount > 0 ? (acquisitionCount / callCount) * 100 : 0);
+  // monthly_summaries が存在すれば常に優先する。displaySummary 側で適用済みの
+  // ルール（PR #23/#25、KNOWN_ISSUES sec3）と統一。当月（isCurrentMonth=true で
+  // isPastData=false）でも DB に値があれば反映されるよう isPastData ガードを除去。
+  const callCount = monthlySummary
+    ? Number(monthlySummary.call_count ?? 0)
+    : filteredEntries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
+  const acquisitionCount = monthlySummary
+    ? Number(monthlySummary.acquisition_count ?? 0)
+    : displaySummary.totalCount;
+  const convRate = monthlySummary
+    ? Number(monthlySummary.conv_rate ?? 0)
+    : (callCount > 0 ? (acquisitionCount / callCount) * 100 : 0);
   const grossRate = displaySummary.totalRevenue > 0 ? Math.round(displaySummary.totalProfit / displaySummary.totalRevenue * 1000) / 10 : 0;
   const targetGrossRate = targets.targetSales > 0 && targets.targetProfit > 0 ? Math.round(targets.targetProfit / targets.targetSales * 1000) / 10 : 0;
   const adRate = displaySummary.totalRevenue > 0 ? Math.round(displaySummary.totalAdCost / displaySummary.totalRevenue * 1000) / 10 : 0;
