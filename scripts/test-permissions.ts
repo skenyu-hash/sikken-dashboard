@@ -193,6 +193,24 @@ test("A-2: executive のみ cockpit edit 可 (既存挙動)", () =>
   hasPageAccess(u("executive"), "cockpit", "edit") === true &&
   hasPageAccess(u("vice"), "cockpit", "view") === false);
 
+// --- entry (PR #39 新ページ): 全ロール edit ---
+test("A-2: executive が entry edit 可", () =>
+  hasPageAccess(u("executive"), "entry", "edit") === true);
+test("A-2: clerk が entry edit 可 (★ 事務員も日次入力)", () =>
+  hasPageAccess(u("clerk"), "entry", "edit") === true);
+test("A-2: staff が entry edit 可 (★ 山口・芝田が入力できる)", () =>
+  hasPageAccess(u("staff"), "entry", "edit") === true);
+test("A-1+entry: staff が自エリアで entry edit 可 (組合せ)", () =>
+  hasPageAccess(u("staff", "kyushu", "water"), "entry", "edit") === true &&
+  hasDataAccess(u("staff", "kyushu", "water"), "kyushu", "water", "edit") === true);
+test("A-1+entry: staff が他エリアで entry edit 不可 (A-1 で弾かれる)", () =>
+  hasPageAccess(u("staff", "kyushu", "water"), "entry", "edit") === true &&
+  hasDataAccess(u("staff", "kyushu", "water"), "kansai", "water", "edit") === false);
+test("A-1+entry: vice が他エリアで entry view のみ", () =>
+  hasPageAccess(u("vice", "kanto", "water"), "entry", "edit") === true &&
+  hasDataAccess(u("vice", "kanto", "water"), "kansai", "water", "view") === true &&
+  hasDataAccess(u("vice", "kanto", "water"), "kansai", "water", "edit") === false);
+
 // ============================================================
 // A-1 例外: canSeeDataOnPage
 // 仕様書 §2 後段「trends/ranking/matrix は越境閲覧可」

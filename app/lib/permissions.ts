@@ -34,10 +34,12 @@ export type BusinessCategory =
   | "road"
   | "detective";
 
-// 仕様書 §3 の 12 ページ + cockpit (既存実装存在、executive only)。
+// 仕様書 §3 の 12 ページ + cockpit (既存実装存在、executive only) + entry
+// (PR #39 新フォーム、仕様書未掲載のため別途追加)。
 // cf は仕様書未掲載のため Page 型から除外（実装も未存在）。
 export type Page =
   | "dashboard"
+  | "entry"
   | "import"
   | "data-io"
   | "admin"
@@ -92,6 +94,15 @@ export const ALL_ROLES: Role[] = [
 const PAGE_ACCESS_MATRIX: Record<Page, Record<Role, PermissionLevel>> = {
   // 1. ダッシュボード - 全ロール編集
   dashboard: {
+    executive: "edit",
+    vice: "edit",
+    manager: "edit",
+    chief: "edit",
+    staff: "edit",
+    clerk: "edit",
+  },
+  // (新設 PR #39) エントリ - 全ロール編集 (エリアスコープは hasDataAccess で別途判定)
+  entry: {
     executive: "edit",
     vice: "edit",
     manager: "edit",

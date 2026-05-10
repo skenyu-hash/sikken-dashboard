@@ -7,6 +7,7 @@ import { hasPageAccess, pathToPage, ROLE_LABELS } from "../lib/permissions";
 
 const NAV_ITEMS = [
   { href: "/", label: "ダッシュボード" },
+  { href: "/entry", label: "データ入力" },
   { href: "/ranking", label: "ランキング" },
   { href: "/trends", label: "推移" },
   { href: "/matrix", label: "マトリクス" },
