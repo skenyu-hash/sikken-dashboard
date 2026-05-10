@@ -1,22 +1,114 @@
 // 単独実行: npm run test:integration:import-monthly
 //
-// /api/import-monthly が monthly_summaries の全 38 列 (PR #38 で追加した
-// 新 15 列含む) を正しく書き込むことを検証する統合テスト。
+// 2 段階の検証で PR #38 のような「INSERT 文への列追加忘れ」バグを再発
+// させない:
 //
-// 背景: PR #38 で DB 列・pick エイリアスは追加したが、INSERT 句の
-// カラム名リストと VALUES に新 15 列を含めるのを忘れていた構造的バグ
-// (PR #41 で修正)。再発防止のため非 0 値で INSERT → SELECT で全列が
-// 保存されていることを検証する。
+//   段階 1 (静的): app/api/import-monthly/route.ts のソースを文字列と
+//     して読み込み、新 15 列が以下 3 セクションすべてに含まれているか
+//     検証。これにより「3 ヶ所のうち 1 ヶ所だけ書き忘れ」も即検出。
+//     - INSERT カラム名リスト
+//     - VALUES の pick() 呼び出し
+//     - ON CONFLICT DO UPDATE SET
 //
-// 実行方法:
-//   - DATABASE_URL を環境変数で渡す前提
-//   - API は middleware で認証ガードあり → DB 直接接続して route handler
-//     のロジックを再現する形でテスト (シンプル化のため pick 経由でなく
-//     INSERT を直接実行、ただし route.ts の SQL と完全一致のものを使用)
-//   - 既存データへの影響を避けるため year=2099/month=12 のテスト枠
-//   - テスト後は DELETE で原状復帰
+//   段階 2 (統合): DB に直接 INSERT して 38 列が保存できることを検証
+//     (スキーマ整合性のテスト)。
+//
+// 静的テストだけでは「DB スキーマ追従漏れ」を検出できず、統合テスト
+// だけでは「route.ts INSERT 列抜け」を検出できないため、両方が必要。
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { Pool } from "@neondatabase/serverless";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const ROUTE_PATH = join(__dirname, "..", "app", "api", "import-monthly", "route.ts");
+
+// PR #38 で追加された新 15 列。route.ts INSERT 文に含まれていることを
+// 静的・統合の両面で確認する。
+const PR38_NEW_COLUMNS = [
+  // ① 新規対応 (7)
+  "outsourced_sales_revenue", "internal_staff_revenue",
+  "outsourced_response_count", "internal_staff_response_count",
+  "repeat_count", "revisit_count", "review_count",
+  // ② コスト (4)
+  "total_labor_cost", "material_cost", "sales_outsourcing_cost", "card_processing_fee",
+  // ④ 施工 (4)
+  "outsourced_construction_count", "internal_construction_count",
+  "outsourced_construction_cost", "internal_construction_profit",
+];
+
+let pass = 0;
+let fail = 0;
+const failures: string[] = [];
+
+function check(desc: string, cond: boolean, hint?: string) {
+  if (cond) {
+    pass++;
+  } else {
+    fail++;
+    failures.push(`❌ ${desc}${hint ? ` — ${hint}` : ""}`);
+    console.error(`❌ ${desc}${hint ? ` — ${hint}` : ""}`);
+  }
+}
+
+// ============================================================
+// 段階 1: 静的テスト (route.ts ソース解析)
+// ============================================================
+
+function runStaticTests() {
+  console.log("📜 段階 1: 静的テスト — route.ts INSERT 文に新 15 列が含まれているか\n");
+
+  const src = readFileSync(ROUTE_PATH, "utf8");
+
+  // INSERT 句全体を 3 セクションに分割
+  // 1. INSERT カラム名リスト: "INSERT INTO monthly_summaries (" から ") VALUES (" まで
+  // 2. VALUES: ") VALUES (" から ") ON CONFLICT" まで
+  // 3. ON CONFLICT DO UPDATE SET: "DO UPDATE SET" から閉じバッククォート ` まで
+  const insertMatch = src.match(/INSERT INTO monthly_summaries\s*\(([\s\S]+?)\)\s*VALUES\s*\(([\s\S]+?)\)\s*ON CONFLICT[\s\S]+?DO UPDATE SET([\s\S]+?)`/);
+
+  if (!insertMatch) {
+    check("INSERT 句 3 セクションの抽出", false, "route.ts から INSERT/VALUES/ON CONFLICT パターンが見つからない");
+    return;
+  }
+  check("INSERT 句 3 セクションの抽出", true);
+
+  const [, insertColsSection, valuesSection, onConflictSection] = insertMatch;
+
+  // 各列について 3 セクションすべてに含まれているか個別に検証
+  for (const col of PR38_NEW_COLUMNS) {
+    // セクション 1: INSERT カラム名リスト (列名がカンマ/改行/空白に囲まれて出現)
+    const inInsertList = new RegExp(`(^|\\s|,)${col}(\\s|,|$)`).test(insertColsSection);
+    check(
+      `INSERT カラム名リストに "${col}" が含まれる`,
+      inInsertList,
+      "route.ts の INSERT INTO ... (...) 部分に列名追加が必要"
+    );
+
+    // セクション 2: VALUES の pick() 呼び出し (pick(row, "<col>" ...) の形)
+    const inValues = new RegExp(`pick\\(row,\\s*"${col}"`).test(valuesSection);
+    check(
+      `VALUES に pick(row, "${col}", ...) が含まれる`,
+      inValues,
+      "VALUES 句の pick() に新列を追加する必要"
+    );
+
+    // セクション 3: ON CONFLICT DO UPDATE SET (col=EXCLUDED.col の形)
+    const inOnConflict = new RegExp(`${col}\\s*=\\s*EXCLUDED\\.${col}`).test(onConflictSection);
+    check(
+      `ON CONFLICT DO UPDATE SET に "${col}=EXCLUDED.${col}" が含まれる`,
+      inOnConflict,
+      "ON CONFLICT 句に EXCLUDED.<列名> を追加する必要"
+    );
+  }
+
+  console.log(`   3 セクション × ${PR38_NEW_COLUMNS.length} 列 = ${PR38_NEW_COLUMNS.length * 3} 静的アサーション\n`);
+}
+
+// ============================================================
+// 段階 2: 統合テスト (DB INSERT → SELECT 検証)
+// ============================================================
 
 if (!process.env.DATABASE_URL) {
   console.error("❌ DATABASE_URL が設定されていません。export してから実行:");
@@ -68,17 +160,14 @@ const TEST_CATEGORY = "water";
 const TEST_YEAR = 2099;
 const TEST_MONTH = 12;
 
-async function main() {
+async function runIntegrationTests() {
+  console.log("🧪 段階 2: 統合テスト — DB が新 15 列を含む全 38 列を保存できるか");
+  console.log(`   投入先: ${TEST_AREA}/${TEST_CATEGORY}/${TEST_YEAR}-${TEST_MONTH}\n`);
+
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const client = await pool.connect();
 
-  let pass = 0;
-  let fail = 0;
-  const failures: string[] = [];
-
   try {
-    console.log("🧪 統合テスト: /api/import-monthly が新 15 列を含む全 38 列を保存できるか");
-    console.log(`   投入先: ${TEST_AREA}/${TEST_CATEGORY}/${TEST_YEAR}-${TEST_MONTH}\n`);
 
     // 既存テストレコードがあれば事前削除
     await client.query(
@@ -108,22 +197,14 @@ async function main() {
       [TEST_AREA, TEST_CATEGORY, TEST_YEAR, TEST_MONTH]
     );
 
-    if (r.rows.length !== 1) {
-      fail++;
-      failures.push(`❌ INSERT 後の SELECT で行数 != 1 (got ${r.rows.length})`);
-    } else {
+    check("INSERT 後の SELECT で行数 = 1", r.rows.length === 1, `got ${r.rows.length}`);
+    if (r.rows.length === 1) {
       const row = r.rows[0];
       for (const col of cols) {
         const expected = TEST_VALUES[col];
         const actualRaw = row[col];
         const actual = typeof actualRaw === "string" ? Number(actualRaw) : Number(actualRaw);
-        const ok = Math.abs(actual - expected) < 0.01;
-        if (ok) {
-          pass++;
-        } else {
-          fail++;
-          failures.push(`❌ ${col}: expected ${expected}, got ${actual}`);
-        }
+        check(`列 "${col}" が ${expected} で保存される`, Math.abs(actual - expected) < 0.01, `got ${actual}`);
       }
     }
 
@@ -134,15 +215,21 @@ async function main() {
     );
     console.log(`🧹 クリーンアップ完了 (テストレコード削除)\n`);
   } catch (e) {
-    console.error("❌ Error:", e);
     fail++;
-    failures.push(String(e));
+    failures.push(`❌ 統合テスト例外: ${e instanceof Error ? e.message : String(e)}`);
+    console.error("❌ Error:", e);
   } finally {
     client.release();
     await pool.end();
   }
+}
 
-  console.log(`${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} columns verified`);
+async function main() {
+  runStaticTests();
+  await runIntegrationTests();
+
+  const total = pass + fail;
+  console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${total} assertions passed`);
   if (fail > 0) {
     console.error(`\n${fail} failures:\n${failures.join("\n")}`);
     process.exit(1);
