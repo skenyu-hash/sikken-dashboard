@@ -189,7 +189,6 @@ export default function Dashboard() {
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [inputOpen, setInputOpen] = useState(false);
   const [monthlySummary, setMonthlySummary] = useState<Record<string, unknown> | null>(null);
   const [prevMonthlySummary, setPrevMonthlySummary] = useState<Record<string, unknown> | null>(null);
   const [prevEntries, setPrevEntries] = useState<DailyEntry[]>([]);
@@ -1291,94 +1290,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ============ 入力フォーム (折りたたみ式) ============ */}
-      {canEdit && !isGroup && (
-        <section style={{ marginBottom: 16 }}>
-          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
-            <div
-              onClick={() => setInputOpen((prev) => !prev)}
-              style={{
-                padding: "12px 18px", display: "flex", justifyContent: "space-between",
-                alignItems: "center", cursor: "pointer", background: "#f8fdf8",
-                borderBottom: inputOpen ? "1px solid #d1fae5" : "none",
-              }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#065f46" }}>
-                {activeArea?.name} 日次入力
-              </span>
-              <button type="button"
-                style={{
-                  fontSize: 11, background: "#059669", color: "#fff", border: "none",
-                  borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontWeight: 600,
-                }}>
-                {inputOpen ? "▲ 閉じる" : "▼ 入力フォームを開く"}
-              </button>
-            </div>
-            {inputOpen && (
-              <div style={{ padding: 16 }}>
-                {/* PR #39.1: 新フォーム /entry への移行案内。
-                    旧フォーム本体は仕様書 §6 PR #43 まで温存、ここで段階的に
-                    新フォーム導線に誘導する。閉じる UI は持たず毎回表示。 */}
-                <div className="mb-4 bg-amber-50 border-l-4 border-amber-400 p-3 rounded">
-                  <div className="flex items-start gap-2">
-                    <span className="text-xl leading-none">📝</span>
-                    <div className="flex-1 text-sm">
-                      <div className="font-semibold text-amber-900">
-                        新フォームへの移行をお願いします
-                      </div>
-                      <div className="text-amber-800 mt-1 leading-relaxed">
-                        この入力フォームは旧仕様です。順次廃止予定のため、新しい入力は下記のリンクから「データ入力」ページをご利用ください。
-                      </div>
-                      <a
-                        href={`/entry?category=${activeBusiness}`}
-                        className="inline-block mt-2 text-amber-900 font-semibold underline hover:text-amber-700"
-                      >
-                        → データ入力ページを開く（{activeBusiness}）
-                      </a>
-                    </div>
-                  </div>
-                </div>
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div>
-                    <label className="block text-sm text-zinc-500 mb-1.5">日付</label>
-                    <input
-                      type="date" value={form.date}
-                      onChange={(e) => { setField("date", e.target.value); loadDate(e.target.value); }}
-                      className="w-full min-h-[44px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-4 py-3 text-base"
-                    />
-                  </div>
-                  {formSections.map((section) => (
-                    <div key={section.title}>
-                      <h3 className="text-sm font-semibold text-zinc-500 mb-2">{section.title}</h3>
-                      <div className="grid grid-cols-2 gap-3">
-                        {section.fields.map((f) => (
-                          <label key={f.key} className="block">
-                            <span className="block text-xs text-zinc-500 mb-1">
-                              {f.label}{f.unit ? `(${f.unit})` : ""}
-                            </span>
-                            <input
-                              type="text" inputMode="numeric" pattern="[0-9]*"
-                              value={(form[f.key] as number) || ""}
-                              onChange={(e) => setField(f.key, e.target.value.replace(/[^0-9]/g, ""))}
-                              className="w-full min-h-[44px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-right text-base tabular-nums"
-                              placeholder="0"
-                            />
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  {saveError && <p className="text-sm text-red-500">{saveError}</p>}
-                  <button type="submit" disabled={saving}
-                    className="w-full min-h-[48px] rounded-lg bg-emerald-600 active:bg-emerald-800 text-white font-semibold py-3 disabled:opacity-50">
-                    {saving ? "保存中..." : "保存する"}
-                  </button>
-                </form>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
+      {/* PR #39.2: 旧入力フォーム (折りたたみ式) を完全削除。
+          日次入力はナビ「データ入力」→ /entry に完全移行。
+          isInputOnly (clerk 専用) ビューと /api/entries 経路は温存。 */}
       </div>
     </div>
   );
