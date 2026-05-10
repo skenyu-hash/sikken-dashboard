@@ -58,6 +58,7 @@ export default async function EntryPage({
       initialArea={initialArea}
       initialYear={now.getFullYear()}
       initialMonth={now.getMonth() + 1}
+      initialDay={now.getDate()}
       category={category}
       canSelectArea={canSelectArea}
       availableAreas={availableAreas}

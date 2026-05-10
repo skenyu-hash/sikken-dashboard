@@ -26,6 +26,7 @@ type Props = {
   initialArea: string;
   initialYear: number;
   initialMonth: number;
+  initialDay: number;
   category: BusinessCategory;
   canSelectArea: boolean;
   availableAreas: { id: string; name: string }[];
@@ -40,9 +41,9 @@ const CATEGORY_LABELS: Record<BusinessCategory, string> = {
   water: "水道", electric: "電気", locksmith: "鍵", road: "ロード", detective: "探偵",
 };
 
-function emptyState(area: string, year: number, month: number, category: BusinessCategory): EntryFormState {
+function emptyState(area: string, year: number, month: number, day: number, category: BusinessCategory): EntryFormState {
   return {
-    area_id: area, year, month, category,
+    area_id: area, year, month, day, category,
     outsourced_sales_revenue: "", internal_staff_revenue: "",
     outsourced_response_count: "", internal_staff_response_count: "",
     repeat_count: "", revisit_count: "", review_count: "",
@@ -54,9 +55,9 @@ function emptyState(area: string, year: number, month: number, category: Busines
   };
 }
 
-export default function EntryForm({ initialArea, initialYear, initialMonth, category, canSelectArea, availableAreas }: Props) {
+export default function EntryForm({ initialArea, initialYear, initialMonth, initialDay, category, canSelectArea, availableAreas }: Props) {
   const [state, setState] = useState<EntryFormState>(() =>
-    emptyState(initialArea, initialYear, initialMonth, category)
+    emptyState(initialArea, initialYear, initialMonth, initialDay, category)
   );
   const calc = useFormCalculations(state);
   const { errors, validateField, validateAll, clearErrors } = useFormValidation();
@@ -71,7 +72,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, cate
     setSaveResult("idle");
   };
 
-  const setMeta = (k: "area_id" | "year" | "month", v: string | number) => {
+  const setMeta = (k: "area_id" | "year" | "month" | "day", v: string | number) => {
     setState((s) => ({ ...s, [k]: v }));
     setSaveResult("idle");
   };
@@ -88,7 +89,8 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, cate
 
     try {
       // POST: pick エイリアスは PR #38 で吸収。as_of_day は今日の日。
-      const asOfDay = new Date().getDate();
+      // as_of_day はユーザーが選んだ「日」を採用 (既存 as_of_day 運用と統合)
+      const asOfDay = state.day;
       const row: Record<string, string | number> = {
         area_id: state.area_id,
         year: state.year,
@@ -163,6 +165,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, cate
     return [cur - 1, cur, cur + 1];
   }, []);
   const monthOptions = useMemo(() => Array.from({ length: 12 }, (_, i) => i + 1), []);
+  const dayOptions = useMemo(() => Array.from({ length: 31 }, (_, i) => i + 1), []);
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2", paddingBottom: 100 }}>
@@ -172,14 +175,15 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, cate
           月次データ入力 — {CATEGORY_LABELS[category]}
         </h1>
         <p style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
-          仕様書 31 フィールド (入力 20 / 自動計算 11)。下部の「保存」ボタンで一括登録します。
+          仕様書 31 フィールド (入力 20 / 自動計算 11)。
+          入力日（日付）時点までの累積データを入力してください。下部の「保存」ボタンで一括登録します。
         </p>
       </div>
 
       <div style={{ padding: 20, maxWidth: 960, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
         {/* メタ: エリア / 年 / 月 */}
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #d1fae5", padding: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 12 }}>
             <Meta label="エリア">
               {canSelectArea ? (
                 <select value={state.area_id} onChange={(e) => setMeta("area_id", e.target.value)}
@@ -202,6 +206,11 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, cate
             <Meta label="月">
               <select value={state.month} onChange={(e) => setMeta("month", Number(e.target.value))} style={metaSelect}>
                 {monthOptions.map((m) => <option key={m} value={m}>{m}月</option>)}
+              </select>
+            </Meta>
+            <Meta label="日（as_of_day）">
+              <select value={state.day} onChange={(e) => setMeta("day", Number(e.target.value))} style={metaSelect}>
+                {dayOptions.map((d) => <option key={d} value={d}>{d}日</option>)}
               </select>
             </Meta>
           </div>

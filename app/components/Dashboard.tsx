@@ -1316,6 +1316,28 @@ export default function Dashboard() {
             </div>
             {inputOpen && (
               <div style={{ padding: 16 }}>
+                {/* PR #39.1: 新フォーム /entry への移行案内。
+                    旧フォーム本体は仕様書 §6 PR #43 まで温存、ここで段階的に
+                    新フォーム導線に誘導する。閉じる UI は持たず毎回表示。 */}
+                <div className="mb-4 bg-amber-50 border-l-4 border-amber-400 p-3 rounded">
+                  <div className="flex items-start gap-2">
+                    <span className="text-xl leading-none">📝</span>
+                    <div className="flex-1 text-sm">
+                      <div className="font-semibold text-amber-900">
+                        新フォームへの移行をお願いします
+                      </div>
+                      <div className="text-amber-800 mt-1 leading-relaxed">
+                        この入力フォームは旧仕様です。順次廃止予定のため、新しい入力は下記のリンクから「データ入力」ページをご利用ください。
+                      </div>
+                      <a
+                        href={`/entry?category=${activeBusiness}`}
+                        className="inline-block mt-2 text-amber-900 font-semibold underline hover:text-amber-700"
+                      >
+                        → データ入力ページを開く（{activeBusiness}）
+                      </a>
+                    </div>
+                  </div>
+                </div>
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
                     <label className="block text-sm text-zinc-500 mb-1.5">日付</label>
