@@ -392,12 +392,15 @@ export function buildMetricRows(
       };
     })(),
     (() => {
-      const tr = targets.targetCount > 0 ? Math.round(summary.totalCount / targets.targetCount * 1000) / 10 : null;
-      const pct = dayRatioPct(summary.totalCount, targets.targetCount);
+      // PR #43: 獲得件数 MetricRow が summary.totalCount (合計件数) を表示
+      // していたバグを修正。L225 で override から acquisitionCount を受け取って
+      // いるのにここで使われていなかった。target/pct/landing も全て切替。
+      const tr = targets.targetCount > 0 ? Math.round(acquisitionCount / targets.targetCount * 1000) / 10 : null;
+      const pct = dayRatioPct(acquisitionCount, targets.targetCount);
       return {
-        name: "獲得件数", value: `${summary.totalCount}件`, salesRatio: null,
+        name: "獲得件数", value: `${acquisitionCount}件`, salesRatio: null,
         targetRatio: tr, status: statusStr(pct), statusLevel: statusLevelFromPct(pct), lineColor: "#3b82f6",
-        landingValue: calcLanding(summary.totalCount), landingRate: calcLandingRate(summary.totalCount, targets.targetCount),
+        landingValue: calcLanding(acquisitionCount), landingRate: calcLandingRate(acquisitionCount, targets.targetCount),
       };
     })(),
     (() => {
