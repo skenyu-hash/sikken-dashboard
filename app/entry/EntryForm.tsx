@@ -10,7 +10,7 @@
 //     read-back verification
 //   - エリア選択: executive/vice のみ手動、他は自エリア固定
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFormCalculations } from "./hooks/useFormCalculations";
 import { useFormValidation } from "./hooks/useFormValidation";
 import SectionSales from "./components/SectionSales";
@@ -65,6 +65,12 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
   const [saveResult, setSaveResult] = useState<"idle" | "success" | "error">("idle");
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
+  // PR #44: 編集モード state (既存データ読込済か / 既存 as_of_day)
+  // monthly_summaries は (area, business_category, year, month) で UNIQUE
+  // のため month 単位 1 行運用 (PR #28 の設計)。day 違いでも同じ行を返す。
+  const [isLoadingExisting, setIsLoadingExisting] = useState(false);
+  const [existingAsOfDay, setExistingAsOfDay] = useState<number | null>(null);
+
   const labels = BUSINESS_LABELS[category];
 
   const setField = (k: InputFieldKey, v: InputValue) => {
@@ -76,6 +82,87 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
     setState((s) => ({ ...s, [k]: v }));
     setSaveResult("idle");
   };
+
+  // PR #44: area/year/month/category 変更時に既存データを fetch して展開。
+  // day は UNIQUE 制約に含まれないため依存配列から除外 (day 変更で再 fetch しない)。
+  // race condition 対策: cancelled フラグで高速タブ切替時の上書きを防止。
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchExisting() {
+      setIsLoadingExisting(true);
+      try {
+        const params = new URLSearchParams({
+          area: state.area_id,
+          year: String(state.year),
+          month: String(state.month),
+          category,
+        });
+        const res = await fetch(`/api/monthly-summary?${params}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (cancelled) return;
+
+        const summary = json.summary as Record<string, unknown> | null;
+        if (summary) {
+          // 既存データあり → 入力 20 フィールド展開、メタ (area/year/month/day/category) は維持
+          setState((s) => ({
+            ...s,
+            outsourced_sales_revenue: numOrEmpty(summary.outsourced_sales_revenue),
+            internal_staff_revenue: numOrEmpty(summary.internal_staff_revenue),
+            outsourced_response_count: numOrEmpty(summary.outsourced_response_count),
+            internal_staff_response_count: numOrEmpty(summary.internal_staff_response_count),
+            repeat_count: numOrEmpty(summary.repeat_count),
+            revisit_count: numOrEmpty(summary.revisit_count),
+            review_count: numOrEmpty(summary.review_count),
+            total_labor_cost: numOrEmpty(summary.total_labor_cost),
+            material_cost: numOrEmpty(summary.material_cost),
+            sales_outsourcing_cost: numOrEmpty(summary.sales_outsourcing_cost),
+            card_processing_fee: numOrEmpty(summary.card_processing_fee),
+            ad_cost: numOrEmpty(summary.ad_cost),
+            call_count: numOrEmpty(summary.call_count),
+            acquisition_count: numOrEmpty(summary.acquisition_count),
+            outsourced_construction_count: numOrEmpty(summary.outsourced_construction_count),
+            internal_construction_count: numOrEmpty(summary.internal_construction_count),
+            outsourced_construction_cost: numOrEmpty(summary.outsourced_construction_cost),
+            internal_construction_profit: numOrEmpty(summary.internal_construction_profit),
+            help_count: numOrEmpty(summary.help_count),
+            help_revenue: numOrEmpty(summary.help_revenue),
+          }));
+          const aod = Number(summary.as_of_day);
+          setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
+        } else {
+          // 既存データなし → 入力 20 フィールドをクリア (メタは維持)
+          setState((s) => ({
+            ...s,
+            outsourced_sales_revenue: "", internal_staff_revenue: "",
+            outsourced_response_count: "", internal_staff_response_count: "",
+            repeat_count: "", revisit_count: "", review_count: "",
+            total_labor_cost: "", material_cost: "", sales_outsourcing_cost: "", card_processing_fee: "",
+            ad_cost: "", call_count: "", acquisition_count: "",
+            outsourced_construction_count: "", internal_construction_count: "",
+            outsourced_construction_cost: "", internal_construction_profit: "",
+            help_count: "", help_revenue: "",
+          }));
+          setExistingAsOfDay(null);
+        }
+        clearErrors();
+      } catch (e) {
+        // ネットワークエラー時はサイレントに新規入力モード扱い
+        if (!cancelled) {
+          setExistingAsOfDay(null);
+        }
+        console.error("/entry 既存データ読込エラー:", e);
+      } finally {
+        if (!cancelled) setIsLoadingExisting(false);
+      }
+    }
+    fetchExisting();
+    return () => {
+      cancelled = true;
+    };
+    // 注意: state.day は意図的に依存配列に含めない (DB 上 UNIQUE に含まれないため)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.area_id, state.year, state.month, category]);
 
   const handleSave = async () => {
     if (!validateAll(state)) {
@@ -214,6 +301,16 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
               </select>
             </Meta>
           </div>
+          {/* PR #44: 編集モード/新規入力モード/読込中のステータスバッジ */}
+          <ModeBadge
+            isLoading={isLoadingExisting}
+            existingAsOfDay={existingAsOfDay}
+            currentDay={state.day}
+          />
+          <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 8, lineHeight: 1.5 }}>
+            ※ 編集中の値は保存前にエリア・年・月を変更すると失われます
+            （日の変更は再読込しないため値は保持されます）。
+          </p>
         </div>
 
         <SectionSales state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
@@ -258,6 +355,78 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
 
 function numOrZero(v: InputValue): number {
   return v === "" ? 0 : v;
+}
+
+// PR #44: API レスポンスから受け取った値を InputValue に変換。
+// null/undefined は空文字、数値・文字列は Number 化、0 や NaN もそのまま空文字。
+function numOrEmpty(v: unknown): InputValue {
+  if (v == null || v === "") return "";
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : "";
+}
+
+// PR #44: 編集モード/新規入力モード/読込中のステータス表示。
+// monthly_summaries は month 単位 1 行運用 (PR #28 設計) のため、day 違いでも
+// 同じレコードを編集することになる。as_of_day の変化は注意喚起テキストで明示。
+function ModeBadge({
+  isLoading, existingAsOfDay, currentDay,
+}: { isLoading: boolean; existingAsOfDay: number | null; currentDay: number }) {
+  if (isLoading) {
+    return (
+      <div style={{
+        marginTop: 12, padding: "10px 14px", borderRadius: 6,
+        background: "#eff6ff", borderLeft: "4px solid #3b82f6", fontSize: 12,
+      }}>
+        <span style={{ fontSize: 14, marginRight: 6 }}>📡</span>
+        <span style={{ color: "#1e40af", fontWeight: 600 }}>既存データを読み込み中...</span>
+      </div>
+    );
+  }
+  if (existingAsOfDay !== null) {
+    const willOverwrite = existingAsOfDay !== currentDay;
+    return (
+      <div style={{
+        marginTop: 12, padding: "10px 14px", borderRadius: 6,
+        background: "#fffbeb", borderLeft: "4px solid #f59e0b", fontSize: 12,
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+          <span style={{ fontSize: 16 }}>✏️</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: "#78350f", fontWeight: 700, marginBottom: 2 }}>
+              編集モード
+            </div>
+            <div style={{ color: "#92400e", lineHeight: 1.6 }}>
+              最終更新: <strong>{existingAsOfDay}日時点</strong>（DB の現在値を表示中）
+              {willOverwrite && (
+                <>
+                  <br />
+                  保存すると <strong>as_of_day = {currentDay}日</strong> に更新されます。
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{
+      marginTop: 12, padding: "10px 14px", borderRadius: 6,
+      background: "#f0fdf4", borderLeft: "4px solid #10b981", fontSize: 12,
+    }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <span style={{ fontSize: 16 }}>📝</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: "#065f46", fontWeight: 700, marginBottom: 2 }}>
+            新規入力モード
+          </div>
+          <div style={{ color: "#047857", lineHeight: 1.6 }}>
+            この月のデータはまだ DB に存在しません。
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Meta({ label, children }: { label: string; children: React.ReactNode }) {
