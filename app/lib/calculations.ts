@@ -64,6 +64,7 @@ export type DashboardSummary = {
   totalAdCost: number;
   totalLaborCost: number;
   totalMaterialCost: number;
+  totalSalesOutsourcingCost: number;  // 営業外注費 (PR #38 sales_outsourcing_cost 由来)
   grossMargin: number;      // 粗利率(%)
   vehicleCount: number;     // 車両数
 };
@@ -106,6 +107,7 @@ export function calculateDashboard(
   let totalAdCost = 0;
   let totalLaborCost = 0;
   let totalMaterialCost = 0;
+  let totalSalesOutsourcingCost = 0;
 
   for (const e of entries) {
     selfRev += e.selfRevenue;
@@ -129,6 +131,7 @@ export function calculateDashboard(
     totalAdCost += n(e.adCost);
     totalLaborCost += n(e.laborCost);
     totalMaterialCost += n(e.materialCost);
+    totalSalesOutsourcingCost += n(e.outsourceCost);
   }
 
   const self = summarize(selfRev, selfProf, selfCnt);
@@ -159,6 +162,7 @@ export function calculateDashboard(
     daysElapsed, daysInMonth,
     insourceCount, outsourceCount, insourceRate, outsourceRate,
     reviewCount, totalAdCost, totalLaborCost, totalMaterialCost,
+    totalSalesOutsourcingCost,
     grossMargin,
     vehicleCount: entries.length > 0 ? Math.max(...entries.map(e => e.vehicleCount ?? 0), 0) : 0,
   };
@@ -227,7 +231,11 @@ export function buildMetricRows(
   const convRate = overrides?.convRate
     ?? (callCount > 0 ? (acquisitionCount / callCount) * 100 : 0);
   const constructionCount = Math.round(summary.totalCount * summary.constructionRate / 100);
-  const outsourceCost = entries.reduce((s, e) => s + (e.outsourceCost ?? 0), 0);
+  // 営業外注費: monthly_summaries.sales_outsourcing_cost (PR #38) を優先、
+  // entries 集計値はフォールバック (summary.totalSalesOutsourcingCost が 0 の場合)
+  const salesOutsourcingCost = summary.totalSalesOutsourcingCost > 0
+    ? summary.totalSalesOutsourcingCost
+    : entries.reduce((s, e) => s + (e.outsourceCost ?? 0), 0);
 
   const calcLanding = (actual: number): number => {
     if (daysElapsed <= 0 || actual <= 0) return 0;
@@ -360,10 +368,10 @@ export function buildMetricRows(
     })(),
     (() => {
       return {
-        name: "営業外注費", value: `¥${outsourceCost.toLocaleString()}`,
-        salesRatio: summary.totalRevenue > 0 ? `${Math.round(outsourceCost / summary.totalRevenue * 1000) / 10}%` : null,
+        name: "営業外注費", value: `¥${salesOutsourcingCost.toLocaleString()}`,
+        salesRatio: summary.totalRevenue > 0 ? `${Math.round(salesOutsourcingCost / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: null, status: "—", statusLevel: "none" as const, lineColor: "#d97706",
-        landingValue: calcLanding(outsourceCost), landingRate: null,
+        landingValue: calcLanding(salesOutsourcingCost), landingRate: null,
       };
     })(),
     (() => {
