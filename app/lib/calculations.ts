@@ -65,6 +65,8 @@ export type DashboardSummary = {
   totalLaborCost: number;
   totalMaterialCost: number;
   totalSalesOutsourcingCost: number;  // 営業外注費 (PR #38 sales_outsourcing_cost 由来)
+  outsourcedConstructionCount: number; // 外注工事件数 (PR #38 outsourced_construction_count 由来)
+  internalConstructionCount: number;   // 自社工事件数 (PR #38 internal_construction_count 由来)
   grossMargin: number;      // 粗利率(%)
   vehicleCount: number;     // 車両数
 };
@@ -163,6 +165,10 @@ export function calculateDashboard(
     insourceCount, outsourceCount, insourceRate, outsourceRate,
     reviewCount, totalAdCost, totalLaborCost, totalMaterialCost,
     totalSalesOutsourcingCost,
+    // PR #46: 工事件数は monthly_summaries 由来 (Dashboard.tsx で流入)。
+    // entries.data には対応キーが無いため、entries 経由集計は 0 で初期化。
+    outsourcedConstructionCount: 0,
+    internalConstructionCount: 0,
     grossMargin,
     vehicleCount: entries.length > 0 ? Math.max(...entries.map(e => e.vehicleCount ?? 0), 0) : 0,
   };
@@ -230,7 +236,18 @@ export function buildMetricRows(
   const helpRate = summary.totalCount > 0 ? (summary.help.count / summary.totalCount) * 100 : 0;
   const convRate = overrides?.convRate
     ?? (callCount > 0 ? (acquisitionCount / callCount) * 100 : 0);
-  const constructionCount = Math.round(summary.totalCount * summary.constructionRate / 100);
+  // PR #46: 工事件数は monthly_summaries.outsourced_construction_count +
+  // internal_construction_count の合計を優先 (DB 値が入っていれば)。
+  // 合計が 0 の場合のフォールバックとして旧ロジック (totalCount × constructionRate%)
+  // を採用 (旧 entries.data ベースの算出経路を温存)。
+  const constructionFromMonthly = summary.outsourcedConstructionCount + summary.internalConstructionCount;
+  const constructionCount = constructionFromMonthly > 0
+    ? constructionFromMonthly
+    : Math.round(summary.totalCount * summary.constructionRate / 100);
+  // 工事取得率も合計値ベースで算出 (totalCount > 0 が前提)
+  const constructionRateCalc = summary.totalCount > 0
+    ? (constructionCount / summary.totalCount) * 100
+    : summary.constructionRate;
   // 営業外注費: monthly_summaries.sales_outsourcing_cost (PR #38) を優先、
   // entries 集計値はフォールバック (summary.totalSalesOutsourcingCost が 0 の場合)
   const salesOutsourcingCost = summary.totalSalesOutsourcingCost > 0
@@ -284,12 +301,12 @@ export function buildMetricRows(
     })(),
     (() => {
       const targetConstructCount = targets.targetConstructionRate > 0 ? Math.round((targets.targetCount ?? 0) * targets.targetConstructionRate / 100) : 0;
-      const tr = targets.targetConstructionRate > 0 ? Math.round(summary.constructionRate / targets.targetConstructionRate * 1000) / 10 : null;
+      const tr = targets.targetConstructionRate > 0 ? Math.round(constructionRateCalc / targets.targetConstructionRate * 1000) / 10 : null;
       const pct = dayRatioPct(constructionCount, targetConstructCount);
       return {
         name: "工事件数", value: `${constructionCount}件`,
-        subValue: `${summary.constructionRate.toFixed(1)}%`,
-        subValueColor: subValueColor(summary.constructionRate, targets.targetConstructionRate),
+        subValue: `${constructionRateCalc.toFixed(1)}%`,
+        subValueColor: subValueColor(constructionRateCalc, targets.targetConstructionRate),
         salesRatio: null, targetRatio: tr, status: statusStr(pct),
         statusLevel: statusLevelFromPct(pct), lineColor: "#3b82f6",
         landingValue: calcLanding(constructionCount), landingRate: calcLandingRate(constructionCount, targetConstructCount),
