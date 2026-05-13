@@ -418,6 +418,7 @@ export default function Dashboard() {
         },
         // companyData は会社別ビュー専用の集計型で職人費等を持たない (将来拡張候補)
         totalLaborCost: 0, totalMaterialCost: 0, totalSalesOutsourcingCost: 0,
+        outsourcedConstructionCount: 0, internalConstructionCount: 0,
         daysElapsed: dim, daysInMonth: dim,
         grossMargin: companyData.totalRevenue > 0 ? Math.round(companyData.totalProfit / companyData.totalRevenue * 1000) / 10 : 0,
       };
@@ -439,6 +440,9 @@ export default function Dashboard() {
         const totalLaborCost = summaries.reduce((s, ms) => s + Number(ms.total_labor_cost ?? 0), 0);
         const totalMaterialCost = summaries.reduce((s, ms) => s + Number(ms.material_cost ?? 0), 0);
         const totalSalesOutsourcingCost = summaries.reduce((s, ms) => s + Number(ms.sales_outsourcing_cost ?? 0), 0);
+        // PR #46: 工事件数 2 列を全エリア合算
+        const outsourcedConstructionCount = summaries.reduce((s, ms) => s + Number(ms.outsourced_construction_count ?? 0), 0);
+        const internalConstructionCount = summaries.reduce((s, ms) => s + Number(ms.internal_construction_count ?? 0), 0);
         return {
           ...summary,
           totalRevenue, totalProfit, totalCount, totalAdCost,
@@ -450,6 +454,7 @@ export default function Dashboard() {
             unitPrice: helpCount > 0 ? Math.round(helpRevenue / helpCount) : 0,
           },
           totalLaborCost, totalMaterialCost, totalSalesOutsourcingCost,
+          outsourcedConstructionCount, internalConstructionCount,
           daysElapsed: dim, daysInMonth: dim,
           grossMargin: totalRevenue > 0 ? Math.round(totalProfit / totalRevenue * 1000) / 10 : 0,
         };
@@ -479,6 +484,9 @@ export default function Dashboard() {
       totalLaborCost: Number(monthlySummary.total_labor_cost ?? 0),
       totalMaterialCost: Number(monthlySummary.material_cost ?? 0),
       totalSalesOutsourcingCost: Number(monthlySummary.sales_outsourcing_cost ?? 0),
+      // PR #46: 工事件数 2 列を流入 (buildMetricRows で合計に再構成)
+      outsourcedConstructionCount: Number(monthlySummary.outsourced_construction_count ?? 0),
+      internalConstructionCount: Number(monthlySummary.internal_construction_count ?? 0),
       daysElapsed: dim,
       daysInMonth: dim,
       grossMargin: Number(monthlySummary.profit_rate ?? 0),
