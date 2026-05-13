@@ -11,6 +11,7 @@
 //   - エリア選択: executive/vice のみ手動、他は自エリア固定
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useFormCalculations } from "./hooks/useFormCalculations";
 import { useFormValidation } from "./hooks/useFormValidation";
 import SectionSales from "./components/SectionSales";
@@ -20,6 +21,7 @@ import SectionConstruction from "./components/SectionConstruction";
 import SectionHelp from "./components/SectionHelp";
 import AutoCalcDisplay from "./components/AutoCalcDisplay";
 import { BUSINESS_LABELS, type BusinessCategory } from "../lib/business-labels";
+import { BUSINESSES } from "../lib/businesses";
 import type { EntryFormState, InputFieldKey, InputValue } from "./types";
 
 type Props = {
@@ -257,14 +259,42 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2", paddingBottom: 100 }}>
       {/* ヘッダー */}
-      <div style={{ background: "linear-gradient(135deg, #059669, #047857)", padding: "18px 24px" }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff", margin: 0 }}>
-          月次データ入力 — {CATEGORY_LABELS[category]}
-        </h1>
-        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
-          仕様書 31 フィールド (入力 20 / 自動計算 11)。
-          入力日（日付）時点までの累積データを入力してください。下部の「保存」ボタンで一括登録します。
-        </p>
+      <div style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
+        {/* PR #45: 業態切替タブ。Dashboard と同スタイルで統一。
+            URL 変更で page.tsx 再描画 → EntryForm の category prop 更新 →
+            state がリセットされる (タブ切替時はフォーム値破棄) */}
+        <div style={{
+          display: "flex", gap: 4, padding: "8px 24px 0", overflowX: "auto",
+          borderBottom: "1px solid rgba(255,255,255,0.1)",
+        }}>
+          {BUSINESSES.map((b) => {
+            const isActive = b.id === category;
+            return (
+              <Link
+                key={b.id}
+                href={`/entry?category=${b.id}`}
+                style={{
+                  padding: "6px 14px", borderRadius: "8px 8px 0 0",
+                  fontSize: 11, fontWeight: 700, textDecoration: "none",
+                  background: isActive ? "rgba(255,255,255,0.25)" : "transparent",
+                  color: isActive ? "#fff" : "rgba(255,255,255,0.55)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {b.label}
+              </Link>
+            );
+          })}
+        </div>
+        <div style={{ padding: "14px 24px 18px" }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff", margin: 0 }}>
+            月次データ入力 — {CATEGORY_LABELS[category]}
+          </h1>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
+            仕様書 31 フィールド (入力 20 / 自動計算 11)。
+            入力日（日付）時点までの累積データを入力してください。下部の「保存」ボタンで一括登録します。
+          </p>
+        </div>
       </div>
 
       <div style={{ padding: 20, maxWidth: 960, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
