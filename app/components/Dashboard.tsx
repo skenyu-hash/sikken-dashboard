@@ -1056,6 +1056,16 @@ export default function Dashboard() {
         const remain = isCurrentMonth
           ? Math.max(1, displaySummary.daysInMonth - now.getDate())
           : 0;
+        // PR #47: 工事取得率を outsourced+internal の合計ベースで算出
+        // (PR #46 で displaySummary に流入済の 2 フィールドを利用)。
+        // displaySummary.constructionRate は DB の construction_rate 列を読むが
+        // 同列が存在しないため常に 0。下部 MetricRow (PR #46) と算出ロジックを統一。
+        const constructionCountTotal =
+          displaySummary.outsourcedConstructionCount + displaySummary.internalConstructionCount;
+        const constructionRateCalc =
+          displaySummary.totalCount > 0
+            ? (constructionCountTotal / displaySummary.totalCount) * 100
+            : displaySummary.constructionRate;
         const cards = [
           { label: "全体売上",
             val: remain > 0 ? yen(Math.round((targets.targetSales - displaySummary.totalRevenue) / remain)) + "/日" : "—",
@@ -1078,9 +1088,9 @@ export default function Dashboard() {
             sub: targets.targetHelpCount > 0 ? `残り ${Math.max(0, targets.targetHelpCount - displaySummary.help.count)}件` : "目標未設定",
             type: "y" },
           { label: "工事取得率",
-            val: `${displaySummary.constructionRate.toFixed(1)}%`,
+            val: `${constructionRateCalc.toFixed(1)}%`,
             sub: `目標 ${targets.targetConstructionRate > 0 ? targets.targetConstructionRate.toFixed(1) : "—"}%`,
-            type: targets.targetConstructionRate > 0 && displaySummary.constructionRate < targets.targetConstructionRate * 0.9 ? "r" : "y" },
+            type: targets.targetConstructionRate > 0 && constructionRateCalc < targets.targetConstructionRate * 0.9 ? "r" : "y" },
         ];
         return (
           <div style={{ marginBottom: 18 }}>
