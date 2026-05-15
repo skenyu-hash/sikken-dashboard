@@ -28,14 +28,17 @@ export default function SectionSales({ state, setField, validateField, errors, l
           value={state.internal_staff_revenue} onChange={(v) => setField("internal_staff_revenue", v)}
           onBlur={validateField} state={state} error={errors.internal_staff_revenue} />
       </div>
+      {/* PR #48a: 内訳のない業態 (鍵・ロード・探偵等) 向けの運用ヒント。
+          業態別フォーム化 (PR #48b) までの暫定ガイド。 */}
+      <HelpHint />
       {/* auto: total_revenue */}
       <AutoRow label={labels.total_revenue} value={fmtYen(calc.total_revenue)} formula="= 業務委託売上 + 内勤社員売上" />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginTop: 14 }}>
-        {/* 件数系 (f5, f6) → auto f4 */}
+        {/* 件数系 (f5, f6) → auto f4 (PR #48a で必須を撤廃、対応件数 0 でも保存可能) */}
         <NumberField field="outsourced_response_count" label={labels.outsourced_response_count} unit="件"
           value={state.outsourced_response_count} onChange={(v) => setField("outsourced_response_count", v)}
-          onBlur={validateField} state={state} error={errors.outsourced_response_count} required />
+          onBlur={validateField} state={state} error={errors.outsourced_response_count} />
         <NumberField field="internal_staff_response_count" label={labels.internal_staff_response_count} unit="件"
           value={state.internal_staff_response_count} onChange={(v) => setField("internal_staff_response_count", v)}
           onBlur={validateField} state={state} error={errors.internal_staff_response_count} />
@@ -56,6 +59,23 @@ export default function SectionSales({ state, setField, validateField, errors, l
           onBlur={validateField} state={state} error={errors.review_count} />
       </div>
     </SectionShell>
+  );
+}
+
+// PR #48a: 業態別フォーム移行 (PR #48b) までの緊急緩和向けヒント。
+// 鍵・ロード・探偵など「業務委託 vs 内勤社員」の内訳を持たない業態の
+// スタッフ向けに、合計値の入れ方を明示する。
+function HelpHint() {
+  return (
+    <p style={{
+      marginTop: 8, padding: "8px 10px",
+      fontSize: 11, color: "#374151", lineHeight: 1.5,
+      background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb",
+    }}>
+      💡 内訳がない業態（鍵・ロード・探偵等）の場合は、
+      <strong>業務委託側に合計値を入力</strong>し、内勤社員側は <strong>0</strong> のままで OK です。
+      対応件数も同様（0 件のままで保存可能）。
+    </p>
   );
 }
 
