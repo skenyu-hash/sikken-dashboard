@@ -54,12 +54,10 @@ export function useFormValidation() {
       errs.internal_staff_revenue = "業務委託売上または内勤社員売上のいずれかを入力してください";
     }
 
-    // 対応件数必須: f5 (業務委託対応件数) または f6 (内勤社員対応件数) のどちらかは > 0
-    const totalCnt = num(state.outsourced_response_count) + num(state.internal_staff_response_count);
-    if (totalCnt <= 0) {
-      errs.outsourced_response_count = "業務委託対応件数または内勤社員対応件数のいずれかを入力してください";
-      errs.internal_staff_response_count = "業務委託対応件数または内勤社員対応件数のいずれかを入力してください";
-    }
+    // PR #48a: 対応件数の必須チェックは緩和。
+    // 鍵・ロード・探偵など「業務委託 vs 内勤社員」の内訳を持たない業態では
+    // 件数を 0 のまま保存できる必要がある (業態別フォーム移行 PR #48b までの
+    // 緊急緩和)。売上は引き続き必須。
 
     // 各フィールド非負チェック
     (Object.keys(state) as Array<keyof EntryFormState>).forEach((k) => {
