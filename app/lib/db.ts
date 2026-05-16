@@ -191,6 +191,9 @@ export function ensureSchema(): Promise<void> {
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS outsourced_construction_cost NUMERIC NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS internal_construction_profit NUMERIC NOT NULL DEFAULT 0`);
 
+      // PR #48b: 電気業態向け 分電盤件数 (electric のみ使用、他業態は常に 0)
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS switchboard_count INTEGER NOT NULL DEFAULT 0`);
+
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,

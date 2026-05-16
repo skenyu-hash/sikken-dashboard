@@ -39,6 +39,14 @@ const PR38_NEW_COLUMNS = [
   "outsourced_construction_cost", "internal_construction_profit",
 ];
 
+// PR #48b で追加された電気業態用 1 列。PR #38 と同じく 3 セクション検証を行う。
+const PR48B_NEW_COLUMNS = [
+  "switchboard_count",
+];
+
+// 全ての新規列 (静的テストで route.ts INSERT 3 セクション検証対象)
+const ALL_NEW_COLUMNS = [...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS];
+
 let pass = 0;
 let fail = 0;
 const failures: string[] = [];
@@ -58,7 +66,7 @@ function check(desc: string, cond: boolean, hint?: string) {
 // ============================================================
 
 function runStaticTests() {
-  console.log("📜 段階 1: 静的テスト — route.ts INSERT 文に新 15 列が含まれているか\n");
+  console.log(`📜 段階 1: 静的テスト — route.ts INSERT 文に新 ${ALL_NEW_COLUMNS.length} 列が含まれているか\n`);
 
   const src = readFileSync(ROUTE_PATH, "utf8");
 
@@ -77,7 +85,7 @@ function runStaticTests() {
   const [, insertColsSection, valuesSection, onConflictSection] = insertMatch;
 
   // 各列について 3 セクションすべてに含まれているか個別に検証
-  for (const col of PR38_NEW_COLUMNS) {
+  for (const col of ALL_NEW_COLUMNS) {
     // セクション 1: INSERT カラム名リスト (列名がカンマ/改行/空白に囲まれて出現)
     const inInsertList = new RegExp(`(^|\\s|,)${col}(\\s|,|$)`).test(insertColsSection);
     check(
@@ -103,7 +111,7 @@ function runStaticTests() {
     );
   }
 
-  console.log(`   3 セクション × ${PR38_NEW_COLUMNS.length} 列 = ${PR38_NEW_COLUMNS.length * 3} 静的アサーション\n`);
+  console.log(`   3 セクション × ${ALL_NEW_COLUMNS.length} 列 = ${ALL_NEW_COLUMNS.length * 3} 静的アサーション\n`);
 }
 
 // ============================================================
@@ -153,6 +161,8 @@ const TEST_VALUES: Record<string, number> = {
   internal_construction_count: 200,
   outsourced_construction_cost: 12000000,
   internal_construction_profit: 5000000,
+  // 新 1 列 (PR #48b: 電気業態用 分電盤件数)
+  switchboard_count: 18,
 };
 
 const TEST_AREA = "kansai";
@@ -161,7 +171,7 @@ const TEST_YEAR = 2099;
 const TEST_MONTH = 12;
 
 async function runIntegrationTests() {
-  console.log("🧪 段階 2: 統合テスト — DB が新 15 列を含む全 38 列を保存できるか");
+  console.log(`🧪 段階 2: 統合テスト — DB が新 ${ALL_NEW_COLUMNS.length} 列を含む全 ${Object.keys(TEST_VALUES).length} 列を保存できるか`);
   console.log(`   投入先: ${TEST_AREA}/${TEST_CATEGORY}/${TEST_YEAR}-${TEST_MONTH}\n`);
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
