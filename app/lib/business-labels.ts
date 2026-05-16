@@ -121,13 +121,26 @@ const WATER_LABELS: FieldLabels = {
   switchboard_count: "分電盤件数",
 };
 
+// PR #48b c4-locksmith: 鍵業態固有ラベル。
+// LocksmithForm は独自セクション構造 (4 セクション + SectionConstruction 非表示) で
+// 既存 FieldLabels キーの一部のみ流用するため、必要なキーのみオーバーライド。
+// それ以外の業態固有テキスト (販管費、車LP+メール、インハウス、リピート、再訪問など)
+// は LocksmithForm 内で直接定義する (FieldLabels に追加しない方針)。
+const LOCKSMITH_LABELS: FieldLabels = {
+  ...WATER_LABELS,
+  section_sales: "① 新規対応",
+  total_revenue: "売上",
+  total_labor_cost: "工事費",
+  sales_outsourcing_cost: "手数料",
+};
+
 // PR #40 で完成予定の placeholder。
 // 仕様書 §5.3 に従い、④施工セクションのみ語尾が業態別 (工事/出動/調査)。
 // 現状は water_LABELS をそのまま流用 (語尾は PR #40 で差替)。
 export const BUSINESS_LABELS: Record<BusinessCategory, FieldLabels> = {
   water: WATER_LABELS,
   electric: WATER_LABELS, // TODO PR #40: 5業態展開時に固有ラベル
-  locksmith: WATER_LABELS, // TODO PR #40
+  locksmith: LOCKSMITH_LABELS,
   road: WATER_LABELS, // TODO PR #40: 工事 → 出動
   detective: WATER_LABELS, // TODO PR #40: 工事 → 調査
 };

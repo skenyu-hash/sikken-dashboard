@@ -16,6 +16,7 @@ import { useFormCalculations } from "./hooks/useFormCalculations";
 import { useFormValidation } from "./hooks/useFormValidation";
 import WaterForm from "./components/forms/WaterForm";
 import ElectricForm from "./components/forms/ElectricForm";
+import LocksmithForm from "./components/forms/LocksmithForm";
 import { BUSINESS_LABELS, type BusinessCategory, type FieldLabels } from "../lib/business-labels";
 import { BUSINESSES } from "../lib/businesses";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "./types";
@@ -56,8 +57,9 @@ function renderBusinessForm(category: BusinessCategory, props: FormProps) {
   switch (category) {
     case "electric":
       return <ElectricForm {...props} />;
+    case "locksmith":
+      return <LocksmithForm {...props} />;
     case "water":
-    case "locksmith":  // c4-locksmith: LocksmithForm に差し替え予定
     case "road":       // c5: RoadForm に差し替え予定
     case "detective":  // c5: DetectiveForm に差し替え予定
     default:
