@@ -14,15 +14,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useFormCalculations } from "./hooks/useFormCalculations";
 import { useFormValidation } from "./hooks/useFormValidation";
-import SectionSales from "./components/SectionSales";
-import SectionCosts from "./components/SectionCosts";
-import SectionAcquisition from "./components/SectionAcquisition";
-import SectionConstruction from "./components/SectionConstruction";
-import SectionHelp from "./components/SectionHelp";
-import AutoCalcDisplay from "./components/AutoCalcDisplay";
-import { BUSINESS_LABELS, type BusinessCategory } from "../lib/business-labels";
+import WaterForm from "./components/forms/WaterForm";
+import { BUSINESS_LABELS, type BusinessCategory, type FieldLabels } from "../lib/business-labels";
 import { BUSINESSES } from "../lib/businesses";
-import type { EntryFormState, InputFieldKey, InputValue } from "./types";
+import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "./types";
 
 type Props = {
   initialArea: string;
@@ -42,6 +37,31 @@ const AREA_NAMES: Record<string, string> = {
 const CATEGORY_LABELS: Record<BusinessCategory, string> = {
   water: "水道", electric: "電気", locksmith: "鍵", road: "ロード", detective: "探偵",
 };
+
+// PR #48b c3: 業態別フォーム dispatch。
+// 現状は全業態 WaterForm を返す (動作変更ゼロを担保)。
+// c4 で electric → ElectricForm、locksmith → LocksmithForm を分岐に追加。
+// c5 で road → RoadForm、detective → DetectiveForm を分岐に追加。
+type FormProps = {
+  state: EntryFormState;
+  setField: (k: InputFieldKey, v: InputValue) => void;
+  validateField: (field: InputFieldKey, value: InputValue, state: EntryFormState) => boolean;
+  errors: ValidationErrors;
+  labels: FieldLabels;
+  calc: AutoCalcResult;
+};
+
+function renderBusinessForm(category: BusinessCategory, props: FormProps) {
+  switch (category) {
+    case "water":
+    case "electric":   // c4: ElectricForm に差し替え予定
+    case "locksmith":  // c4: LocksmithForm に差し替え予定
+    case "road":       // c5: RoadForm に差し替え予定
+    case "detective":  // c5: DetectiveForm に差し替え予定
+    default:
+      return <WaterForm {...props} />;
+  }
+}
 
 function emptyState(area: string, year: number, month: number, day: number, category: BusinessCategory): EntryFormState {
   return {
@@ -343,12 +363,13 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           </p>
         </div>
 
-        <SectionSales state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
-        <SectionCosts state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} />
-        <SectionAcquisition state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
-        <SectionConstruction state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
-        <SectionHelp state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
-        <AutoCalcDisplay calc={calc} labels={labels} />
+        {/* PR #48b c3: 業態別フォーム routing 層。
+            現状は全業態 WaterForm にルーティング (動作変更ゼロを担保)。
+            c4 で electric → ElectricForm、locksmith → LocksmithForm に分岐。
+            c5 で road → RoadForm、detective → DetectiveForm に分岐。 */}
+        {renderBusinessForm(category, {
+          state, setField, validateField, errors, labels, calc,
+        })}
       </div>
 
       {/* 固定保存バー */}
