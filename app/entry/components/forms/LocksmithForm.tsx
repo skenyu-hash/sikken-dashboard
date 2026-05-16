@@ -36,6 +36,7 @@
 import { useMemo, useState } from "react";
 import SectionShell from "../SectionShell";
 import NumberField from "../NumberField";
+import LocalNumberField from "../LocalNumberField";
 import { AutoRow, fmtYen, fmtCount, fmtPct } from "../AutoCalcDisplay";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "../../types";
 import type { FieldLabels } from "../../../lib/business-labels";
@@ -181,32 +182,3 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
   );
 }
 
-// 内訳入力 / 販管費 用の軽量フィールド (NumberField は EntryFormState の field key
-// に縛られているため、locksmith-local state には使えない)
-function LocalNumberField({
-  label, unit, value, onChange,
-}: { label: string; unit: "円" | "件" | "%"; value: InputValue; onChange: (v: InputValue) => void }) {
-  return (
-    <label style={{ display: "block" }}>
-      <span style={{ display: "block", fontSize: 11, color: "#374151", marginBottom: 4, fontWeight: 600 }}>
-        {label}
-        <span style={{ color: "#9ca3af", marginLeft: 4, fontWeight: 400 }}>({unit})</span>
-      </span>
-      <input
-        type="number"
-        inputMode="decimal"
-        value={value}
-        onChange={(e) => {
-          const raw = e.target.value;
-          onChange(raw === "" ? "" : Number(raw));
-        }}
-        style={{
-          width: "100%", height: 36, padding: "0 10px",
-          fontSize: 13, fontWeight: 600, color: "#111",
-          textAlign: "right", background: "#fff",
-          border: "1px solid #d1fae5", borderRadius: 6, outline: "none",
-        }}
-      />
-    </label>
-  );
-}
