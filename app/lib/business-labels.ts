@@ -66,6 +66,9 @@ export interface FieldLabels {
   // ⑥ 粗利 (auto 2)
   profit: string; // auto
   total_profit: string; // auto, 合計粗利
+
+  // PR #48b: 電気業態専用フィールド (ElectricForm でのみ表示)
+  switchboard_count: string;
 }
 
 // 水道 canonical (仕様書 §4.2 に厳密一致)
@@ -113,6 +116,9 @@ const WATER_LABELS: FieldLabels = {
 
   profit: "粗利",
   total_profit: "合計粗利",
+
+  // PR #48b: 電気業態専用 (water でも label 定義は持つ、表示は ElectricForm のみ)
+  switchboard_count: "分電盤件数",
 };
 
 // PR #40 で完成予定の placeholder。

@@ -1,6 +1,10 @@
 "use client";
 // ④ 施工 セクション: 入力 4 (f22/f23/f24/f25) + auto 2 (f21/f26)
 // 業態別語尾は labels で吸収 (water=工事 / road=出動 / detective=調査)
+//
+// PR #48b: 電気業態のみ最下部に switchboard_count (分電盤件数) を追加表示。
+// 工事件数とは独立カウント (仕様確定)。表示 ON/OFF は showSwitchboardCount
+// prop で制御し、ElectricForm から true で渡される。
 
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "../types";
 import type { FieldLabels } from "../../lib/business-labels";
@@ -15,11 +19,14 @@ type Props = {
   errors: ValidationErrors;
   labels: FieldLabels;
   calc: AutoCalcResult;
+  /** 電気業態のみ true: 最下部に 分電盤件数 (switchboard_count) 入力欄を表示 */
+  showSwitchboardCount?: boolean;
 };
 
-export default function SectionConstruction({ state, setField, validateField, errors, labels, calc }: Props) {
+export default function SectionConstruction({ state, setField, validateField, errors, labels, calc, showSwitchboardCount }: Props) {
+  const subtitle = showSwitchboardCount ? "入力 5項目 + 自動計算 2項目" : "入力 4項目 + 自動計算 2項目";
   return (
-    <SectionShell title={labels.section_construction} subtitle="入力 4項目 + 自動計算 2項目">
+    <SectionShell title={labels.section_construction} subtitle={subtitle}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         <NumberField field="outsourced_construction_count" label={labels.outsourced_construction_count} unit="件"
           value={state.outsourced_construction_count} onChange={(v) => setField("outsourced_construction_count", v)}
@@ -39,6 +46,14 @@ export default function SectionConstruction({ state, setField, validateField, er
           onBlur={validateField} state={state} error={errors.internal_construction_profit} />
       </div>
       <AutoRow label={labels.actual_construction_cost} value={fmtYen(calc.actual_construction_cost)} formula="= 外注工事費 − 自社工事利益" />
+
+      {showSwitchboardCount && (
+        <div style={{ marginTop: 14 }}>
+          <NumberField field="switchboard_count" label={labels.switchboard_count} unit="件"
+            value={state.switchboard_count} onChange={(v) => setField("switchboard_count", v)}
+            onBlur={validateField} state={state} error={errors.switchboard_count} />
+        </div>
+      )}
     </SectionShell>
   );
 }

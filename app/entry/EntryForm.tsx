@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useFormCalculations } from "./hooks/useFormCalculations";
 import { useFormValidation } from "./hooks/useFormValidation";
 import WaterForm from "./components/forms/WaterForm";
+import ElectricForm from "./components/forms/ElectricForm";
 import { BUSINESS_LABELS, type BusinessCategory, type FieldLabels } from "../lib/business-labels";
 import { BUSINESSES } from "../lib/businesses";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "./types";
@@ -53,9 +54,10 @@ type FormProps = {
 
 function renderBusinessForm(category: BusinessCategory, props: FormProps) {
   switch (category) {
+    case "electric":
+      return <ElectricForm {...props} />;
     case "water":
-    case "electric":   // c4: ElectricForm に差し替え予定
-    case "locksmith":  // c4: LocksmithForm に差し替え予定
+    case "locksmith":  // c4-locksmith: LocksmithForm に差し替え予定
     case "road":       // c5: RoadForm に差し替え予定
     case "detective":  // c5: DetectiveForm に差し替え予定
     default:
@@ -74,6 +76,7 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     outsourced_construction_count: "", internal_construction_count: "",
     outsourced_construction_cost: "", internal_construction_profit: "",
     help_count: "", help_revenue: "",
+    switchboard_count: "",
   };
 }
 
@@ -149,11 +152,12 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             internal_construction_profit: numOrEmpty(summary.internal_construction_profit),
             help_count: numOrEmpty(summary.help_count),
             help_revenue: numOrEmpty(summary.help_revenue),
+            switchboard_count: numOrEmpty(summary.switchboard_count),
           }));
           const aod = Number(summary.as_of_day);
           setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
         } else {
-          // 既存データなし → 入力 20 フィールドをクリア (メタは維持)
+          // 既存データなし → 入力フィールドをクリア (メタは維持)
           setState((s) => ({
             ...s,
             outsourced_sales_revenue: "", internal_staff_revenue: "",
@@ -164,6 +168,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             outsourced_construction_count: "", internal_construction_count: "",
             outsourced_construction_cost: "", internal_construction_profit: "",
             help_count: "", help_revenue: "",
+            switchboard_count: "",
           }));
           setExistingAsOfDay(null);
         }
@@ -225,6 +230,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         internal_construction_profit: numOrZero(state.internal_construction_profit),
         help_count: numOrZero(state.help_count),
         help_revenue: numOrZero(state.help_revenue),
+        switchboard_count: numOrZero(state.switchboard_count),
         // auto 計算結果のうち、既存 DB 列に対応するものを送信
         // (新規 DB 列なしの total_construction_count / actual_construction_cost / profit は送らない)
         total_revenue: Math.round(calc.total_revenue),
