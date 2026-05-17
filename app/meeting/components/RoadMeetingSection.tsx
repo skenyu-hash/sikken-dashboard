@@ -1,0 +1,81 @@
+"use client";
+// PR #55 c2: ロード業態用 会議シートセクション。
+//
+// 構成 (RoadDashboardSection と 1:1 対応):
+//   ① 新規対応・コスト・粗利 (売上 / 広告費 / 手数料 + 粗利)
+//                              ※ 保険売上 / 無保険売上 / 販管費 は UI のみで非表示
+//   ② 入電 (総入電件数 / 入電単価)
+//   ③ 獲得 7 チャネル + 集計
+//
+// HELP / 工事取得率 / 施工 は非表示。
+//
+// 派生値:
+//   粗利 = 売上 - (広告費 + 手数料) (RoadForm と同式、calc.profit 互換)
+
+import { MetricRow, SectionTable, fmtYen, fmtCount, fmtPct, type MeetingPeriodProps } from "./MetricRow";
+import type { Targets } from "../../lib/calculations";
+
+const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
+const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
+
+type Props = MeetingPeriodProps & {
+  monthlySummary: Record<string, unknown> | null;
+  targets: Targets;
+};
+
+export default function RoadMeetingSection({
+  monthlySummary, targets, isEndPeriod, daysElapsed, daysInMonth,
+}: Props) {
+  const mp = { isEndPeriod, daysElapsed, daysInMonth };
+
+  // 売上・コスト
+  const sales = numOf(monthlySummary?.total_revenue);
+  const adCost = numOf(monthlySummary?.ad_cost);
+  const commission = numOf(monthlySummary?.sales_outsourcing_cost);
+  const profit = sales - adCost - commission;
+
+  // 入電 / 獲得
+  const callCount = numOf(monthlySummary?.call_count);
+  const acquisitionCount = numOf(monthlySummary?.acquisition_count);
+  const callUnitPrice = Math.round(safeDiv(adCost, callCount));
+  const cpa = Math.round(safeDiv(adCost, acquisitionCount));
+  const convRate = safeDiv(acquisitionCount, callCount) * 100;
+
+  // 獲得 7 チャネル (PR #52 で永続化)
+  const acqAd = numOf(monthlySummary?.road_ad_count);
+  const acqRepeat = numOf(monthlySummary?.road_repeat_count);
+  const acqReferral = numOf(monthlySummary?.road_referral_count);
+  const acqRevisit = numOf(monthlySummary?.road_revisit_count);
+  const acqWellnest = numOf(monthlySummary?.road_wellnest_count);
+  const acqSeo = numOf(monthlySummary?.road_seo_count);
+  const acqInsurance = numOf(monthlySummary?.road_insurance_count);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <SectionTable title="① 新規対応・コスト・粗利">
+        <MetricRow label="売上"   actual={sales}      target={targets.targetSales}   {...mp} format={fmtYen} />
+        <MetricRow label="広告費" actual={adCost}     target={targets.targetAdCost}  {...mp} format={fmtYen} invertGap />
+        <MetricRow label="手数料" actual={commission} target={0}                      {...mp} format={fmtYen} invertGap />
+        <MetricRow label="粗利"   actual={profit}     target={targets.targetProfit}  {...mp} format={fmtYen} />
+      </SectionTable>
+
+      <SectionTable title="② 入電">
+        <MetricRow label="総入電件数" actual={callCount}     target={targets.targetCallCount} {...mp} format={fmtCount} />
+        <MetricRow label="入電単価"   actual={callUnitPrice} target={0}                        {...mp} format={fmtYen} isRate />
+      </SectionTable>
+
+      <SectionTable title="③ 獲得 7 チャネル + 集計">
+        <MetricRow label="広告 獲得"       actual={acqAd}            target={0} {...mp} format={fmtCount} />
+        <MetricRow label="リピート 獲得"   actual={acqRepeat}        target={0} {...mp} format={fmtCount} />
+        <MetricRow label="紹介 獲得"       actual={acqReferral}      target={0} {...mp} format={fmtCount} />
+        <MetricRow label="再訪問 獲得"     actual={acqRevisit}       target={0} {...mp} format={fmtCount} />
+        <MetricRow label="ウェルネスト 獲得" actual={acqWellnest}    target={0} {...mp} format={fmtCount} />
+        <MetricRow label="SEO 獲得"        actual={acqSeo}           target={0} {...mp} format={fmtCount} />
+        <MetricRow label="保険会社 獲得"   actual={acqInsurance}     target={0} {...mp} format={fmtCount} />
+        <MetricRow label="総獲得件数"      actual={acquisitionCount} target={targets.targetCount}    {...mp} format={fmtCount} />
+        <MetricRow label="CPA"             actual={cpa}              target={targets.targetCpa}      {...mp} format={fmtYen} isRate invertGap />
+        <MetricRow label="成約率"          actual={convRate}         target={targets.targetConversionRate} {...mp} format={fmtPct} isRate />
+      </SectionTable>
+    </div>
+  );
+}

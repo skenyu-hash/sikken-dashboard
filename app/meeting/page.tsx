@@ -1,13 +1,39 @@
 "use client";
+// PR #55: /meeting 会議シートページ
+//
+// 主な機能:
+//   - 業態タブ (水道/電気/鍵/ロード/探偵) で月次会議シート切替
+//   - 10日/20日/末日 サイクル切替で着地予測表示
+//   - エリア選択・月送り (◀ ▶) で柔軟な期間指定
+//   - URL パラメータ連動 (PR #55): ?category=&area=&cycle=&year=&month= で
+//     ディープリンク可能。経営会議で「このリンク見てください」即共有。
+//
+// 業態別レイアウト routing (PR #55 で導入):
+//   水道       : 既存インラインレイアウト (PR #56 で WaterMeetingSection 化予定)
+//   電気       : ElectricMeetingSection (水道 + 分電盤件数 + 部門別実績)
+//   鍵         : LocksmithMeetingSection (4 セクション、独自獲得 5 内訳)
+//   ロード     : RoadMeetingSection (3 セクション、HELP/工事なし)
+//   探偵       : DetectiveMeetingSection (4 セクション、面談ファネル)
+//
+// useSearchParams は Suspense 必須 (Next.js 16) のため、ロジック本体は
+// MeetingPageInner に分離して MeetingPage で Suspense ラップ。
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   calculateDashboard, getDaysInMonth,
-  emptyTargets, manToYen, yen, type DailyEntry, type Targets, type DashboardSummary,
+  emptyTargets, manToYen, type DailyEntry, type Targets, type DashboardSummary,
 } from "../lib/calculations";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import AsOfBadge from "../components/AsOfBadge";
 import { resolveTotalProfit } from "../lib/profit";
+import {
+  MetricRow, SectionTable, fmtYen, fmtCount, fmtPct,
+} from "./components/MetricRow";
+import LocksmithMeetingSection from "./components/LocksmithMeetingSection";
+import RoadMeetingSection from "./components/RoadMeetingSection";
+import DetectiveMeetingSection from "./components/DetectiveMeetingSection";
+import ElectricMeetingSection from "./components/ElectricMeetingSection";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -16,151 +42,45 @@ const ALL_AREAS = [
   { id: "chugoku", name: "中国" }, { id: "shizuoka", name: "静岡" },
 ];
 
-// ============ ユーティリティ ============
-function calcLanding(actual: number, elapsed: number, dim: number): number {
-  if (elapsed <= 0 || actual <= 0) return 0;
-  return Math.round(actual / elapsed * dim);
-}
-function calcAchievement(landing: number, target: number): number | null {
-  if (target <= 0 || landing <= 0) return null;
-  return Math.round(landing / target * 1000) / 10;
-}
-function calcGap(landing: number, target: number): number | null {
-  if (target <= 0) return null;
-  return landing - target;
-}
-function calcDaily(target: number, dim: number): number {
-  if (target <= 0 || dim <= 0) return 0;
-  return Math.round(target / dim);
-}
+// ============ URL パラメータ パース (PR #55) ============
+const VALID_CATEGORIES: readonly BusinessCategory[] = ["water", "electric", "locksmith", "road", "detective"] as const;
+const VALID_AREAS = ["kansai", "kanto", "nagoya", "kyushu", "kitakanto", "hokkaido", "chugoku", "shizuoka"] as const;
+const VALID_CYCLES = ["10", "20", "end"] as const;
+type CycleKey = typeof VALID_CYCLES[number];
 
-// ============ MetricRow ============
-function MetricRow({ label, actual, target, isEndPeriod, daysElapsed, daysInMonth, format, isRate = false, invertGap = false }: {
-  label: string; actual: number; target: number; isEndPeriod: boolean;
-  daysElapsed: number; daysInMonth: number; format: (v: number) => string;
-  isRate?: boolean; invertGap?: boolean;
-}) {
-  const landing = isRate ? actual : calcLanding(actual, daysElapsed, daysInMonth);
-  const compareVal = isEndPeriod ? actual : landing;
-  const achievement = calcAchievement(compareVal, target);
-  const gap = calcGap(compareVal, target);
-  const daily = calcDaily(target, daysInMonth);
-
-  const achBg = achievement === null ? "#f3f4f6" : achievement >= 100 ? "#d1fae5" : achievement >= 80 ? "#fef9c3" : "#fee2e2";
-  const achColor = achievement === null ? "#d1d5db" : achievement >= 100 ? "#065f46" : achievement >= 80 ? "#854d0e" : "#991b1b";
-  const gapPositive = invertGap ? (gap !== null && gap <= 0) : (gap !== null && gap >= 0);
-  const gapColor = gap === null ? "#9ca3af" : gapPositive ? "#059669" : "#dc2626";
-
-  const td: React.CSSProperties = { padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151", borderBottom: "1px solid #f0faf0" };
-
-  return (
-    <tr>
-      <td style={{ ...td, textAlign: "left", fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</td>
-      <td style={{ ...td, fontWeight: 700, color: "#111" }}>{format(actual)}</td>
-      <td style={{ ...td, color: "#059669", fontWeight: 700 }}>
-        {isEndPeriod || isRate ? "\u2014" : format(landing)}
-      </td>
-      <td style={td}>
-        {achievement !== null ? (
-          <span style={{ display: "inline-block", fontSize: 11, fontWeight: 700, borderRadius: 4, padding: "2px 8px", background: achBg, color: achColor }}>
-            {achievement.toFixed(1)}%
-          </span>
-        ) : <span style={{ color: "#d1d5db", fontSize: 11 }}>未設定</span>}
-      </td>
-      <td style={{ ...td, whiteSpace: "nowrap" }}>
-        {gap === null ? <span style={{ color: "#d1d5db", fontSize: 11 }}>{"\u2014"}</span> : (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: gapPositive ? "#059669" : "#dc2626" }}>
-              {gap >= 0 ? "+" : "\u2212"}{format(Math.abs(gap))}
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 600, borderRadius: 3, padding: "1px 5px", flexShrink: 0,
-              background: gapPositive ? "#d1fae5" : "#fee2e2",
-              color: gapPositive ? "#065f46" : "#991b1b" }}>
-              {gapPositive ? "超過" : "不足"}
-            </span>
-          </span>
-          {target > 0 && (
-            <span style={{
-              fontSize: 10, color: "#6b7280", fontWeight: 500,
-              borderTop: "1px dashed #e5e7eb", paddingTop: 3,
-              whiteSpace: "nowrap", textAlign: "right",
-            }}>
-              🎯 目標: {format(target)}
-            </span>
-          )}
-          </div>
-        )}
-      </td>
-      <td style={td}>
-        {daily > 0 && !isRate ? (
-          <span style={{ color: "#d97706", fontWeight: 700, fontSize: 12 }}>{format(daily)}</span>
-        ) : <span style={{ color: "#d1d5db", fontSize: 11 }}>{"\u2014"}</span>}
-      </td>
-    </tr>
-  );
+function parseCategory(v: string | null): BusinessCategory {
+  return v && VALID_CATEGORIES.includes(v as BusinessCategory) ? (v as BusinessCategory) : "water";
+}
+function parseArea(v: string | null): string {
+  return v && (VALID_AREAS as readonly string[]).includes(v) ? v : "kansai";
+}
+function parseCycle(v: string | null): CycleKey {
+  return v && (VALID_CYCLES as readonly string[]).includes(v) ? (v as CycleKey) : "10";
+}
+function parseYearMonth(v: string | null, fallback: number, min: number, max: number): number {
+  const n = v ? Number(v) : NaN;
+  return Number.isInteger(n) && n >= min && n <= max ? n : fallback;
 }
 
-// ============ セクションテーブル ============
-function SectionTable({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #d1fae5", overflow: "hidden" }}>
-      <div style={{ background: "#ecfdf5", padding: "8px 14px", borderBottom: "1px solid #d1fae5",
-        fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-        {title}
-      </div>
-      <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", minWidth: 520 }}>
-        <colgroup>
-          <col style={{ width: "18%" }} />
-          <col style={{ width: "17%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "24%" }} />
-          <col style={{ width: "15%" }} />
-        </colgroup>
-        <thead>
-          <tr style={{ background: "#ecfdf5" }}>
-            {["指標", "実績", "着地予測", "見込み", "目標差", "1日の目安"].map((h, i) => (
-              <th key={h} style={{
-                padding: "8px 10px", fontSize: 10, fontWeight: 700, color: "#6b7280",
-                textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #d1fae5",
-                textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap",
-              }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>{children}</tbody>
-      </table>
-      </div>
-    </div>
-  );
-}
+// ============ メインページ (Suspense ラップ内側) ============
+function MeetingPageInner() {
+  const searchParams = useSearchParams();
 
-// ============ メインページ ============
-export default function MeetingPage() {
-  const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>("water");
+  // URL パラメータから state を初期化 (lazy initial state)
+  const [activeBusiness, setActiveBusiness] = useState<BusinessCategory>(() => parseCategory(searchParams.get("category")));
   const businessAreas = useMemo(() => {
     const biz = BUSINESSES.find(b => b.id === activeBusiness);
     if (!biz) return ALL_AREAS;
     return biz.areas.map(id => ALL_AREAS.find(a => a.id === id)).filter(Boolean) as typeof ALL_AREAS;
   }, [activeBusiness]);
 
-  const [areaId, setAreaId] = useState("kansai");
-  const [period, setPeriod] = useState<"10" | "20" | "end">("10");
+  const [areaId, setAreaId] = useState<string>(() => parseArea(searchParams.get("area")));
+  const [period, setPeriod] = useState<CycleKey>(() => parseCycle(searchParams.get("cycle")));
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [targets, setTargets] = useState<Targets>(emptyTargets());
   const [monthlySummary, setMonthlySummary] = useState<Record<string, unknown> | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
 
-  useEffect(() => {
-    const update = () => setIsMobile(typeof window !== "undefined" && window.innerWidth < 640);
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-
-  // 事業切替時にエリアリセット
+  // 事業切替時にエリアリセット (URL から既に有効な値が来ている場合は維持)
   useEffect(() => {
     const biz = BUSINESSES.find(b => b.id === activeBusiness);
     if (biz && !biz.areas.includes(areaId)) {
@@ -171,12 +91,11 @@ export default function MeetingPage() {
   const now = useMemo(() => new Date(), []);
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
-  const [year, setYear] = useState(currentYear);
-  const [month, setMonth] = useState(currentMonth);
+  const [year, setYear] = useState<number>(() => parseYearMonth(searchParams.get("year"), currentYear, 2020, 2100));
+  const [month, setMonth] = useState<number>(() => parseYearMonth(searchParams.get("month"), currentMonth, 1, 12));
   const daysInMonth = getDaysInMonth(year, month);
   const isCurrentMonth = year === currentYear && month === currentMonth;
-  // 月送りは過去・未来とも無制限（経営層が任意の月の会議シートを確認可能）。
-  // isCurrentMonth は isPastData 判定で必要なため変数自体は維持。
+
   function gotoPrevMonth() {
     const d = new Date(year, month - 2, 1);
     setYear(d.getFullYear());
@@ -197,6 +116,22 @@ export default function MeetingPage() {
   const isEndPeriod = isPastData || period === "end";
   const areaName = ALL_AREAS.find((a) => a.id === areaId)?.name ?? "";
 
+  // PR #55: URL パラメータ同期 (state → URL、replaceState で履歴汚染なし)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams();
+    params.set("category", activeBusiness);
+    params.set("area", areaId);
+    params.set("cycle", period);
+    params.set("year", String(year));
+    params.set("month", String(month));
+    const next = `?${params.toString()}`;
+    if (next !== window.location.search) {
+      window.history.replaceState({}, "", `${window.location.pathname}${next}`);
+    }
+  }, [activeBusiness, areaId, period, year, month]);
+
+  // データ fetch (5 KPI ストリップ + 業態別セクション共通)
   useEffect(() => {
     fetch(`/api/entries?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { entries: [] }))
@@ -223,12 +158,8 @@ export default function MeetingPage() {
     [filteredEntries, year, month, daysElapsed]
   );
 
+  // monthly_summaries が存在すれば優先 (entries 集計はフォールバック)
   const displaySummary: DashboardSummary = useMemo(() => {
-    // monthly_summaries が存在すれば常に正規データソースとして優先する。
-    // 旧仕様 (entries.length > 0 で早期 return) は entries に全フィールド0の
-    // ゴミレコードが1件でもあると monthly_summaries が無視され、画面が ¥0 に
-    // なるバグが発生していた（九州/water/2026-04 で確認）。
-    // PR #23 (/dashboard) と同パターンの修正。KNOWN_ISSUES sec3 関連。
     if (!monthlySummary) return periodSummary;
     const ms = monthlySummary;
     const dim = getDaysInMonth(year, month);
@@ -246,11 +177,9 @@ export default function MeetingPage() {
       totalLaborCost: 0, totalMaterialCost: 0,
       daysElapsed: dim, daysInMonth: dim, grossMargin: Number(ms.profit_rate ?? 0),
     };
-  }, [periodSummary, monthlySummary, entries, year, month]);
+  }, [periodSummary, monthlySummary, year, month]);
 
-  // monthly_summaries が存在すれば常に優先する。displaySummary 側で適用済みの
-  // ルール（PR #23/#25、KNOWN_ISSUES sec3）と統一。当月（isCurrentMonth=true で
-  // isPastData=false）でも DB に値があれば反映されるよう isPastData ガードを除去。
+  // 水道レイアウト用の派生値 (既存挙動維持)
   const callCount = monthlySummary
     ? Number(monthlySummary.call_count ?? 0)
     : filteredEntries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
@@ -265,20 +194,15 @@ export default function MeetingPage() {
   const adRate = displaySummary.totalRevenue > 0 ? Math.round(displaySummary.totalAdCost / displaySummary.totalRevenue * 1000) / 10 : 0;
   const cpaCurrent = acquisitionCount > 0 ? Math.round(displaySummary.totalAdCost / acquisitionCount) : 0;
 
-  const mp = { isEndPeriod: isEndPeriod || isPastData, daysElapsed, daysInMonth };
-  const fmtYen = (v: number) => yen(v);
-  const fmtCount = (v: number) => `${v}件`;
-  const fmtPct = (v: number) => `${v.toFixed(1)}%`;
+  // 全業態セクションで使用する期間 props
+  const meetingPeriodProps = { isEndPeriod: isEndPeriod || isPastData, daysElapsed, daysInMonth };
 
-  // 部門別
-  const ratio = daysElapsed > 0 ? daysInMonth / daysElapsed : 0;
-  const showLanding = !isEndPeriod && !isPastData;
+  // 部門別 (水道レイアウトで使用)
   const depts = [
     { name: "自社施工", color: "#059669", d: displaySummary.self },
     { name: "新規営業", color: "#3b82f6", d: displaySummary.newSales },
-    { name: "ヘルプ", color: "#0891b2", d: displaySummary.help },
+    { name: "ヘルプ",   color: "#0891b2", d: displaySummary.help },
   ];
-  const deptTotal = { revenue: depts.reduce((s, x) => s + x.d.revenue, 0), profit: depts.reduce((s, x) => s + x.d.profit, 0), count: depts.reduce((s, x) => s + x.d.count, 0) };
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
@@ -346,93 +270,145 @@ export default function MeetingPage() {
       </header>
 
       <div className="page-padding-mobile" style={{ padding: "16px 20px" }}>
-        <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14, gridAutoRows: "min-content" }}>
-          <SectionTable title="売上・粗利・件数">
-            <MetricRow label="全体売上" actual={displaySummary.totalRevenue} target={targets.targetSales} {...mp} format={fmtYen} />
-            <MetricRow label="全体粗利" actual={displaySummary.totalProfit} target={targets.targetProfit} {...mp} format={fmtYen} />
-            <MetricRow label="粗利率" actual={grossRate} target={targetGrossRate} {...mp} format={fmtPct} isRate />
-            <MetricRow label="獲得件数" actual={acquisitionCount} target={targets.targetCount} {...mp} format={fmtCount} />
-            <MetricRow label="客単価" actual={displaySummary.companyUnitPrice} target={targets.targetUnitPrice} {...mp} format={fmtYen} isRate />
-            <MetricRow label="対応件数" actual={displaySummary.totalCount} target={targets.targetCount} {...mp} format={fmtCount} />
-          </SectionTable>
+        {/* ===== 業態別レイアウト routing (PR #55) ===== */}
 
-          <SectionTable title="広告・効率指標">
-            <MetricRow label="広告費" actual={displaySummary.totalAdCost} target={targets.targetAdCost} {...mp} format={fmtYen} invertGap />
-            <MetricRow label="広告費率" actual={adRate} target={targets.targetAdRate} {...mp} format={fmtPct} isRate invertGap />
-            <MetricRow label="入電件数" actual={callCount} target={targets.targetCallCount} {...mp} format={fmtCount} />
-            <MetricRow label="獲得単価(CPA)" actual={cpaCurrent} target={targets.targetCpa} {...mp} format={fmtYen} isRate invertGap />
-            <MetricRow label="工事取得率" actual={displaySummary.constructionRate} target={targets.targetConstructionRate} {...mp} format={fmtPct} isRate />
-            <MetricRow label="成約率" actual={convRate} target={targets.targetConversionRate} {...mp} format={fmtPct} isRate />
-          </SectionTable>
-        </div>
+        {/* 水道: 既存インラインレイアウト (PR #56 で WaterMeetingSection 化予定) */}
+        {activeBusiness === "water" && (
+          <>
+            <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14, gridAutoRows: "min-content" }}>
+              <SectionTable title="売上・粗利・件数">
+                <MetricRow label="全体売上" actual={displaySummary.totalRevenue} target={targets.targetSales} {...meetingPeriodProps} format={fmtYen} />
+                <MetricRow label="全体粗利" actual={displaySummary.totalProfit} target={targets.targetProfit} {...meetingPeriodProps} format={fmtYen} />
+                <MetricRow label="粗利率" actual={grossRate} target={targetGrossRate} {...meetingPeriodProps} format={fmtPct} isRate />
+                <MetricRow label="獲得件数" actual={acquisitionCount} target={targets.targetCount} {...meetingPeriodProps} format={fmtCount} />
+                <MetricRow label="客単価" actual={displaySummary.companyUnitPrice} target={targets.targetUnitPrice} {...meetingPeriodProps} format={fmtYen} isRate />
+                <MetricRow label="対応件数" actual={displaySummary.totalCount} target={targets.targetCount} {...meetingPeriodProps} format={fmtCount} />
+              </SectionTable>
 
-        <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <SectionTable title="HELP部門">
-            <MetricRow label="HELP売上" actual={displaySummary.help.revenue} target={targets.targetHelpSales} {...mp} format={fmtYen} />
-            <MetricRow label="HELP件数" actual={displaySummary.help.count} target={targets.targetHelpCount} {...mp} format={fmtCount} />
-            <MetricRow label="HELP客単価" actual={displaySummary.help.unitPrice} target={targets.targetHelpUnitPrice} {...mp} format={fmtYen} isRate />
-            <MetricRow label="HELP率" actual={displaySummary.helpRate ?? 0} target={targets.targetHelpRate} {...mp} format={fmtPct} isRate />
-          </SectionTable>
-
-          {/* 部門別実績 */}
-          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
-            <div style={{ background: "#ecfdf5", padding: "10px 14px", borderBottom: "1px solid #d1fae5" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>部門別実績</span>
+              <SectionTable title="広告・効率指標">
+                <MetricRow label="広告費" actual={displaySummary.totalAdCost} target={targets.targetAdCost} {...meetingPeriodProps} format={fmtYen} invertGap />
+                <MetricRow label="広告費率" actual={adRate} target={targets.targetAdRate} {...meetingPeriodProps} format={fmtPct} isRate invertGap />
+                <MetricRow label="入電件数" actual={callCount} target={targets.targetCallCount} {...meetingPeriodProps} format={fmtCount} />
+                <MetricRow label="獲得単価(CPA)" actual={cpaCurrent} target={targets.targetCpa} {...meetingPeriodProps} format={fmtYen} isRate invertGap />
+                <MetricRow label="工事取得率" actual={displaySummary.constructionRate} target={targets.targetConstructionRate} {...meetingPeriodProps} format={fmtPct} isRate />
+                <MetricRow label="成約率" actual={convRate} target={targets.targetConversionRate} {...meetingPeriodProps} format={fmtPct} isRate />
+              </SectionTable>
             </div>
-            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "18%" }} /><col style={{ width: "20%" }} /><col style={{ width: "16%" }} />
-                <col style={{ width: "20%" }} /><col style={{ width: "13%" }} /><col style={{ width: "13%" }} />
-              </colgroup>
-              <thead>
-                <tr style={{ background: "#f8fdf8" }}>
-                  {["部門", "売上", "粗利", "客単価", "件数", "粗利率"].map((h, i) => (
-                    <th key={h} style={{ padding: "7px 10px", fontSize: 9, fontWeight: 700, color: "#6b7280",
-                      textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #d1fae5",
-                      textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {depts.map(({ name, color, d }) => {
-                  const margin = d.revenue > 0 ? (d.profit / d.revenue * 100) : 0;
-                  return (
-                    <tr key={name} style={{ borderBottom: "1px solid #f0faf0" }}>
-                      <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, borderLeft: `3px solid ${color}`, color: "#111" }}>{name}</td>
-                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#111", fontWeight: 600 }}>
-                        {d.revenue > 0 ? yen(d.revenue) : <span style={{ color: "#d1d5db" }}>&yen;0</span>}
-                      </td>
-                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#059669", fontWeight: 600 }}>
-                        {d.profit > 0 ? yen(d.profit) : <span style={{ color: "#d1d5db" }}>&yen;0</span>}
-                      </td>
-                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>
-                        {d.unitPrice > 0 ? yen(d.unitPrice) : "\u2014"}
-                      </td>
-                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>{d.count}件</td>
-                      <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right",
-                        color: margin >= 25 ? "#059669" : margin >= 15 ? "#d97706" : "#dc2626" }}>
-                        {d.revenue > 0 ? `${margin.toFixed(1)}%` : "\u2014"}
+
+            <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <SectionTable title="HELP部門">
+                <MetricRow label="HELP売上" actual={displaySummary.help.revenue} target={targets.targetHelpSales} {...meetingPeriodProps} format={fmtYen} />
+                <MetricRow label="HELP件数" actual={displaySummary.help.count} target={targets.targetHelpCount} {...meetingPeriodProps} format={fmtCount} />
+                <MetricRow label="HELP客単価" actual={displaySummary.help.unitPrice} target={targets.targetHelpUnitPrice} {...meetingPeriodProps} format={fmtYen} isRate />
+                <MetricRow label="HELP率" actual={displaySummary.helpRate ?? 0} target={targets.targetHelpRate} {...meetingPeriodProps} format={fmtPct} isRate />
+              </SectionTable>
+
+              {/* 部門別実績 (水道のみ、電気は ElectricMeetingSection 内に内蔵) */}
+              <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+                <div style={{ background: "#ecfdf5", padding: "10px 14px", borderBottom: "1px solid #d1fae5" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>部門別実績</span>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                  <colgroup>
+                    <col style={{ width: "18%" }} /><col style={{ width: "20%" }} /><col style={{ width: "16%" }} />
+                    <col style={{ width: "20%" }} /><col style={{ width: "13%" }} /><col style={{ width: "13%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr style={{ background: "#f8fdf8" }}>
+                      {["部門", "売上", "粗利", "客単価", "件数", "粗利率"].map((h, i) => (
+                        <th key={h} style={{ padding: "7px 10px", fontSize: 9, fontWeight: 700, color: "#6b7280",
+                          textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #d1fae5",
+                          textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {depts.map(({ name, color, d }) => {
+                      const margin = d.revenue > 0 ? (d.profit / d.revenue * 100) : 0;
+                      return (
+                        <tr key={name} style={{ borderBottom: "1px solid #f0faf0" }}>
+                          <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, borderLeft: `3px solid ${color}`, color: "#111" }}>{name}</td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#111", fontWeight: 600 }}>
+                            {d.revenue > 0 ? fmtYen(d.revenue) : <span style={{ color: "#d1d5db" }}>¥0</span>}
+                          </td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#059669", fontWeight: 600 }}>
+                            {d.profit > 0 ? fmtYen(d.profit) : <span style={{ color: "#d1d5db" }}>¥0</span>}
+                          </td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>
+                            {d.unitPrice > 0 ? fmtYen(d.unitPrice) : "—"}
+                          </td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>{d.count}件</td>
+                          <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right",
+                            color: margin >= 25 ? "#059669" : margin >= 15 ? "#d97706" : "#dc2626" }}>
+                            {d.revenue > 0 ? `${margin.toFixed(1)}%` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr style={{ background: "#f0fdf4" }}>
+                      <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, borderLeft: "3px solid #059669", color: "#065f46" }}>合計</td>
+                      <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#065f46" }}>{fmtYen(displaySummary.totalRevenue)}</td>
+                      <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#059669" }}>{fmtYen(displaySummary.totalProfit)}</td>
+                      <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{fmtYen(displaySummary.companyUnitPrice)}</td>
+                      <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{displaySummary.totalCount}件</td>
+                      <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right",
+                        color: displaySummary.totalRevenue > 0
+                          ? (displaySummary.totalProfit / displaySummary.totalRevenue * 100 >= 25 ? "#059669" : "#d97706") : "#d1d5db" }}>
+                        {displaySummary.totalRevenue > 0 ? `${(displaySummary.totalProfit / displaySummary.totalRevenue * 100).toFixed(1)}%` : "—"}
                       </td>
                     </tr>
-                  );
-                })}
-                <tr style={{ background: "#f0fdf4" }}>
-                  <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, borderLeft: "3px solid #059669", color: "#065f46" }}>合計</td>
-                  <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#065f46" }}>{yen(displaySummary.totalRevenue)}</td>
-                  <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#059669" }}>{yen(displaySummary.totalProfit)}</td>
-                  <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{yen(displaySummary.companyUnitPrice)}</td>
-                  <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{displaySummary.totalCount}件</td>
-                  <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right",
-                    color: displaySummary.totalRevenue > 0
-                      ? (displaySummary.totalProfit / displaySummary.totalRevenue * 100 >= 25 ? "#059669" : "#d97706") : "#d1d5db" }}>
-                    {displaySummary.totalRevenue > 0 ? `${(displaySummary.totalProfit / displaySummary.totalRevenue * 100).toFixed(1)}%` : "\u2014"}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* 電気: ElectricMeetingSection (水道 + 分電盤件数 + 部門別実績) */}
+        {activeBusiness === "electric" && (
+          <ElectricMeetingSection
+            monthlySummary={monthlySummary} targets={targets} displaySummary={displaySummary}
+            {...meetingPeriodProps}
+          />
+        )}
+
+        {/* 鍵: LocksmithMeetingSection */}
+        {activeBusiness === "locksmith" && (
+          <LocksmithMeetingSection
+            monthlySummary={monthlySummary} targets={targets}
+            {...meetingPeriodProps}
+          />
+        )}
+
+        {/* ロード: RoadMeetingSection */}
+        {activeBusiness === "road" && (
+          <RoadMeetingSection
+            monthlySummary={monthlySummary} targets={targets}
+            {...meetingPeriodProps}
+          />
+        )}
+
+        {/* 探偵: DetectiveMeetingSection (面談ファネル含む) */}
+        {activeBusiness === "detective" && (
+          <DetectiveMeetingSection
+            monthlySummary={monthlySummary} targets={targets}
+            {...meetingPeriodProps}
+          />
+        )}
       </div>
     </div>
+  );
+}
+
+// ============ Suspense ラップ (useSearchParams は Suspense 必須) ============
+export default function MeetingPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 12 }}>
+        会議シートを読み込み中...
+      </div>
+    }>
+      <MeetingPageInner />
+    </Suspense>
   );
 }
