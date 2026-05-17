@@ -87,6 +87,10 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     locksmith_car_lp_email_count: "", locksmith_inhouse_count: "",
     locksmith_repeat_count: "", locksmith_revisit_count: "",
     locksmith_construction_cost: "", locksmith_commission_fee: "",
+    // PR #52: ロード業態専用 獲得 7 内訳 (他業態は "" のまま、保存時 0)
+    road_ad_count: "", road_repeat_count: "", road_referral_count: "",
+    road_revisit_count: "", road_wellnest_count: "",
+    road_seo_count: "", road_insurance_count: "",
   };
 }
 
@@ -170,6 +174,14 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             locksmith_revisit_count: numOrEmpty(summary.locksmith_revisit_count),
             locksmith_construction_cost: numOrEmpty(summary.locksmith_construction_cost),
             locksmith_commission_fee: numOrEmpty(summary.locksmith_commission_fee),
+            // PR #52: ロード業態専用 獲得 7 内訳
+            road_ad_count: numOrEmpty(summary.road_ad_count),
+            road_repeat_count: numOrEmpty(summary.road_repeat_count),
+            road_referral_count: numOrEmpty(summary.road_referral_count),
+            road_revisit_count: numOrEmpty(summary.road_revisit_count),
+            road_wellnest_count: numOrEmpty(summary.road_wellnest_count),
+            road_seo_count: numOrEmpty(summary.road_seo_count),
+            road_insurance_count: numOrEmpty(summary.road_insurance_count),
           }));
           const aod = Number(summary.as_of_day);
           setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
@@ -189,6 +201,9 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             locksmith_car_lp_email_count: "", locksmith_inhouse_count: "",
             locksmith_repeat_count: "", locksmith_revisit_count: "",
             locksmith_construction_cost: "", locksmith_commission_fee: "",
+            road_ad_count: "", road_repeat_count: "", road_referral_count: "",
+            road_revisit_count: "", road_wellnest_count: "",
+            road_seo_count: "", road_insurance_count: "",
           }));
           setExistingAsOfDay(null);
         }
@@ -258,6 +273,14 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         locksmith_revisit_count: numOrZero(state.locksmith_revisit_count),
         locksmith_construction_cost: numOrZero(state.locksmith_construction_cost),
         locksmith_commission_fee: numOrZero(state.locksmith_commission_fee),
+        // PR #52: ロード業態専用 獲得 7 内訳 (他業態は state="" → 0 で保存)
+        road_ad_count: numOrZero(state.road_ad_count),
+        road_repeat_count: numOrZero(state.road_repeat_count),
+        road_referral_count: numOrZero(state.road_referral_count),
+        road_revisit_count: numOrZero(state.road_revisit_count),
+        road_wellnest_count: numOrZero(state.road_wellnest_count),
+        road_seo_count: numOrZero(state.road_seo_count),
+        road_insurance_count: numOrZero(state.road_insurance_count),
         // auto 計算結果のうち、既存 DB 列に対応するものを送信
         // (新規 DB 列なしの total_construction_count / actual_construction_cost / profit は送らない)
         total_revenue: Math.round(calc.total_revenue),

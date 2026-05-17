@@ -207,6 +207,21 @@ export function ensureSchema(): Promise<void> {
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_construction_cost NUMERIC NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_commission_fee NUMERIC NOT NULL DEFAULT 0`);
 
+      // PR #52: ロード業態 Phase B (RoadForm の獲得 7 チャネル内訳を DB 化)
+      //   - 広告 / リピート / 紹介 / 再訪問 / ウェルネスト / SEO / 保険会社
+      // 入電 7 内訳 / 保険売上 / 無保険売上 / 販管費は引き続き UI only (Phase B 後続)
+      // ロードはコスト構造がシンプル (広告費 + 手数料 のみ) で既存 ad_cost /
+      // sales_outsourcing_cost を流用、calc.profit (= revenue - labor 0 - material 0
+      // - ad - sales_outsourcing - card 0) がそのまま機能するため、locksmith のような
+      // 専用コストカラムは不要。
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_ad_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_repeat_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_referral_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_revisit_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_wellnest_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_seo_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_insurance_count INTEGER NOT NULL DEFAULT 0`);
+
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,
