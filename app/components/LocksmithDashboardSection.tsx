@@ -67,11 +67,17 @@ export default function LocksmithDashboardSection({ monthlySummary, targets }: P
   // 売上比%
   const ratio = (cost: number) => (sales > 0 ? (cost / sales) * 100 : 0);
 
-  // 目標値 (yen 系は DB 万円単位 → ×10000 で円換算)
-  const targetSales = numOf(targets.targetSales) * 10000;
-  const targetAdCost = numOf(targets.targetAdCost) * 10000;
+  // 目標値: Dashboard.tsx で setTargets(manToYen(j.targets)) (Dashboard.tsx:239)
+  // により既に万円→円換算済。本コンポーネントで再度 ×10000 すると二重変換になる
+  // (PR #51.1 hotfix: 売上目標が ¥196 億表示になっていた問題)。
+  // manToYen が変換するのは targetSales / targetProfit / targetHelpSales /
+  // targetSelfSales / targetSelfProfit / targetNewSales / targetNewProfit /
+  // targetAdCost の 8 フィールドのみ。それ以外 (targetUnitPrice / targetCpa /
+  // targetHelpUnitPrice 等) は元から円単位 or 件数 or 0-100% で保存されている。
+  const targetSales = numOf(targets.targetSales);
+  const targetAdCost = numOf(targets.targetAdCost);
   const targetCount = numOf(targets.targetCount);
-  const targetHelpSales = numOf(targets.targetHelpSales) * 10000;
+  const targetHelpSales = numOf(targets.targetHelpSales);
   const targetHelpCount = numOf(targets.targetHelpCount);
   const targetUnitPrice = numOf(targets.targetUnitPrice);
   const targetCpa = numOf(targets.targetCpa);
