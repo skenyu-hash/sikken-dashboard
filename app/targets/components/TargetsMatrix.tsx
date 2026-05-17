@@ -40,7 +40,9 @@ type MetricKey =
   | "targetHelpRate"
   // ④ 面談ファネル (探偵専用、PR #53)
   | "targetMeetingCount"
-  | "targetMeetingRate";
+  | "targetMeetingRate"
+  // ⑤ 電気専用 (PR #54)
+  | "targetSwitchboardCount";
 
 // 単位種別。
 //   yen_man: DB が万円単位で保存 (lib/calculations.manToYen が ×10000 する対象)
@@ -90,7 +92,13 @@ const MEETING_METRICS: MetricDef[] = [
   { key: "targetMeetingRate",  label: "面談率目標", unit: "percent" },
 ];
 
-const ALL_METRICS: MetricDef[] = [...SALES_METRICS, ...ADS_METRICS, ...HELP_METRICS, ...MEETING_METRICS];
+// セクション 5: 電気専用 (PR #54)
+//   分電盤件数目標 (実績は PR #48b で switchboard_count 列に保存済)
+const ELECTRIC_METRICS: MetricDef[] = [
+  { key: "targetSwitchboardCount", label: "分電盤件数目標", unit: "count" },
+];
+
+const ALL_METRICS: MetricDef[] = [...SALES_METRICS, ...ADS_METRICS, ...HELP_METRICS, ...MEETING_METRICS, ...ELECTRIC_METRICS];
 
 // 既存呼び出し元 (page.tsx setAllAreasSameValue / exportCsv、GroupView、CompanyView) は
 // この name で import している。意味は「全 14 項目」だが既存変数名で公開。
@@ -296,10 +304,12 @@ function getMetricsForCategory(category: BusinessCategory): {
   ads: MetricDef[];
   help: MetricDef[] | null;
   meeting: MetricDef[] | null;
+  electric: MetricDef[] | null;
 } {
   const hideConstructionRate = category === "locksmith" || category === "road" || category === "detective";
   const hideHelp = category === "road" || category === "detective";
   const showMeeting = category === "detective";
+  const showElectric = category === "electric";
 
   // 探偵の ADS では targetConversionRate のラベルを「アポ獲得率目標」に読替
   let ads = ADS_METRICS;
@@ -315,18 +325,19 @@ function getMetricsForCategory(category: BusinessCategory): {
     ads,
     help: hideHelp ? null : HELP_METRICS,
     meeting: showMeeting ? MEETING_METRICS : null,
+    electric: showElectric ? ELECTRIC_METRICS : null,
   };
 }
 
 // 業態別のフラットなメトリクス一覧 (グループビュー / CSV エクスポート / 一括設定で使用)
 function getAllMetricsForCategory(category: BusinessCategory): MetricDef[] {
-  const { sales, ads, help, meeting } = getMetricsForCategory(category);
-  return [...sales, ...ads, ...(help ?? []), ...(meeting ?? [])];
+  const { sales, ads, help, meeting, electric } = getMetricsForCategory(category);
+  return [...sales, ...ads, ...(help ?? []), ...(meeting ?? []), ...(electric ?? [])];
 }
 
 export {
   METRICS as TARGETS_METRICS,
-  SALES_METRICS, ADS_METRICS, HELP_METRICS, MEETING_METRICS,
+  SALES_METRICS, ADS_METRICS, HELP_METRICS, MEETING_METRICS, ELECTRIC_METRICS,
   formatYen, formatYenRaw, formatCount, formatPercent, formatByUnit,
   emptyMetricRow,
   getMetricsForCategory, getAllMetricsForCategory,

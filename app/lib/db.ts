@@ -102,6 +102,8 @@ export function ensureSchema(): Promise<void> {
         //   アポ獲得率目標は既存 target_conversion_rate を流用 (新規列なし)
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_meeting_count INTEGER NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_meeting_rate NUMERIC NOT NULL DEFAULT 0`,
+        // PR #54: 電気業態 分電盤件数目標 (INTEGER、他業態では 0)
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_switchboard_count INTEGER NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS business_category TEXT NOT NULL DEFAULT 'water'`,
       ];
       for (const m of migrations) await safe(m);
@@ -321,7 +323,7 @@ export async function getTargets(
       target_ad_cost, target_ad_rate, target_labor_rate, target_material_rate,
       target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate,
       target_unit_price, target_call_unit_price, target_help_rate,
-      target_meeting_count, target_meeting_rate
+      target_meeting_count, target_meeting_rate, target_switchboard_count
     FROM targets WHERE area_id = ${areaId} AND year = ${year} AND month = ${month}
       AND COALESCE(business_category, 'water') = ${category}
   `) as Record<string, string | number>[];
@@ -336,6 +338,7 @@ export async function getTargets(
       targetConstructionRate: 0, targetPassRate: 0,
       targetUnitPrice: 0, targetCallUnitPrice: 0, targetHelpRate: 0,
       targetMeetingCount: 0, targetMeetingRate: 0,
+      targetSwitchboardCount: 0,
     };
   }
   const r = rows[0];
@@ -368,6 +371,8 @@ export async function getTargets(
     // PR #53: 探偵業態 面談ファネル目標
     targetMeetingCount: Number(r.target_meeting_count),
     targetMeetingRate: Number(r.target_meeting_rate),
+    // PR #54: 電気業態 分電盤件数目標
+    targetSwitchboardCount: Number(r.target_switchboard_count),
   };
 }
 
@@ -385,7 +390,7 @@ export async function upsertTargets(
       target_ad_cost, target_ad_rate, target_labor_rate, target_material_rate,
       target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate,
       target_unit_price, target_call_unit_price, target_help_rate,
-      target_meeting_count, target_meeting_rate,
+      target_meeting_count, target_meeting_rate, target_switchboard_count,
       updated_at
     )
     VALUES (
@@ -397,7 +402,7 @@ export async function upsertTargets(
       ${t.targetAdCost}, ${t.targetAdRate}, ${t.targetLaborRate}, ${t.targetMaterialRate},
       ${t.targetVehicleCount}, ${t.targetCallCount}, ${t.targetConstructionRate}, ${t.targetPassRate},
       ${t.targetUnitPrice}, ${t.targetCallUnitPrice}, ${t.targetHelpRate},
-      ${t.targetMeetingCount}, ${t.targetMeetingRate},
+      ${t.targetMeetingCount}, ${t.targetMeetingRate}, ${t.targetSwitchboardCount},
       NOW()
     )
     ON CONFLICT (area_id, year, month, business_category) DO UPDATE
@@ -428,6 +433,7 @@ export async function upsertTargets(
         target_help_rate = EXCLUDED.target_help_rate,
         target_meeting_count = EXCLUDED.target_meeting_count,
         target_meeting_rate = EXCLUDED.target_meeting_rate,
+        target_switchboard_count = EXCLUDED.target_switchboard_count,
         updated_at = NOW()
   `;
 }

@@ -1,0 +1,266 @@
+"use client";
+// PR #54 c3: 電気業態専用ダッシュボードセクション。
+//
+// 役割:
+//   Dashboard.tsx の「全 17 項目 指標一覧」を、activeBusiness === 'electric'
+//   の時のみ本コンポーネントに置換する。水道仕様 (17 項目) + 分電盤件数 1 行 =
+//   合計 18 項目を、locksmith/road/detective と同じカード構造で表示。
+//
+// 構成 (ElectricForm = WaterForm 同構造 + 分電盤件数):
+//   ① 新規対応・コスト — 売上 / 粗利 / 各コスト + 売上比%
+//   ② 広告・効率指標   — 広告費 / 広告費率 / 入電 / CPA / 成約率
+//   ③ 施工              — 工事件数 (外注 / 自社) / 工事費 / 工事取得率
+//   ④ HELP              — HELP売上 / HELP件数 / HELP客単価 / HELP率
+//   ⑤ 電気専用          — **分電盤件数** / 目標 / 達成率 (PR #54 で新規)
+//
+// データソース:
+//   monthlySummary (raw 行): 既存 17 列 + switchboard_count
+//   targets       : /api/targets fetch 済 (Dashboard.tsx で manToYen 適用済)
+//
+// 派生値:
+//   粗利 (営業利益) = calc.profit 経由で resolveTotalProfit (water/electric は標準式)
+//   CPA / 入電単価 / 成約率 / HELP 客単価 / HELP 率 / 工事取得率: ローカル計算
+
+import { yen, type Targets } from "../lib/calculations";
+import { resolveTotalProfit } from "../lib/profit";
+
+type Props = {
+  monthlySummary: Record<string, unknown> | null;
+  targets: Targets;
+};
+
+const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
+const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
+const fmtCount = (v: number): string => (v > 0 ? `${v.toLocaleString()}件` : "—");
+const fmtPct = (v: number): string => (v > 0 ? `${v.toFixed(1)}%` : "—");
+const fmtYen = (v: number): string => (v > 0 ? yen(v) : "—");
+
+export default function ElectricDashboardSection({ monthlySummary, targets }: Props) {
+  // 売上・コスト
+  const sales = numOf(monthlySummary?.total_revenue);
+  const laborCost = numOf(monthlySummary?.total_labor_cost);
+  const materialCost = numOf(monthlySummary?.material_cost);
+  const adCost = numOf(monthlySummary?.ad_cost);
+  const commission = numOf(monthlySummary?.sales_outsourcing_cost);
+  const cardFee = numOf(monthlySummary?.card_processing_fee);
+  // 粗利: PR #51.2 resolveTotalProfit (legacy 行は構成要素から再計算)
+  const profit = resolveTotalProfit(monthlySummary);
+
+  // 入電 / 獲得
+  const callCount = numOf(monthlySummary?.call_count);
+  const acquisitionCount = numOf(monthlySummary?.acquisition_count);
+  const totalCount = numOf(monthlySummary?.total_count);
+  const callUnitPrice = Math.round(safeDiv(adCost, callCount));
+  const cpa = Math.round(safeDiv(adCost, acquisitionCount));
+  const convRate = safeDiv(acquisitionCount, callCount) * 100;
+  const adRate = safeDiv(adCost, sales) * 100;
+
+  // 施工
+  const outsourcedConstructionCount = numOf(monthlySummary?.outsourced_construction_count);
+  const internalConstructionCount = numOf(monthlySummary?.internal_construction_count);
+  const totalConstruction = outsourcedConstructionCount + internalConstructionCount;
+  const constructionRate = safeDiv(totalConstruction, totalCount) * 100;
+  const outsourcedConstructionCost = numOf(monthlySummary?.outsourced_construction_cost);
+  const internalConstructionProfit = numOf(monthlySummary?.internal_construction_profit);
+  const actualConstructionCost = outsourcedConstructionCost - internalConstructionProfit;
+
+  // HELP
+  const helpRevenue = numOf(monthlySummary?.help_revenue);
+  const helpCount = numOf(monthlySummary?.help_count);
+  const helpUnitPrice = Math.round(safeDiv(helpRevenue, helpCount));
+  const helpRate = safeDiv(helpRevenue, sales) * 100;
+
+  // 電気専用: 分電盤件数 (PR #48b で実績、PR #54 で目標)
+  const switchboardCount = numOf(monthlySummary?.switchboard_count);
+
+  // 売上比% (UI 表示用)
+  const ratio = (cost: number) => (sales > 0 ? (cost / sales) * 100 : 0);
+
+  // 客単価
+  const unitPrice = Math.round(safeDiv(sales, totalCount));
+
+  // 目標値 (Dashboard.tsx で manToYen 済、yen 系は再変換不要)
+  const targetSales = numOf(targets.targetSales);
+  const targetProfit = numOf(targets.targetProfit);
+  const targetCount = numOf(targets.targetCount);
+  const targetUnitPrice = numOf(targets.targetUnitPrice);
+  const targetAdCost = numOf(targets.targetAdCost);
+  const targetAdRate = numOf(targets.targetAdRate);
+  const targetCallCount = numOf(targets.targetCallCount);
+  const targetCpa = numOf(targets.targetCpa);
+  const targetConstructionRate = numOf(targets.targetConstructionRate);
+  const targetConvRate = numOf(targets.targetConversionRate);
+  const targetHelpSales = numOf(targets.targetHelpSales);
+  const targetHelpCount = numOf(targets.targetHelpCount);
+  const targetHelpUnitPrice = numOf(targets.targetHelpUnitPrice);
+  const targetHelpRate = numOf(targets.targetHelpRate);
+  // PR #54 新規目標
+  const targetSwitchboardCount = numOf(targets.targetSwitchboardCount);
+
+  return (
+    <section style={{ marginBottom: 16 }}>
+      <SectionLabel>電気業態 — フォーム連動 KPI 一覧 (分電盤件数含む)</SectionLabel>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* ① 新規対応・コスト */}
+        <Card title="① 新規対応・コスト・粗利">
+          <Row label="売上"        actual={fmtYen(sales)}        target={fmtYen(targetSales)}     achievement={achv(sales, targetSales)} />
+          <Row label="職人費"      actual={fmtYen(laborCost)}    target="—" sub={`売上比 ${fmtPct(ratio(laborCost))}`} />
+          <Row label="材料費"      actual={fmtYen(materialCost)} target="—" sub={`売上比 ${fmtPct(ratio(materialCost))}`} />
+          <Row label="広告費"      actual={fmtYen(adCost)}       target={fmtYen(targetAdCost)} achievement={achv(adCost, targetAdCost, true)} sub={`売上比 ${fmtPct(ratio(adCost))}`} />
+          <Row label="営業外注費"  actual={fmtYen(commission)}   target="—" sub={`売上比 ${fmtPct(ratio(commission))}`} />
+          <Row label="カード手数料" actual={fmtYen(cardFee)}     target="—" sub={`売上比 ${fmtPct(ratio(cardFee))}`} />
+          <Row label="粗利"        actual={fmtYen(profit)}       target={fmtYen(targetProfit)} achievement={achv(profit, targetProfit)} highlight />
+        </Card>
+
+        {/* ② 広告・効率指標 */}
+        <Card title="② 広告・効率指標">
+          <Row label="広告費率"    actual={fmtPct(adRate)}        target={fmtPct(targetAdRate)} achievement={achv(adRate, targetAdRate, true)} />
+          <Row label="入電件数"    actual={fmtCount(callCount)}   target={fmtCount(targetCallCount)} achievement={achv(callCount, targetCallCount)} />
+          <Row label="入電単価"    actual={fmtYen(callUnitPrice)} target="—" sub="= 広告費 ÷ 入電件数" />
+          <Row label="獲得件数"    actual={fmtCount(acquisitionCount)} target={fmtCount(targetCount)} achievement={achv(acquisitionCount, targetCount)} />
+          <Row label="CPA"         actual={fmtYen(cpa)}           target={fmtYen(targetCpa)} achievement={achv(cpa, targetCpa, true)} sub="= 広告費 ÷ 獲得件数" />
+          <Row label="成約率"      actual={fmtPct(convRate)}      target={fmtPct(targetConvRate)} achievement={achv(convRate, targetConvRate)} sub="= 獲得件数 ÷ 入電件数" />
+          <Row label="客単価"      actual={fmtYen(unitPrice)}     target={fmtYen(targetUnitPrice)} achievement={achv(unitPrice, targetUnitPrice)} sub="= 売上 ÷ 対応件数" />
+          <Row label="対応件数"    actual={fmtCount(totalCount)}  target={fmtCount(targetCount)} achievement={achv(totalCount, targetCount)} />
+        </Card>
+
+        {/* ③ 施工 */}
+        <Card title="③ 施工">
+          <Row label="外注工事件数"    actual={fmtCount(outsourcedConstructionCount)} target="—" />
+          <Row label="自社工事件数"    actual={fmtCount(internalConstructionCount)}   target="—" />
+          <Row label="総工事件数"      actual={fmtCount(totalConstruction)}            target="—" sub="= 外注 + 自社" />
+          <Row label="工事取得率"      actual={fmtPct(constructionRate)}              target={fmtPct(targetConstructionRate)} achievement={achv(constructionRate, targetConstructionRate)} sub="= 総工事件数 ÷ 対応件数" />
+          <Row label="外注工事費"      actual={fmtYen(outsourcedConstructionCost)}    target="—" />
+          <Row label="自社工事利益"    actual={fmtYen(internalConstructionProfit)}    target="—" />
+          <Row label="実質工事コスト"  actual={fmtYen(actualConstructionCost)}        target="—" sub="= 外注工事費 - 自社工事利益" />
+        </Card>
+
+        {/* ④ HELP */}
+        <Card title="④ HELP 部門">
+          <Row label="HELP 売上"   actual={fmtYen(helpRevenue)}   target={fmtYen(targetHelpSales)}    achievement={achv(helpRevenue, targetHelpSales)} />
+          <Row label="HELP 件数"   actual={fmtCount(helpCount)}   target={fmtCount(targetHelpCount)} achievement={achv(helpCount, targetHelpCount)} />
+          <Row label="HELP 客単価" actual={fmtYen(helpUnitPrice)} target={fmtYen(targetHelpUnitPrice)} achievement={achv(helpUnitPrice, targetHelpUnitPrice)} sub="= HELP売上 ÷ HELP件数" />
+          <Row label="HELP 率"     actual={fmtPct(helpRate)}      target={fmtPct(targetHelpRate)}      achievement={achv(helpRate, targetHelpRate)} sub="= HELP売上 ÷ 売上 × 100" />
+        </Card>
+
+        {/* ⑤ 電気専用 (PR #54) */}
+        <Card title="⑤ 電気専用">
+          <Row label="分電盤件数"
+            actual={fmtCount(switchboardCount)}
+            target={fmtCount(targetSwitchboardCount)}
+            achievement={achv(switchboardCount, targetSwitchboardCount)}
+            highlight />
+        </Card>
+      </div>
+    </section>
+  );
+}
+
+// ===== UI 部品 (LocksmithDashboardSection / RoadDashboardSection / DetectiveDashboardSection と同パターン) =====
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: 11, fontWeight: 700, color: "#065f46",
+      textTransform: "uppercase", letterSpacing: "0.07em",
+      marginBottom: 8, paddingLeft: 4,
+    }}>{children}</div>
+  );
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: "#fff", borderRadius: 12,
+      border: "1px solid #d1fae5", overflow: "hidden",
+    }}>
+      <div style={{
+        background: "#ecfdf5", padding: "8px 14px",
+        borderBottom: "1px solid #d1fae5",
+        fontSize: 12, fontWeight: 700, color: "#065f46",
+      }}>{title}</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+        <colgroup>
+          <col style={{ width: "34%" }} />
+          <col style={{ width: "22%" }} />
+          <col style={{ width: "22%" }} />
+          <col style={{ width: "22%" }} />
+        </colgroup>
+        <thead>
+          <tr style={{ background: "#fafffe" }}>
+            {["指標", "実績", "目標", "達成率 / 補足"].map((h, i) => (
+              <th key={h} style={{
+                padding: "7px 12px", fontSize: 10, fontWeight: 700, color: "#6b7280",
+                textTransform: "uppercase", letterSpacing: "0.06em",
+                borderBottom: "1px solid #d1fae5",
+                textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap",
+              }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function Row({
+  label, actual, target, achievement, sub, highlight,
+}: {
+  label: string;
+  actual: string;
+  target: string;
+  achievement?: { pct: number; status: "good" | "warn" | "bad" } | null;
+  sub?: string;
+  highlight?: boolean;
+}) {
+  const td: React.CSSProperties = {
+    padding: "9px 12px", fontSize: 12, color: "#374151",
+    borderBottom: "1px solid #f5faf5", whiteSpace: "nowrap",
+  };
+  const bg = highlight ? "#f0fdf4" : "transparent";
+
+  const achColor =
+    !achievement ? "#9ca3af" :
+    achievement.status === "good" ? "#065f46" :
+    achievement.status === "warn" ? "#854d0e" : "#991b1b";
+  const achBg =
+    !achievement ? "transparent" :
+    achievement.status === "good" ? "#d1fae5" :
+    achievement.status === "warn" ? "#fef9c3" : "#fee2e2";
+
+  return (
+    <tr style={{ background: bg }}>
+      <td style={{ ...td, textAlign: "left", fontWeight: highlight ? 800 : 700, color: highlight ? "#065f46" : "#111" }}>
+        {label}
+      </td>
+      <td style={{ ...td, textAlign: "right", fontWeight: 700, color: highlight ? "#065f46" : "#111" }}>{actual}</td>
+      <td style={{ ...td, textAlign: "right", color: "#6b7280" }}>{target}</td>
+      <td style={{ ...td, textAlign: "right" }}>
+        {achievement ? (
+          <span style={{
+            display: "inline-block", padding: "2px 8px", borderRadius: 4,
+            fontSize: 11, fontWeight: 700, color: achColor, background: achBg,
+          }}>{achievement.pct.toFixed(1)}%</span>
+        ) : sub ? (
+          <span style={{ fontSize: 10, color: "#9ca3af" }}>{sub}</span>
+        ) : (
+          <span style={{ color: "#d1d5db" }}>—</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+/** 達成率 + ステータス。invert=true でコスト系 (低いほど良い) の評価軸 */
+function achv(actual: number, target: number, invert = false): { pct: number; status: "good" | "warn" | "bad" } | null {
+  if (target <= 0 || actual <= 0) return null;
+  const pct = (actual / target) * 100;
+  let status: "good" | "warn" | "bad";
+  if (invert) {
+    status = pct <= 100 ? "good" : pct <= 120 ? "warn" : "bad";
+  } else {
+    status = pct >= 100 ? "good" : pct >= 80 ? "warn" : "bad";
+  }
+  return { pct, status };
+}
