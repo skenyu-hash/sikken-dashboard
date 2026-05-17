@@ -494,18 +494,32 @@ export default function Dashboard() {
   }, [summary, monthlySummary, viewYear, viewMonth, isGroup, groupEntriesByArea, groupMonthlySummaries, viewMode, companyData]);
 
   // ============ 前月比 ============
+  // PR #50: 客単価 (companyUnitPrice) を派生フィールドとして追加。
+  // monthly_summaries には unit_price 列があるが、無い場合は revenue/count から
+  // 算出して fallback (DashboardSummary の派生と整合)。
   const prevSummaryCalc = useMemo(() => {
     if (prevMonthlySummary) {
+      const rev = Number(prevMonthlySummary.total_revenue ?? 0);
+      const cnt = Number(prevMonthlySummary.total_count ?? 0);
+      const ms = prevMonthlySummary as Record<string, unknown>;
+      const unit = Number(ms.unit_price ?? 0) || (cnt > 0 ? Math.round(rev / cnt) : 0);
       return {
-        totalRevenue: Number(prevMonthlySummary.total_revenue ?? 0),
+        totalRevenue: rev,
         totalProfit: Number(prevMonthlySummary.total_profit ?? 0),
         totalAdCost: Number(prevMonthlySummary.ad_cost ?? 0),
-        totalCount: Number(prevMonthlySummary.total_count ?? 0),
+        totalCount: cnt,
+        companyUnitPrice: unit,
       };
     }
     const s = calculateDashboard(prevEntries, prevYear, prevMonth,
       new Date(prevYear, prevMonth - 1, getDaysInMonth(prevYear, prevMonth)));
-    return { totalRevenue: s.totalRevenue, totalProfit: s.totalProfit, totalAdCost: s.totalAdCost, totalCount: s.totalCount };
+    return {
+      totalRevenue: s.totalRevenue,
+      totalProfit: s.totalProfit,
+      totalAdCost: s.totalAdCost,
+      totalCount: s.totalCount,
+      companyUnitPrice: s.companyUnitPrice,
+    };
   }, [prevMonthlySummary, prevEntries, prevYear, prevMonth]);
 
   const mom = (current: number, prev: number): number | null => {
@@ -516,6 +530,7 @@ export default function Dashboard() {
   const momProfit = mom(displaySummary.totalProfit, prevSummaryCalc.totalProfit);
   const momAdCost = mom(displaySummary.totalAdCost, prevSummaryCalc.totalAdCost);
   const momCount = mom(displaySummary.totalCount, prevSummaryCalc.totalCount);
+  const momUnitPrice = mom(displaySummary.companyUnitPrice, prevSummaryCalc.companyUnitPrice);
 
   // 前日比(当月かつ会社タブ or グループでも有効)
   const yesterdaySummary = useMemo(() => {
@@ -950,7 +965,12 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* KPIストリップ */}
+          {/* KPIストリップ (PR #50: 5 KPI 共通刷新)
+              並び順: 売上 → 粗利 → 対応件数 → 客単価 → 広告費 (反さん仕様 memory #15)
+              ラベル変更: 合計件数 → 対応件数 (用語統一)
+              新規追加 : 客単価 (= total_revenue ÷ total_count、目標 = targetUnitPrice)
+              客単価の着地: 比例関係上 landing = actual で式が成り立つため、
+                landRate ≡ targetRatio となるが、UI 一貫性のため両バッジ表示。 */}
           {!isGroup && (() => {
             const dim = displaySummary.daysInMonth;
             const elapsed = isCurrentMonth ? now.getDate() : dim;
@@ -960,6 +980,8 @@ export default function Dashboard() {
             const lProfit = landing(displaySummary.totalProfit);
             const lAdCost = landing(displaySummary.totalAdCost);
             const lCount = landing(displaySummary.totalCount);
+            // 客単価の landing は比例関係上 actual と等しい (lRevenue/lCount = currentRevenue/currentCount)
+            const unitPriceActual = displaySummary.companyUnitPrice;
             const kpis = [
               { label: "売上", val: yen(displaySummary.totalRevenue),
                 targetRatio: targets.targetSales > 0 ? Math.round(displaySummary.totalRevenue / targets.targetSales * 1000) / 10 : null,
@@ -973,21 +995,28 @@ export default function Dashboard() {
                 momVal: momProfit, momInvert: false,
                 momDiff: momProfit !== null ? `${displaySummary.totalProfit - prevSummaryCalc.totalProfit >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalProfit - prevSummaryCalc.totalProfit).toLocaleString()}` : null,
               },
+              { label: "対応件数", val: `${displaySummary.totalCount}件`,
+                targetRatio: targets.targetCount > 0 ? Math.round(displaySummary.totalCount / targets.targetCount * 1000) / 10 : null,
+                landRate: lRate(lCount, targets.targetCount), landLabel: lCount > 0 ? `${lCount}件` : null, landInvert: false,
+                momVal: momCount, momInvert: false,
+                momDiff: momCount !== null ? `${displaySummary.totalCount - prevSummaryCalc.totalCount >= 0 ? "+" : ""}${displaySummary.totalCount - prevSummaryCalc.totalCount}件` : null,
+              },
+              { label: "客単価", val: yen(unitPriceActual),
+                targetRatio: targets.targetUnitPrice > 0 ? Math.round(unitPriceActual / targets.targetUnitPrice * 1000) / 10 : null,
+                // 客単価は比例ゆえ landing = actual (詳細は上のコメント参照)
+                landRate: lRate(unitPriceActual, targets.targetUnitPrice), landLabel: unitPriceActual > 0 ? yen(unitPriceActual) : null, landInvert: false,
+                momVal: momUnitPrice, momInvert: false,
+                momDiff: momUnitPrice !== null ? `${unitPriceActual - prevSummaryCalc.companyUnitPrice >= 0 ? "+" : ""}¥${Math.abs(unitPriceActual - prevSummaryCalc.companyUnitPrice).toLocaleString()}` : null,
+              },
               { label: "広告費", val: yen(displaySummary.totalAdCost),
                 targetRatio: targets.targetAdCost > 0 ? Math.round(displaySummary.totalAdCost / targets.targetAdCost * 1000) / 10 : null,
                 landRate: lRate(lAdCost, targets.targetAdCost), landLabel: lAdCost > 0 ? yen(lAdCost) : null, landInvert: true,
                 momVal: momAdCost, momInvert: true,
                 momDiff: momAdCost !== null ? `${displaySummary.totalAdCost - prevSummaryCalc.totalAdCost >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalAdCost - prevSummaryCalc.totalAdCost).toLocaleString()}` : null,
               },
-              { label: "合計件数", val: `${displaySummary.totalCount}件`,
-                targetRatio: targets.targetCount > 0 ? Math.round(displaySummary.totalCount / targets.targetCount * 1000) / 10 : null,
-                landRate: lRate(lCount, targets.targetCount), landLabel: lCount > 0 ? `${lCount}件` : null, landInvert: false,
-                momVal: momCount, momInvert: false,
-                momDiff: momCount !== null ? `${displaySummary.totalCount - prevSummaryCalc.totalCount >= 0 ? "+" : ""}${displaySummary.totalCount - prevSummaryCalc.totalCount}件` : null,
-              },
             ];
             return (
-              <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+              <div className="kpi-grid-5" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
                 {kpis.map((kpi) => (
                   <div key={kpi.label} style={{ padding: "14px 18px", borderRight: "1px solid rgba(255,255,255,0.12)" }}>
                     <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{kpi.label}</div>
