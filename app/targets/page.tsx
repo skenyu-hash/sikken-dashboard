@@ -6,7 +6,7 @@ import { hasPageAccess } from "../lib/permissions";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import { COMPANIES } from "../lib/companies";
 import TargetsSections from "./components/TargetsSections";
-import { TARGETS_METRICS, formatByUnit } from "./components/TargetsMatrix";
+import { formatByUnit, getAllMetricsForCategory } from "./components/TargetsMatrix";
 import TargetsGroupView from "./components/TargetsGroupView";
 import TargetsCompanyView from "./components/TargetsCompanyView";
 import { useSaveStatus, type SaveStatus } from "./lib/useDebounceSave";
@@ -104,15 +104,18 @@ export default function TargetsPage() {
   }
 
   // 「全エリア同じ値を設定」: 簡易 prompt 実装
+  // PR #49b: 業態別に表示中のメトリクスのみを選択肢に含める
+  // (例: ロード/探偵では HELP 系を表示していないため一括設定の選択肢にも含めない)
   const [bulkSetting, setBulkSetting] = useState(false);
   async function setAllAreasSameValue() {
     if (!canEdit) return;
-    const fieldList = TARGETS_METRICS.map((m) => m.label).join(" / ");
+    const categoryMetrics = getAllMetricsForCategory(activeBusiness);
+    const fieldList = categoryMetrics.map((m) => m.label).join(" / ");
     const fieldLabel = prompt(
       `どの指標を全エリアに同値設定しますか？\n選択肢: ${fieldList}\n（正確な指標名を入力してください）`
     );
     if (!fieldLabel) return;
-    const metric = TARGETS_METRICS.find((m) => m.label === fieldLabel.trim());
+    const metric = categoryMetrics.find((m) => m.label === fieldLabel.trim());
     if (!metric) {
       alert("指標名が一致しません。キャンセルします。");
       return;
@@ -149,7 +152,9 @@ export default function TargetsPage() {
   }
 
   // 「CSVエクスポート」: 現在のエリア別ビューを CSV 化
+  // PR #49b: 業態別に表示中のメトリクス列のみを出力
   async function exportCsv() {
+    const categoryMetrics = getAllMetricsForCategory(activeBusiness);
     const fetched = await Promise.all(
       businessAreas.map(async (a) => {
         const r = await fetch(
@@ -159,11 +164,11 @@ export default function TargetsPage() {
         return { areaId: a.id, areaName: a.name, targets: { ...emptyTargets(), ...(j.targets ?? {}) } };
       })
     );
-    const headers = ["エリアID", "エリア", ...TARGETS_METRICS.map((m) => m.label)];
+    const headers = ["エリアID", "エリア", ...categoryMetrics.map((m) => m.label)];
     const rows = fetched.map((row) => [
       row.areaId,
       row.areaName,
-      ...TARGETS_METRICS.map((m) => Number(row.targets[m.key as keyof Targets] ?? 0)),
+      ...categoryMetrics.map((m) => Number(row.targets[m.key as keyof Targets] ?? 0)),
     ]);
     const csv = buildTargetsCsv(headers, rows);
     const filename = buildTargetsFilename(activeBusiness, year, month);

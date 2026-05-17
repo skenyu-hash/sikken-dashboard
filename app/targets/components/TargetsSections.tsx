@@ -1,21 +1,26 @@
 "use client";
-// PR #49a: 1 つのエリアに対して 3 セクション (売上系 / 広告系 / HELP系) の
+// PR #49a / PR #49b: 1 つのエリアに対して業態別 3 (or 2) セクションの
 // TargetsMatrix を縦に並べて表示する。会議ページのセクション構造と視覚対応。
 //
 // 設計:
 //   - useTargetsState フックを 1 回呼んで areaTargets / setCell を共有 state 化
 //   - 各セクション = 別 TargetsMatrix インスタンス (異なる metrics サブセットを props で渡す)
 //   - SectionShell 風の見出し付きで /meeting と同じグルーピング感を出す
+//
+// PR #49b: category prop に応じて表示メトリクスを絞り込む。
+//   - 鍵: ADS から「工事取得率」を除外
+//   - ロード / 探偵: 工事取得率除外 + HELP セクション全体を非表示
 
-import TargetsMatrix, { SALES_METRICS, ADS_METRICS, HELP_METRICS } from "./TargetsMatrix";
+import TargetsMatrix, { getMetricsForCategory } from "./TargetsMatrix";
 import { useTargetsState } from "../lib/useTargetsState";
-import type { SaveStatus } from "../lib/useDebounceSave";
+import type { SaveStatus } from "./../lib/useDebounceSave";
+import type { BusinessCategory } from "../../lib/businesses";
 
 type Area = { id: string; name: string };
 
 type Props = {
   areas: Area[];
-  category: string;
+  category: BusinessCategory;
   year: number;
   month: number;
   canEdit: boolean;
@@ -27,6 +32,8 @@ export default function TargetsSections({ areas, category, year, month, canEdit,
     areas, category, year, month, onSaveStatusChange,
   });
 
+  const { sales, ads, help } = getMetricsForCategory(category);
+
   if (loading) {
     return (
       <div style={{ padding: 24, color: "#9ca3af", fontSize: 12, textAlign: "center" }}>
@@ -37,29 +44,31 @@ export default function TargetsSections({ areas, category, year, month, canEdit,
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <SectionWrapper title="売上・粗利・件数" subtitle="入力 4項目">
+      <SectionWrapper title="売上・粗利・件数" subtitle={`入力 ${sales.length}項目`}>
         <TargetsMatrix
-          areas={areas} metrics={SALES_METRICS}
+          areas={areas} metrics={sales}
           areaTargets={areaTargets} setCell={setCell}
           canEdit={canEdit} flashCells={flashCells}
         />
       </SectionWrapper>
 
-      <SectionWrapper title="広告・効率指標" subtitle="入力 6項目">
+      <SectionWrapper title="広告・効率指標" subtitle={`入力 ${ads.length}項目`}>
         <TargetsMatrix
-          areas={areas} metrics={ADS_METRICS}
+          areas={areas} metrics={ads}
           areaTargets={areaTargets} setCell={setCell}
           canEdit={canEdit} flashCells={flashCells}
         />
       </SectionWrapper>
 
-      <SectionWrapper title="HELP 部門" subtitle="入力 4項目">
-        <TargetsMatrix
-          areas={areas} metrics={HELP_METRICS}
-          areaTargets={areaTargets} setCell={setCell}
-          canEdit={canEdit} flashCells={flashCells}
-        />
-      </SectionWrapper>
+      {help && (
+        <SectionWrapper title="HELP 部門" subtitle={`入力 ${help.length}項目`}>
+          <TargetsMatrix
+            areas={areas} metrics={help}
+            areaTargets={areaTargets} setCell={setCell}
+            canEdit={canEdit} flashCells={flashCells}
+          />
+        </SectionWrapper>
+      )}
 
       <p style={{
         fontSize: 11, color: "#6b7280", lineHeight: 1.5,
