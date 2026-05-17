@@ -44,8 +44,15 @@ const PR48B_NEW_COLUMNS = [
   "switchboard_count",
 ];
 
+// PR #51 で追加された鍵業態用 6 列 (獲得 4 内訳 + コスト 2)。
+const PR51_NEW_COLUMNS = [
+  "locksmith_car_lp_email_count", "locksmith_inhouse_count",
+  "locksmith_repeat_count", "locksmith_revisit_count",
+  "locksmith_construction_cost", "locksmith_commission_fee",
+];
+
 // 全ての新規列 (静的テストで route.ts INSERT 3 セクション検証対象)
-const ALL_NEW_COLUMNS = [...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS];
+const ALL_NEW_COLUMNS = [...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS, ...PR51_NEW_COLUMNS];
 
 let pass = 0;
 let fail = 0;
@@ -163,6 +170,13 @@ const TEST_VALUES: Record<string, number> = {
   internal_construction_profit: 5000000,
   // 新 1 列 (PR #48b: 電気業態用 分電盤件数)
   switchboard_count: 18,
+  // 新 6 列 (PR #51: 鍵業態用 獲得 4 内訳 + コスト 2)
+  locksmith_car_lp_email_count: 35,
+  locksmith_inhouse_count: 12,
+  locksmith_repeat_count: 8,
+  locksmith_revisit_count: 5,
+  locksmith_construction_cost: 4000000,
+  locksmith_commission_fee: 250000,
 };
 
 const TEST_AREA = "kansai";
