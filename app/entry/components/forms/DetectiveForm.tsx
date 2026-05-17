@@ -109,12 +109,11 @@ const sumAcqChannels = (c: AcqChannels): number =>
   ACQ_CHANNEL_KEYS.reduce((sum, k) => sum + num(c[k]), 0);
 
 export default function DetectiveForm({ state, setField, validateField, errors, labels, calc }: Props) {
-  // UI-only state (Phase B で DB 化候補)
+  // PR #53: 面談数 / キャンセル数 を shared state に切替 (DB 保存対応)
+  // 他の UI-only state (販管費 / 入電 4 内訳 / 獲得 6 内訳) は引き続き local
   const [sellingAdmin, setSellingAdmin] = useState<InputValue>("");
   const [callBreakdown, setCallBreakdown] = useState<CallChannels>(emptyCallChannels);
   const [acqBreakdown, setAcqBreakdown] = useState<AcqChannels>(emptyAcqChannels);
-  const [cancelCount, setCancelCount] = useState<InputValue>("");
-  const [meetingCount, setMeetingCount] = useState<InputValue>("");
 
   const updateCallChannel = (key: CallChannelKey, v: InputValue) => {
     const next = { ...callBreakdown, [key]: v };
@@ -128,10 +127,13 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
   };
 
   // 探偵固有のローカル auto-calc
+  // PR #53: meetings / cancels は state から読む (DB 保存対象)
   const totalAcq = num(state.acquisition_count);
-  const meetings = num(meetingCount);
+  const meetings = num(state.detective_meeting_count);
+  const cancels = num(state.detective_cancel_count);
   const closes = num(state.outsourced_response_count); // = 成約件数
   const meetingRate = safePct(meetings, totalAcq); // 面談率
+  const cancelRate = safePct(cancels, totalAcq);   // キャンセル率 (参考)
   const closeRate = safePct(closes, meetings);     // 成約率
 
   // Warning checks (エラーにせず表示のみ、保存ブロックなし)
@@ -200,11 +202,17 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
         <AutoRow label={labels.cpa} value={fmtYen(calc.cpa)} formula="= 広告費 ÷ 合計獲得件数" />
       </SectionShell>
 
-      {/* ④ 面談プロセス セクション */}
+      {/* ④ 面談プロセス セクション (PR #53 で面談数/キャンセル数を DB 化) */}
       <SectionShell title="④ 面談プロセス" subtitle="入力 3項目 + 自動計算 (アポ獲得率 / 面談率 / 成約率)">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-          <LocalNumberField label="面談事前キャンセル数" unit="件" value={cancelCount} onChange={setCancelCount} />
-          <LocalNumberField label="面談数" unit="件" value={meetingCount} onChange={setMeetingCount} />
+          <NumberField field="detective_cancel_count" label="面談事前キャンセル数" unit="件"
+            value={state.detective_cancel_count}
+            onChange={(v) => setField("detective_cancel_count", v)}
+            onBlur={validateField} state={state} error={errors.detective_cancel_count} />
+          <NumberField field="detective_meeting_count" label="面談数" unit="件"
+            value={state.detective_meeting_count}
+            onChange={(v) => setField("detective_meeting_count", v)}
+            onBlur={validateField} state={state} error={errors.detective_meeting_count} />
           <NumberField field="outsourced_response_count" label={labels.outsourced_response_count} unit="件"
             value={state.outsourced_response_count}
             onChange={(v) => setField("outsourced_response_count", v)}
@@ -233,11 +241,12 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
           marginTop: 8, padding: "8px 10px", fontSize: 11, color: "#374151", lineHeight: 1.5,
           background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb",
         }}>
-          💡 面談事前キャンセル数・面談数は記録のみ。DB 保存は Phase B (PR #49 以降) で対応予定。
-          成約件数は DB total_count として保存されます。
+          💡 PR #53 で面談事前キャンセル数・面談数も DB 保存対象になりました。
+          成約件数は DB total_count として保存されます (既存挙動)。
         </p>
 
         <AutoRow label="アポ獲得率" value={fmtPct(calc.conv_rate)} formula="= 合計獲得件数 ÷ 入電数 × 100" />
+        <AutoRow label="キャンセル率" value={fmtPct(cancelRate)} formula="= 面談事前キャンセル数 ÷ 合計獲得件数 × 100" />
         <AutoRow label="面談率" value={fmtPct(meetingRate)} formula="= 面談数 ÷ 合計獲得件数 × 100" />
         <AutoRow label="成約率" value={fmtPct(closeRate)} formula="= 成約件数 ÷ 面談数 × 100" />
       </SectionShell>

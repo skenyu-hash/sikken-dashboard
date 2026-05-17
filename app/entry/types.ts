@@ -80,6 +80,12 @@ export interface EntryFormState {
   road_wellnest_count: InputValue;
   road_seo_count: InputValue;
   road_insurance_count: InputValue;
+
+  // PR #53: 探偵業態専用 面談ファネル (他業態では常に "" → 保存時 0)
+  //   面談数 + 面談事前キャンセル数 を DB 化 (案 C 採用)
+  //   入電 4 内訳 / 獲得 6 内訳 / 販管費は引き続き UI only
+  detective_meeting_count: InputValue;
+  detective_cancel_count: InputValue;
 }
 
 /**
