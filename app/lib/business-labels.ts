@@ -147,6 +147,19 @@ const ROAD_LABELS: FieldLabels = {
   sales_outsourcing_cost: "手数料",
 };
 
+// PR #48b c5-detective: 探偵業態固有ラベル。
+// DetectiveForm は独自セクション構造 (① 新規対応 + ② 入電 + ③ 獲得 + ④ 面談プロセス、
+// HELP/施工 非表示) で、コスト構造は売上/広告費の 2 項目のみ。
+// 成約件数を total_count にマッピングするため outsourced_response_count を
+// 「成約件数」にオーバーライド (DetectiveForm 内で NumberField の label として使用)。
+const DETECTIVE_LABELS: FieldLabels = {
+  ...WATER_LABELS,
+  section_sales: "① 新規対応",
+  total_revenue: "売上",
+  ad_cost: "広告費（探偵LP）",
+  outsourced_response_count: "成約件数",
+};
+
 // PR #40 で完成予定の placeholder。
 // 仕様書 §5.3 に従い、④施工セクションのみ語尾が業態別 (工事/出動/調査)。
 // 現状は water_LABELS をそのまま流用 (語尾は PR #40 で差替)。
@@ -155,7 +168,7 @@ export const BUSINESS_LABELS: Record<BusinessCategory, FieldLabels> = {
   electric: WATER_LABELS, // TODO PR #40: 5業態展開時に固有ラベル
   locksmith: LOCKSMITH_LABELS,
   road: ROAD_LABELS,
-  detective: WATER_LABELS, // c5-detective で差し替え予定
+  detective: DETECTIVE_LABELS,
 };
 
 /**

@@ -18,6 +18,7 @@ import WaterForm from "./components/forms/WaterForm";
 import ElectricForm from "./components/forms/ElectricForm";
 import LocksmithForm from "./components/forms/LocksmithForm";
 import RoadForm from "./components/forms/RoadForm";
+import DetectiveForm from "./components/forms/DetectiveForm";
 import { BUSINESS_LABELS, type BusinessCategory, type FieldLabels } from "../lib/business-labels";
 import { BUSINESSES } from "../lib/businesses";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "./types";
@@ -62,8 +63,9 @@ function renderBusinessForm(category: BusinessCategory, props: FormProps) {
       return <LocksmithForm {...props} />;
     case "road":
       return <RoadForm {...props} />;
+    case "detective":
+      return <DetectiveForm {...props} />;
     case "water":
-    case "detective":  // c5-detective: DetectiveForm に差し替え予定
     default:
       return <WaterForm {...props} />;
   }
