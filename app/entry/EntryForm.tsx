@@ -16,7 +16,7 @@ import { useFormCalculations } from "./hooks/useFormCalculations";
 import { useFormValidation } from "./hooks/useFormValidation";
 import WaterForm from "./components/forms/WaterForm";
 import ElectricForm from "./components/forms/ElectricForm";
-import LocksmithForm from "./components/forms/LocksmithForm";
+import LocksmithForm, { computeLocksmithProfit } from "./components/forms/LocksmithForm";
 import RoadForm from "./components/forms/RoadForm";
 import DetectiveForm from "./components/forms/DetectiveForm";
 import { BUSINESS_LABELS, type BusinessCategory, type FieldLabels } from "../lib/business-labels";
@@ -83,6 +83,10 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     outsourced_construction_cost: "", internal_construction_profit: "",
     help_count: "", help_revenue: "",
     switchboard_count: "",
+    // PR #51: 鍵業態専用 (他業態は "" のまま、保存時 0)
+    locksmith_car_lp_email_count: "", locksmith_inhouse_count: "",
+    locksmith_repeat_count: "", locksmith_revisit_count: "",
+    locksmith_construction_cost: "", locksmith_commission_fee: "",
   };
 }
 
@@ -159,6 +163,13 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             help_count: numOrEmpty(summary.help_count),
             help_revenue: numOrEmpty(summary.help_revenue),
             switchboard_count: numOrEmpty(summary.switchboard_count),
+            // PR #51: 鍵業態専用 6 列
+            locksmith_car_lp_email_count: numOrEmpty(summary.locksmith_car_lp_email_count),
+            locksmith_inhouse_count: numOrEmpty(summary.locksmith_inhouse_count),
+            locksmith_repeat_count: numOrEmpty(summary.locksmith_repeat_count),
+            locksmith_revisit_count: numOrEmpty(summary.locksmith_revisit_count),
+            locksmith_construction_cost: numOrEmpty(summary.locksmith_construction_cost),
+            locksmith_commission_fee: numOrEmpty(summary.locksmith_commission_fee),
           }));
           const aod = Number(summary.as_of_day);
           setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
@@ -175,6 +186,9 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             outsourced_construction_cost: "", internal_construction_profit: "",
             help_count: "", help_revenue: "",
             switchboard_count: "",
+            locksmith_car_lp_email_count: "", locksmith_inhouse_count: "",
+            locksmith_repeat_count: "", locksmith_revisit_count: "",
+            locksmith_construction_cost: "", locksmith_commission_fee: "",
           }));
           setExistingAsOfDay(null);
         }
@@ -237,6 +251,13 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         help_count: numOrZero(state.help_count),
         help_revenue: numOrZero(state.help_revenue),
         switchboard_count: numOrZero(state.switchboard_count),
+        // PR #51: 鍵業態専用 6 列 (他業態は state="" → 0 で保存)
+        locksmith_car_lp_email_count: numOrZero(state.locksmith_car_lp_email_count),
+        locksmith_inhouse_count: numOrZero(state.locksmith_inhouse_count),
+        locksmith_repeat_count: numOrZero(state.locksmith_repeat_count),
+        locksmith_revisit_count: numOrZero(state.locksmith_revisit_count),
+        locksmith_construction_cost: numOrZero(state.locksmith_construction_cost),
+        locksmith_commission_fee: numOrZero(state.locksmith_commission_fee),
         // auto 計算結果のうち、既存 DB 列に対応するものを送信
         // (新規 DB 列なしの total_construction_count / actual_construction_cost / profit は送らない)
         total_revenue: Math.round(calc.total_revenue),
@@ -246,7 +267,12 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         cpa: Math.round(calc.cpa),
         conv_rate: Math.round(calc.conv_rate * 10) / 10,
         help_unit_price: Math.round(calc.help_unit_price),
-        total_profit: Math.round(calc.total_profit),
+        // PR #51 (論点 1 案 A): 鍵業態は工事費・手数料が新カラムにあるため calc.total_profit
+        // (total_labor_cost / sales_outsourcing_cost 参照) では正しく算出されない。
+        // category-aware に locksmith 専用式で計算。
+        total_profit: category === "locksmith"
+          ? Math.round(computeLocksmithProfit(state))
+          : Math.round(calc.total_profit),
       };
 
       const res = await fetch("/api/import-monthly", {

@@ -1,37 +1,47 @@
 "use client";
-// PR #48b c4-locksmith: 鍵業態フォーム。
+// PR #51 (PR #48b c4-locksmith 改修): 鍵業態フォーム。
 //
-// 仕様確定 (Web Claude 5/16):
-//   ① 新規対応: 売上、工事費、材料費、広告費、手数料、販管費 (販管費は記録のみ Phase B)
+// 仕様確定 (Web Claude 5/16 / 5/18):
+//   ① 新規対応: 売上、工事費、材料費、広告費、手数料、販管費 (販管費は記録のみ Phase 4)
 //   ② 入電  : 車LP+メール / インハウス + 自動 (総入電件数 / 入電単価)
 //   ③ 獲得  : 車LP+メール / インハウス / リピート(紹介) / 再訪問 / HELP + 自動 (総獲得件数 / 獲得単価 / 成約率)
 //   ④ HELP : HELP 売上のみ + 自動 (HELP 客単価 / HELP 率)
 //   ⑤ SectionConstruction: 非表示
 //
-// DB マッピング (既存 monthly_summaries 列を流用):
-//   売上          → outsourced_sales_revenue (locksmith では単独入力、internal は 0 据置 → calc.total_revenue = 売上)
-//   工事費        → total_labor_cost (UI ラベル「工事費」)
+// PR #51 で変更点:
+//   - 獲得 4 内訳 (車LP+メール / インハウス / リピート / 再訪問) を DB 保存化
+//     * 専用カラム: locksmith_car_lp_email_count / locksmith_inhouse_count /
+//       locksmith_repeat_count / locksmith_revisit_count
+//     * 編集モードで内訳が DB から復元される (PR #48b の既知制限を解消)
+//   - 工事費・手数料を専用カラムへ切替
+//     * 旧: state.total_labor_cost / state.sales_outsourcing_cost (流用)
+//     * 新: state.locksmith_construction_cost / state.locksmith_commission_fee
+//   - 粗利は LocksmithForm 内でローカル計算 (旧 calc.profit が total_labor_cost を
+//     参照していたが、locksmith では 0 になるため独自式が必要)
+//     式: 売上 - (工事費 + 材料費 + 広告費 + 手数料)
+//   - DB 保存時の total_profit は EntryForm.handleSave 側で category==='locksmith' の
+//     時のみ独自式で計算 (論点 1 案 A、Web Claude 承認 5/18)
+//
+// DB マッピング (PR #51 適用後):
+//   売上          → outsourced_sales_revenue (locksmith 単独入力)
+//   工事費        → locksmith_construction_cost (新、PR #51)
 //   材料費        → material_cost
 //   広告費        → ad_cost
-//   手数料        → sales_outsourcing_cost (UI ラベル「手数料」)
-//   販管費        → 保存しない (Phase B / 入力欄は記録用、state は LocksmithForm-local)
-//   総入電件数 (自動) → call_count   (内訳の和、内訳自体は保存しない)
-//   総獲得件数 (自動) → acquisition_count (5 内訳の和、HELP は help_count にも保存)
+//   手数料        → locksmith_commission_fee (新、PR #51)
+//   販管費        → 保存しない (LocksmithForm-local state、Phase 4 候補)
+//   総入電件数 (自動) → call_count   (内訳の和、内訳自体は LocalState のまま Phase B 後続)
+//   総獲得件数 (自動) → acquisition_count (5 内訳の和)
+//   獲得 4 内訳   → locksmith_car_lp_email_count / locksmith_inhouse_count /
+//                  locksmith_repeat_count / locksmith_revisit_count
 //   HELP 件数     → help_count (獲得 5 の HELP スロット = state.help_count を共有)
 //   HELP 売上     → help_revenue
-//   入電単価/獲得単価/成約率 → 既存 calc が AdCost/CallCount/AcquisitionCount から自動算出
-//   粗利 (自動)   → total_profit (= calc.profit、calc.profit 式は card_processing_fee=0 で
-//                  locksmith 仕様の 売上-(工事費+材料費+広告費+手数料) と一致)
+//   粗利 (自動)   → total_profit (= 売上 - 4 コスト、handleSave で category-aware)
 //
-// state 配置:
-//   - 既存 EntryFormState の列 (上記マッピング先) はそのまま使用
-//   - locksmith 固有 7 フィールド (販管費 + 内訳 6) は LocksmithForm-local useState
-//     (EntryFormState を業態固有で汚さないため、handleSave/fetchExisting は無改修)
-//
-// edit モードの既知制限:
-//   既存 DB に call_count=100 が保存済の場合、初期表示は state.call_count=100 だが
-//   内訳 (locksmith-local) は空。ユーザーが内訳を入力すると合計値で上書きされる。
-//   Phase B (PR #49 以降) で内訳を DB 化することで解消予定。
+// 既知制限 (PR #51 後も残る):
+//   - 入電 2 内訳 (車LP+メール 入電 / インハウス 入電) は依然 UI only。編集モードで
+//     state.call_count は復元されるが、内訳ローカル state はブランクに戻る。
+//     ユーザーが内訳を 1 つでも入力すると call_count が sum で上書きされる。
+//     → Phase B 後続で DB 化検討。
 
 import { useMemo, useState } from "react";
 import SectionShell from "../SectionShell";
@@ -53,22 +63,27 @@ type Props = {
 const num = (v: InputValue): number => (v === "" ? 0 : v);
 const safePct = (a: number, b: number): number => (b === 0 ? 0 : (a / b) * 100);
 
+/** 鍵業態の粗利式 (LocksmithForm 表示 + handleSave 保存値で共有): 売上 - (工事費+材料費+広告費+手数料) */
+export function computeLocksmithProfit(state: EntryFormState): number {
+  return num(state.outsourced_sales_revenue)
+    - num(state.locksmith_construction_cost)
+    - num(state.material_cost)
+    - num(state.ad_cost)
+    - num(state.locksmith_commission_fee);
+}
+
 export default function LocksmithForm({ state, setField, validateField, errors, labels, calc }: Props) {
-  // locksmith 固有 UI-only state (DB 保存対象外、Phase B 化予定)
+  // 販管費 + 入電 2 内訳は引き続き UI only (Phase B 後続で対応)。
   const [sellingAdmin, setSellingAdmin] = useState<InputValue>("");
   const [callLpMail, setCallLpMail] = useState<InputValue>("");
   const [callInhouse, setCallInhouse] = useState<InputValue>("");
-  const [acqLpMail, setAcqLpMail] = useState<InputValue>("");
-  const [acqInhouse, setAcqInhouse] = useState<InputValue>("");
-  const [acqRepeat, setAcqRepeat] = useState<InputValue>("");
-  const [acqRevisit, setAcqRevisit] = useState<InputValue>("");
 
   // 入電 内訳 → state.call_count 同期 (直接代入、useEffect は使わない:
   // マウント時に DB-loaded 値を 0 に上書きするのを防ぐため)
   const syncCallCount = (lp: InputValue, ih: InputValue) => {
     setField("call_count", num(lp) + num(ih));
   };
-  // 獲得 内訳 → state.acquisition_count 同期 (HELP は state.help_count を含める)
+  // 獲得 5 内訳 → state.acquisition_count 同期
   const syncAcquisitionCount = (lp: InputValue, ih: InputValue, rep: InputValue, rev: InputValue, help: InputValue) => {
     setField("acquisition_count", num(lp) + num(ih) + num(rep) + num(rev) + num(help));
   };
@@ -76,11 +91,16 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
   // 売上比% (UI 表示用、ローカル計算)
   const sales = num(state.outsourced_sales_revenue);
   const ratios = useMemo(() => ({
-    labor: safePct(num(state.total_labor_cost), sales),
+    construction: safePct(num(state.locksmith_construction_cost), sales),
     material: safePct(num(state.material_cost), sales),
     ad: safePct(num(state.ad_cost), sales),
-    commission: safePct(num(state.sales_outsourcing_cost), sales),
-  }), [sales, state.total_labor_cost, state.material_cost, state.ad_cost, state.sales_outsourcing_cost]);
+    commission: safePct(num(state.locksmith_commission_fee), sales),
+  }), [sales, state.locksmith_construction_cost, state.material_cost, state.ad_cost, state.locksmith_commission_fee]);
+
+  // 粗利 = 売上 - (工事費 + 材料費 + 広告費 + 手数料)
+  // calc.profit (= total_revenue - total_labor_cost - material - ad - sales_outsourcing - card)
+  // は locksmith の total_labor_cost / sales_outsourcing_cost が 0 のため使えない。
+  const profit = useMemo(() => computeLocksmithProfit(state), [state]);
 
   const helpRate = useMemo(() => safePct(num(state.help_revenue), sales), [sales, state.help_revenue]);
 
@@ -92,18 +112,18 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
           <NumberField field="outsourced_sales_revenue" label={labels.total_revenue} unit="円"
             value={state.outsourced_sales_revenue} onChange={(v) => setField("outsourced_sales_revenue", v)}
             onBlur={validateField} state={state} error={errors.outsourced_sales_revenue} required />
-          <NumberField field="total_labor_cost" label={labels.total_labor_cost} unit="円"
-            value={state.total_labor_cost} onChange={(v) => setField("total_labor_cost", v)}
-            onBlur={validateField} state={state} error={errors.total_labor_cost} />
+          <NumberField field="locksmith_construction_cost" label={labels.total_labor_cost} unit="円"
+            value={state.locksmith_construction_cost} onChange={(v) => setField("locksmith_construction_cost", v)}
+            onBlur={validateField} state={state} error={errors.locksmith_construction_cost} />
           <NumberField field="material_cost" label={labels.material_cost} unit="円"
             value={state.material_cost} onChange={(v) => setField("material_cost", v)}
             onBlur={validateField} state={state} error={errors.material_cost} />
           <NumberField field="ad_cost" label={labels.ad_cost} unit="円"
             value={state.ad_cost} onChange={(v) => setField("ad_cost", v)}
             onBlur={validateField} state={state} error={errors.ad_cost} />
-          <NumberField field="sales_outsourcing_cost" label={labels.sales_outsourcing_cost} unit="円"
-            value={state.sales_outsourcing_cost} onChange={(v) => setField("sales_outsourcing_cost", v)}
-            onBlur={validateField} state={state} error={errors.sales_outsourcing_cost} />
+          <NumberField field="locksmith_commission_fee" label={labels.sales_outsourcing_cost} unit="円"
+            value={state.locksmith_commission_fee} onChange={(v) => setField("locksmith_commission_fee", v)}
+            onBlur={validateField} state={state} error={errors.locksmith_commission_fee} />
           <LocalNumberField label="販管費" unit="円" value={sellingAdmin} onChange={setSellingAdmin} />
         </div>
 
@@ -111,14 +131,14 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
           marginTop: 8, padding: "8px 10px", fontSize: 11, color: "#374151", lineHeight: 1.5,
           background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb",
         }}>
-          💡 販管費は現在は記録のみ。粗利計算への反映は Phase B (PR #49 以降) で対応予定。
+          💡 販管費は現在は記録のみ。粗利計算への反映は Phase 4 で対応予定。
         </p>
 
-        <AutoRow label="工事費 売上比" value={fmtPct(ratios.labor)} formula="= 工事費 ÷ 売上 × 100" />
+        <AutoRow label="工事費 売上比" value={fmtPct(ratios.construction)} formula="= 工事費 ÷ 売上 × 100" />
         <AutoRow label="材料費 売上比" value={fmtPct(ratios.material)} formula="= 材料費 ÷ 売上 × 100" />
         <AutoRow label="広告費 売上比" value={fmtPct(ratios.ad)} formula="= 広告費 ÷ 売上 × 100" />
         <AutoRow label="手数料 売上比" value={fmtPct(ratios.commission)} formula="= 手数料 ÷ 売上 × 100" />
-        <AutoRow label="粗利" value={fmtYen(calc.profit)} formula="= 売上 − (工事費 + 材料費 + 広告費 + 手数料)" />
+        <AutoRow label="粗利" value={fmtYen(profit)} formula="= 売上 − (工事費 + 材料費 + 広告費 + 手数料)" />
       </SectionShell>
 
       {/* ② 入電セクション */}
@@ -133,26 +153,49 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
           marginTop: 8, padding: "8px 10px", fontSize: 11, color: "#374151", lineHeight: 1.5,
           background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb",
         }}>
-          💡 内訳を入力すると総入電件数が自動更新されます。内訳自体は DB 保存対象外 (Phase B 予定)。
+          💡 内訳を入力すると総入電件数が自動更新されます。内訳自体は DB 保存対象外 (Phase B 後続予定)。
         </p>
         <AutoRow label={labels.call_count} value={fmtCount(num(state.call_count))} formula="= 車LP+メール + インハウス" />
         <AutoRow label={labels.call_unit_price} value={fmtYen(calc.call_unit_price)} formula="= 広告費 ÷ 総入電件数" />
       </SectionShell>
 
-      {/* ③ 獲得セクション */}
+      {/* ③ 獲得セクション (PR #51 で 4 内訳を DB 保存化) */}
       <SectionShell title="③ 獲得" subtitle="入力 5項目 + 自動計算 (総獲得件数 / 獲得単価 / 成約率)">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-          <LocalNumberField label="車LP+メール" unit="件" value={acqLpMail}
-            onChange={(v) => { setAcqLpMail(v); syncAcquisitionCount(v, acqInhouse, acqRepeat, acqRevisit, state.help_count); }} />
-          <LocalNumberField label="インハウス" unit="件" value={acqInhouse}
-            onChange={(v) => { setAcqInhouse(v); syncAcquisitionCount(acqLpMail, v, acqRepeat, acqRevisit, state.help_count); }} />
-          <LocalNumberField label="リピート（紹介）" unit="件" value={acqRepeat}
-            onChange={(v) => { setAcqRepeat(v); syncAcquisitionCount(acqLpMail, acqInhouse, v, acqRevisit, state.help_count); }} />
-          <LocalNumberField label="再訪問" unit="件" value={acqRevisit}
-            onChange={(v) => { setAcqRevisit(v); syncAcquisitionCount(acqLpMail, acqInhouse, acqRepeat, v, state.help_count); }} />
+          <NumberField field="locksmith_car_lp_email_count" label="車LP+メール" unit="件"
+            value={state.locksmith_car_lp_email_count}
+            onChange={(v) => {
+              setField("locksmith_car_lp_email_count", v);
+              syncAcquisitionCount(v, state.locksmith_inhouse_count, state.locksmith_repeat_count, state.locksmith_revisit_count, state.help_count);
+            }}
+            onBlur={validateField} state={state} error={errors.locksmith_car_lp_email_count} />
+          <NumberField field="locksmith_inhouse_count" label="インハウス" unit="件"
+            value={state.locksmith_inhouse_count}
+            onChange={(v) => {
+              setField("locksmith_inhouse_count", v);
+              syncAcquisitionCount(state.locksmith_car_lp_email_count, v, state.locksmith_repeat_count, state.locksmith_revisit_count, state.help_count);
+            }}
+            onBlur={validateField} state={state} error={errors.locksmith_inhouse_count} />
+          <NumberField field="locksmith_repeat_count" label="リピート（紹介）" unit="件"
+            value={state.locksmith_repeat_count}
+            onChange={(v) => {
+              setField("locksmith_repeat_count", v);
+              syncAcquisitionCount(state.locksmith_car_lp_email_count, state.locksmith_inhouse_count, v, state.locksmith_revisit_count, state.help_count);
+            }}
+            onBlur={validateField} state={state} error={errors.locksmith_repeat_count} />
+          <NumberField field="locksmith_revisit_count" label="再訪問" unit="件"
+            value={state.locksmith_revisit_count}
+            onChange={(v) => {
+              setField("locksmith_revisit_count", v);
+              syncAcquisitionCount(state.locksmith_car_lp_email_count, state.locksmith_inhouse_count, state.locksmith_repeat_count, v, state.help_count);
+            }}
+            onBlur={validateField} state={state} error={errors.locksmith_revisit_count} />
           <NumberField field="help_count" label="HELP件数" unit="件"
             value={state.help_count}
-            onChange={(v) => { setField("help_count", v); syncAcquisitionCount(acqLpMail, acqInhouse, acqRepeat, acqRevisit, v); }}
+            onChange={(v) => {
+              setField("help_count", v);
+              syncAcquisitionCount(state.locksmith_car_lp_email_count, state.locksmith_inhouse_count, state.locksmith_repeat_count, state.locksmith_revisit_count, v);
+            }}
             onBlur={validateField} state={state} error={errors.help_count} />
         </div>
 
@@ -160,7 +203,7 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
           marginTop: 8, padding: "8px 10px", fontSize: 11, color: "#374151", lineHeight: 1.5,
           background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb",
         }}>
-          💡 内訳を入力すると総獲得件数が自動更新されます。HELP 件数のみ DB 保存対象 (他 4 内訳は Phase B 予定)。
+          💡 内訳を入力すると総獲得件数が自動更新されます。PR #51 で 5 内訳すべて DB 保存対象。
         </p>
 
         <AutoRow label={labels.acquisition_count} value={fmtCount(num(state.acquisition_count))} formula="= 5 内訳の合計" />
@@ -181,4 +224,3 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
     </>
   );
 }
-
