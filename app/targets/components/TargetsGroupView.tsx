@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { emptyTargets, type Targets } from "../../lib/calculations";
 import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../../lib/businesses";
-import { TARGETS_METRICS, formatYen, formatCount, formatByUnit, emptyMetricRow, type MetricKey } from "./TargetsMatrix";
+import { TARGETS_METRICS, formatYen, formatCount, formatByUnit, emptyMetricRow, getAllMetricsForCategory, type MetricKey } from "./TargetsMatrix";
 
 type Area = { id: string; name: string };
 
@@ -35,6 +35,13 @@ export default function TargetsGroupView({ year, month, category }: Props) {
     () => BUSINESSES.find((b) => b.id === category)?.label ?? "",
     [category]
   );
+
+  // PR #49b: 現在の業態タブで表示すべきメトリクス (鍵=工事取得率除外、
+  // ロード/探偵=工事取得率+HELP 除外)。エリア別テーブルと業態別クロス比較
+  // 両方で列を絞り込む。
+  // TARGETS_METRICS (= 全 14 項目) は集計内部処理で使用 (どの業態の DB 行も
+  // 全 14 列ぶんのデータを持つため集計時に絞らない)。表示時のみ filter する。
+  const visibleMetrics = useMemo(() => getAllMetricsForCategory(category), [category]);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,7 +181,7 @@ export default function TargetsGroupView({ year, month, category }: Props) {
             <thead>
               <tr style={{ background: "#fafffe" }}>
                 <th style={th()}>エリア</th>
-                {TARGETS_METRICS.map((m) => (
+                {visibleMetrics.map((m) => (
                   <th key={m.key} style={th("right")}>{m.label}</th>
                 ))}
               </tr>
@@ -182,11 +189,11 @@ export default function TargetsGroupView({ year, month, category }: Props) {
             <tbody>
               {ALL_AREA_IDS.map((aId) => {
                 const row = areaSummary[aId];
-                const hasAny = TARGETS_METRICS.some((m) => row[m.key] > 0);
+                const hasAny = visibleMetrics.some((m) => row[m.key] > 0);
                 return (
                   <tr key={aId}>
                     <td style={tdLabel()}>{AREA_NAMES[aId]}</td>
-                    {TARGETS_METRICS.map((m) => (
+                    {visibleMetrics.map((m) => (
                       <td key={m.key} style={tdValue(!hasAny)}>
                         {formatByUnit(m.unit, row[m.key])}
                       </td>
@@ -199,7 +206,7 @@ export default function TargetsGroupView({ year, month, category }: Props) {
                 <td style={{ ...tdLabel(), fontWeight: 800, color: "#065f46", borderTop: "2px solid #d1fae5" }}>
                   {categoryLabel} 計
                 </td>
-                {TARGETS_METRICS.map((m) => {
+                {visibleMetrics.map((m) => {
                   const total = ALL_AREA_IDS.reduce((s, aId) => s + areaSummary[aId][m.key], 0);
                   return (
                     <td
@@ -250,7 +257,7 @@ export default function TargetsGroupView({ year, month, category }: Props) {
               </tr>
             </thead>
             <tbody>
-              {TARGETS_METRICS.map((m) => (
+              {visibleMetrics.map((m) => (
                 <tr key={m.key}>
                   <td style={tdLabel()}>{m.label}</td>
                   {ALL_BUSINESSES.map((b) => (
