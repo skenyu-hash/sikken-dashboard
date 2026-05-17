@@ -32,7 +32,7 @@ export default function TargetsSections({ areas, category, year, month, canEdit,
     areas, category, year, month, onSaveStatusChange,
   });
 
-  const { sales, ads, help, meeting } = getMetricsForCategory(category);
+  const { sales, ads, help } = getMetricsForCategory(category);
 
   if (loading) {
     return (
@@ -64,16 +64,6 @@ export default function TargetsSections({ areas, category, year, month, canEdit,
         <SectionWrapper title="HELP 部門" subtitle={`入力 ${help.length}項目`}>
           <TargetsMatrix
             areas={areas} metrics={help}
-            areaTargets={areaTargets} setCell={setCell}
-            canEdit={canEdit} flashCells={flashCells}
-          />
-        </SectionWrapper>
-      )}
-
-      {meeting && (
-        <SectionWrapper title="面談ファネル (探偵専用)" subtitle={`入力 ${meeting.length}項目`}>
-          <TargetsMatrix
-            areas={areas} metrics={meeting}
             areaTargets={areaTargets} setCell={setCell}
             canEdit={canEdit} flashCells={flashCells}
           />
