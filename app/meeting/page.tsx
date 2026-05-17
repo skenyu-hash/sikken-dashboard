@@ -7,6 +7,7 @@ import {
 } from "../lib/calculations";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import AsOfBadge from "../components/AsOfBadge";
+import { resolveTotalProfit } from "../lib/profit";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -234,7 +235,7 @@ export default function MeetingPage() {
     return {
       ...periodSummary,
       totalRevenue: Number(ms.total_revenue ?? 0),
-      totalProfit: Number(ms.total_profit ?? 0),
+      totalProfit: resolveTotalProfit(ms),
       totalCount: Number(ms.total_count ?? 0),
       totalAdCost: Number(ms.ad_cost ?? 0),
       companyUnitPrice: Number(ms.unit_price ?? 0),
