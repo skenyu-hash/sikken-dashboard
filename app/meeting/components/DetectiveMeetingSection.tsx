@@ -1,0 +1,89 @@
+"use client";
+// PR #55 c3: 探偵業態用 会議シートセクション。
+//
+// 構成 (DetectiveDashboardSection と 1:1 対応):
+//   ① 新規対応・コスト・営業利益 (売上 / 広告費 / 営業利益)
+//   ② 入電 (入電数 / 入電単価)
+//   ③ 獲得 (合計獲得件数 / CPA、6 内訳は UI のみで非表示)
+//   ④ 面談プロセス (探偵専用):
+//     - アポ獲得率 / target_conversion_rate (流用)
+//     - 面談事前キャンセル数 / キャンセル率 (target なし、参考表示)
+//     - 面談数 / target_meeting_count / 達成率
+//     - 面談率 / target_meeting_rate
+//     - 成約件数 (= total_count) / 成約率
+//
+// HELP / 工事取得率 / 施工 は非表示。
+//
+// 派生値:
+//   営業利益 = 売上 - 広告費 (calc.profit 互換、他コスト 0)
+//   アポ獲得率 = acquisition_count ÷ call_count × 100 (= 既存 conv_rate と同式)
+//   面談率 = detective_meeting_count ÷ acquisition_count × 100
+//   成約率 = total_count ÷ detective_meeting_count × 100
+
+import { MetricRow, SectionTable, fmtYen, fmtCount, fmtPct, type MeetingPeriodProps } from "./MetricRow";
+import type { Targets } from "../../lib/calculations";
+
+const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
+const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
+
+type Props = MeetingPeriodProps & {
+  monthlySummary: Record<string, unknown> | null;
+  targets: Targets;
+};
+
+export default function DetectiveMeetingSection({
+  monthlySummary, targets, isEndPeriod, daysElapsed, daysInMonth,
+}: Props) {
+  const mp = { isEndPeriod, daysElapsed, daysInMonth };
+
+  // 売上・コスト
+  const sales = numOf(monthlySummary?.total_revenue);
+  const adCost = numOf(monthlySummary?.ad_cost);
+  const profit = sales - adCost;
+
+  // 入電 / 獲得
+  const callCount = numOf(monthlySummary?.call_count);
+  const acquisitionCount = numOf(monthlySummary?.acquisition_count);
+  const callUnitPrice = Math.round(safeDiv(adCost, callCount));
+  const cpa = Math.round(safeDiv(adCost, acquisitionCount));
+
+  // 面談ファネル (PR #53)
+  const meetingCount = numOf(monthlySummary?.detective_meeting_count);
+  const cancelCount = numOf(monthlySummary?.detective_cancel_count);
+  const closeCount = numOf(monthlySummary?.total_count); // = 成約件数
+
+  const appointmentRate = safeDiv(acquisitionCount, callCount) * 100;
+  const cancelRate = safeDiv(cancelCount, acquisitionCount) * 100;
+  const meetingRate = safeDiv(meetingCount, acquisitionCount) * 100;
+  const closeRate = safeDiv(closeCount, meetingCount) * 100;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <SectionTable title="① 新規対応・コスト・営業利益">
+        <MetricRow label="売上"           actual={sales}    target={targets.targetSales}  {...mp} format={fmtYen} />
+        <MetricRow label="広告費 (探偵LP)" actual={adCost}  target={targets.targetAdCost} {...mp} format={fmtYen} invertGap />
+        <MetricRow label="営業利益"       actual={profit}   target={targets.targetProfit} {...mp} format={fmtYen} />
+      </SectionTable>
+
+      <SectionTable title="② 入電">
+        <MetricRow label="入電数"   actual={callCount}     target={targets.targetCallCount} {...mp} format={fmtCount} />
+        <MetricRow label="入電単価" actual={callUnitPrice} target={0}                        {...mp} format={fmtYen} isRate />
+      </SectionTable>
+
+      <SectionTable title="③ 獲得">
+        <MetricRow label="合計獲得件数 (面談予定数)" actual={acquisitionCount} target={targets.targetCount} {...mp} format={fmtCount} />
+        <MetricRow label="CPA"                       actual={cpa}              target={targets.targetCpa}   {...mp} format={fmtYen} isRate invertGap />
+      </SectionTable>
+
+      <SectionTable title="④ 面談プロセス (探偵専用ファネル)">
+        <MetricRow label="アポ獲得率"           actual={appointmentRate} target={targets.targetConversionRate} {...mp} format={fmtPct} isRate />
+        <MetricRow label="面談事前キャンセル数" actual={cancelCount}     target={0}                              {...mp} format={fmtCount} invertGap />
+        <MetricRow label="キャンセル率"         actual={cancelRate}      target={0}                              {...mp} format={fmtPct} isRate invertGap />
+        <MetricRow label="面談数"               actual={meetingCount}    target={targets.targetMeetingCount}    {...mp} format={fmtCount} />
+        <MetricRow label="面談率"               actual={meetingRate}     target={targets.targetMeetingRate}     {...mp} format={fmtPct} isRate />
+        <MetricRow label="成約件数"             actual={closeCount}      target={0}                              {...mp} format={fmtCount} />
+        <MetricRow label="成約率"               actual={closeRate}       target={0}                              {...mp} format={fmtPct} isRate />
+      </SectionTable>
+    </div>
+  );
+}

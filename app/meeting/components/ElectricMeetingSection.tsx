@@ -1,0 +1,184 @@
+"use client";
+// PR #55 c4: 電気業態用 会議シートセクション。
+//
+// 構成 (ElectricDashboardSection と 1:1 対応、+ 部門別実績テーブル):
+//   ① 新規対応・コスト・粗利 (売上 / 6 コスト + 粗利)
+//   ② 広告・効率指標 (広告費率 / 入電 / CPA / 成約率 / 客単価)
+//   ③ 施工 (工事件数 / 工事取得率 / 工事費)
+//   ④ HELP (HELP売上 / 件数 / 客単価 / 率)
+//   ⑤ 電気専用 (分電盤件数 / 目標 / 達成率)
+//   + 部門別実績テーブル (水道・電気特有、自社施工/新規営業/HELP)
+//
+// 派生値:
+//   粗利 = resolveTotalProfit (PR #51.2、legacy 行フォールバック対応)
+//   工事取得率 = (外注+内勤) ÷ 対応件数 × 100
+//
+// 部門別実績テーブルは monthlySummary では取得できないため、displaySummary
+// (DashboardSummary) を別途受け取って描画する。
+
+import { yen } from "../../lib/calculations";
+import type { Targets, DashboardSummary } from "../../lib/calculations";
+import { resolveTotalProfit } from "../../lib/profit";
+import { MetricRow, SectionTable, fmtYen, fmtCount, fmtPct, type MeetingPeriodProps } from "./MetricRow";
+
+const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
+const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
+
+type Props = MeetingPeriodProps & {
+  monthlySummary: Record<string, unknown> | null;
+  targets: Targets;
+  /** 部門別実績テーブル (自社施工/新規営業/HELP) 用 */
+  displaySummary: DashboardSummary;
+};
+
+export default function ElectricMeetingSection({
+  monthlySummary, targets, displaySummary, isEndPeriod, daysElapsed, daysInMonth,
+}: Props) {
+  const mp = { isEndPeriod, daysElapsed, daysInMonth };
+
+  // 売上・コスト
+  const sales = numOf(monthlySummary?.total_revenue);
+  const laborCost = numOf(monthlySummary?.total_labor_cost);
+  const materialCost = numOf(monthlySummary?.material_cost);
+  const adCost = numOf(monthlySummary?.ad_cost);
+  const commission = numOf(monthlySummary?.sales_outsourcing_cost);
+  const cardFee = numOf(monthlySummary?.card_processing_fee);
+  const profit = resolveTotalProfit(monthlySummary);
+
+  // 入電 / 獲得
+  const callCount = numOf(monthlySummary?.call_count);
+  const acquisitionCount = numOf(monthlySummary?.acquisition_count);
+  const totalCount = numOf(monthlySummary?.total_count);
+  const callUnitPrice = Math.round(safeDiv(adCost, callCount));
+  const cpa = Math.round(safeDiv(adCost, acquisitionCount));
+  const convRate = safeDiv(acquisitionCount, callCount) * 100;
+  const adRate = safeDiv(adCost, sales) * 100;
+  const unitPrice = Math.round(safeDiv(sales, totalCount));
+
+  // 施工
+  const outsourcedConstructionCount = numOf(monthlySummary?.outsourced_construction_count);
+  const internalConstructionCount = numOf(monthlySummary?.internal_construction_count);
+  const totalConstruction = outsourcedConstructionCount + internalConstructionCount;
+  const constructionRate = safeDiv(totalConstruction, totalCount) * 100;
+  const outsourcedConstructionCost = numOf(monthlySummary?.outsourced_construction_cost);
+  const internalConstructionProfit = numOf(monthlySummary?.internal_construction_profit);
+
+  // HELP
+  const helpRevenue = numOf(monthlySummary?.help_revenue);
+  const helpCount = numOf(monthlySummary?.help_count);
+  const helpUnitPrice = Math.round(safeDiv(helpRevenue, helpCount));
+  const helpRate = safeDiv(helpRevenue, sales) * 100;
+
+  // 電気専用
+  const switchboardCount = numOf(monthlySummary?.switchboard_count);
+
+  // 部門別実績 (水道・電気特有、displaySummary から)
+  const depts = [
+    { name: "自社施工", color: "#059669", d: displaySummary.self },
+    { name: "新規営業", color: "#3b82f6", d: displaySummary.newSales },
+    { name: "ヘルプ",   color: "#0891b2", d: displaySummary.help },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <SectionTable title="① 新規対応・コスト・粗利">
+        <MetricRow label="売上"        actual={sales}         target={targets.targetSales}  {...mp} format={fmtYen} />
+        <MetricRow label="職人費"      actual={laborCost}     target={0}                     {...mp} format={fmtYen} invertGap />
+        <MetricRow label="材料費"      actual={materialCost}  target={0}                     {...mp} format={fmtYen} invertGap />
+        <MetricRow label="広告費"      actual={adCost}        target={targets.targetAdCost} {...mp} format={fmtYen} invertGap />
+        <MetricRow label="営業外注費"  actual={commission}    target={0}                     {...mp} format={fmtYen} invertGap />
+        <MetricRow label="カード手数料" actual={cardFee}      target={0}                     {...mp} format={fmtYen} invertGap />
+        <MetricRow label="粗利"        actual={profit}        target={targets.targetProfit} {...mp} format={fmtYen} />
+      </SectionTable>
+
+      <SectionTable title="② 広告・効率指標">
+        <MetricRow label="広告費率"   actual={adRate}        target={targets.targetAdRate}        {...mp} format={fmtPct} isRate invertGap />
+        <MetricRow label="入電件数"   actual={callCount}     target={targets.targetCallCount}     {...mp} format={fmtCount} />
+        <MetricRow label="入電単価"   actual={callUnitPrice} target={0}                            {...mp} format={fmtYen} isRate />
+        <MetricRow label="獲得件数"   actual={acquisitionCount} target={targets.targetCount}      {...mp} format={fmtCount} />
+        <MetricRow label="CPA"        actual={cpa}           target={targets.targetCpa}           {...mp} format={fmtYen} isRate invertGap />
+        <MetricRow label="成約率"     actual={convRate}      target={targets.targetConversionRate} {...mp} format={fmtPct} isRate />
+        <MetricRow label="客単価"     actual={unitPrice}     target={targets.targetUnitPrice}     {...mp} format={fmtYen} isRate />
+        <MetricRow label="対応件数"   actual={totalCount}    target={targets.targetCount}         {...mp} format={fmtCount} />
+      </SectionTable>
+
+      <SectionTable title="③ 施工">
+        <MetricRow label="外注工事件数"  actual={outsourcedConstructionCount} target={0}                                  {...mp} format={fmtCount} />
+        <MetricRow label="自社工事件数"  actual={internalConstructionCount}   target={0}                                  {...mp} format={fmtCount} />
+        <MetricRow label="総工事件数"    actual={totalConstruction}            target={0}                                  {...mp} format={fmtCount} />
+        <MetricRow label="工事取得率"    actual={constructionRate}             target={targets.targetConstructionRate}    {...mp} format={fmtPct} isRate />
+        <MetricRow label="外注工事費"    actual={outsourcedConstructionCost}   target={0}                                  {...mp} format={fmtYen} invertGap />
+        <MetricRow label="自社工事利益"  actual={internalConstructionProfit}   target={0}                                  {...mp} format={fmtYen} />
+      </SectionTable>
+
+      <SectionTable title="④ HELP 部門">
+        <MetricRow label="HELP 売上"   actual={helpRevenue}   target={targets.targetHelpSales}     {...mp} format={fmtYen} />
+        <MetricRow label="HELP 件数"   actual={helpCount}     target={targets.targetHelpCount}     {...mp} format={fmtCount} />
+        <MetricRow label="HELP 客単価" actual={helpUnitPrice} target={targets.targetHelpUnitPrice} {...mp} format={fmtYen} isRate />
+        <MetricRow label="HELP 率"     actual={helpRate}      target={targets.targetHelpRate}      {...mp} format={fmtPct} isRate />
+      </SectionTable>
+
+      <SectionTable title="⑤ 電気専用">
+        <MetricRow label="分電盤件数" actual={switchboardCount} target={targets.targetSwitchboardCount} {...mp} format={fmtCount} />
+      </SectionTable>
+
+      {/* 部門別実績テーブル (水道・電気共通) */}
+      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
+        <div style={{ background: "#ecfdf5", padding: "10px 14px", borderBottom: "1px solid #d1fae5" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>部門別実績</span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "18%" }} /><col style={{ width: "20%" }} /><col style={{ width: "16%" }} />
+            <col style={{ width: "20%" }} /><col style={{ width: "13%" }} /><col style={{ width: "13%" }} />
+          </colgroup>
+          <thead>
+            <tr style={{ background: "#f8fdf8" }}>
+              {["部門", "売上", "粗利", "客単価", "件数", "粗利率"].map((h, i) => (
+                <th key={h} style={{ padding: "7px 10px", fontSize: 9, fontWeight: 700, color: "#6b7280",
+                  textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #d1fae5",
+                  textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {depts.map(({ name, color, d }) => {
+              const margin = d.revenue > 0 ? (d.profit / d.revenue * 100) : 0;
+              return (
+                <tr key={name} style={{ borderBottom: "1px solid #f0faf0" }}>
+                  <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, borderLeft: `3px solid ${color}`, color: "#111" }}>{name}</td>
+                  <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#111", fontWeight: 600 }}>
+                    {d.revenue > 0 ? yen(d.revenue) : <span style={{ color: "#d1d5db" }}>¥0</span>}
+                  </td>
+                  <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#059669", fontWeight: 600 }}>
+                    {d.profit > 0 ? yen(d.profit) : <span style={{ color: "#d1d5db" }}>¥0</span>}
+                  </td>
+                  <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>
+                    {d.unitPrice > 0 ? yen(d.unitPrice) : "—"}
+                  </td>
+                  <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>{d.count}件</td>
+                  <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right",
+                    color: margin >= 25 ? "#059669" : margin >= 15 ? "#d97706" : "#dc2626" }}>
+                    {d.revenue > 0 ? `${margin.toFixed(1)}%` : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr style={{ background: "#f0fdf4" }}>
+              <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, borderLeft: "3px solid #059669", color: "#065f46" }}>合計</td>
+              <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#065f46" }}>{yen(displaySummary.totalRevenue)}</td>
+              <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#059669" }}>{yen(displaySummary.totalProfit)}</td>
+              <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{yen(displaySummary.companyUnitPrice)}</td>
+              <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{displaySummary.totalCount}件</td>
+              <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right",
+                color: displaySummary.totalRevenue > 0
+                  ? (displaySummary.totalProfit / displaySummary.totalRevenue * 100 >= 25 ? "#059669" : "#d97706") : "#d1d5db" }}>
+                {displaySummary.totalRevenue > 0 ? `${(displaySummary.totalProfit / displaySummary.totalRevenue * 100).toFixed(1)}%` : "—"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
