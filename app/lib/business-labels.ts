@@ -66,6 +66,9 @@ export interface FieldLabels {
   // ⑥ 粗利 (auto 2)
   profit: string; // auto
   total_profit: string; // auto, 合計粗利
+
+  // PR #48b: 電気業態専用フィールド (ElectricForm でのみ表示)
+  switchboard_count: string;
 }
 
 // 水道 canonical (仕様書 §4.2 に厳密一致)
@@ -113,6 +116,48 @@ const WATER_LABELS: FieldLabels = {
 
   profit: "粗利",
   total_profit: "合計粗利",
+
+  // PR #48b: 電気業態専用 (water でも label 定義は持つ、表示は ElectricForm のみ)
+  switchboard_count: "分電盤件数",
+};
+
+// PR #48b c4-locksmith: 鍵業態固有ラベル。
+// LocksmithForm は独自セクション構造 (4 セクション + SectionConstruction 非表示) で
+// 既存 FieldLabels キーの一部のみ流用するため、必要なキーのみオーバーライド。
+// それ以外の業態固有テキスト (販管費、車LP+メール、インハウス、リピート、再訪問など)
+// は LocksmithForm 内で直接定義する (FieldLabels に追加しない方針)。
+const LOCKSMITH_LABELS: FieldLabels = {
+  ...WATER_LABELS,
+  section_sales: "① 新規対応",
+  total_revenue: "売上",
+  total_labor_cost: "工事費",
+  sales_outsourcing_cost: "手数料",
+};
+
+// PR #48b c5-road: ロード業態固有ラベル。
+// RoadForm は独自セクション構造 (① 新規対応 + ② 入電 + ③ 獲得、HELP/施工 非表示) で
+// 既存 FieldLabels キーのうち再利用する箇所のみオーバーライド。
+// その他業態固有テキスト (保険売上 / 無保険売上 / 販管費 / 7 チャネル名) は
+// RoadForm 内で直接定義 (FieldLabels に追加しない)。
+const ROAD_LABELS: FieldLabels = {
+  ...WATER_LABELS,
+  section_sales: "① 新規対応",
+  total_revenue: "売上",
+  ad_cost: "広告費",
+  sales_outsourcing_cost: "手数料",
+};
+
+// PR #48b c5-detective: 探偵業態固有ラベル。
+// DetectiveForm は独自セクション構造 (① 新規対応 + ② 入電 + ③ 獲得 + ④ 面談プロセス、
+// HELP/施工 非表示) で、コスト構造は売上/広告費の 2 項目のみ。
+// 成約件数を total_count にマッピングするため outsourced_response_count を
+// 「成約件数」にオーバーライド (DetectiveForm 内で NumberField の label として使用)。
+const DETECTIVE_LABELS: FieldLabels = {
+  ...WATER_LABELS,
+  section_sales: "① 新規対応",
+  total_revenue: "売上",
+  ad_cost: "広告費（探偵LP）",
+  outsourced_response_count: "成約件数",
 };
 
 // PR #40 で完成予定の placeholder。
@@ -121,9 +166,9 @@ const WATER_LABELS: FieldLabels = {
 export const BUSINESS_LABELS: Record<BusinessCategory, FieldLabels> = {
   water: WATER_LABELS,
   electric: WATER_LABELS, // TODO PR #40: 5業態展開時に固有ラベル
-  locksmith: WATER_LABELS, // TODO PR #40
-  road: WATER_LABELS, // TODO PR #40: 工事 → 出動
-  detective: WATER_LABELS, // TODO PR #40: 工事 → 調査
+  locksmith: LOCKSMITH_LABELS,
+  road: ROAD_LABELS,
+  detective: DETECTIVE_LABELS,
 };
 
 /**

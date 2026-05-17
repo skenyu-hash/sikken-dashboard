@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
       // PR #41: PR #38 で追加した新 15 列が INSERT/VALUES/ON CONFLICT から
       // 漏れていた構造的バグを修正。3 ヶ所すべてに新 15 列を追加。
       // ① 新規対応 7 / ② コスト 4 / ④ 施工 4 = 計 15 列。
+      // PR #48b: 電気業態用 switchboard_count を追加 (1 列、計 16 列)。
       await sql`
         INSERT INTO monthly_summaries (
           area_id, business_category, year, month,
@@ -73,7 +74,8 @@ export async function POST(req: NextRequest) {
           repeat_count, revisit_count, review_count,
           total_labor_cost, material_cost, sales_outsourcing_cost, card_processing_fee,
           outsourced_construction_count, internal_construction_count,
-          outsourced_construction_cost, internal_construction_profit
+          outsourced_construction_cost, internal_construction_profit,
+          switchboard_count
         ) VALUES (
           ${row.area_id}, ${cat}, ${year}, ${month},
           ${num(pick(row, "total_revenue", "revenue"))},
@@ -95,7 +97,8 @@ export async function POST(req: NextRequest) {
           ${num(pick(row, "total_labor_cost"))}, ${num(pick(row, "material_cost"))},
           ${num(pick(row, "sales_outsourcing_cost"))}, ${num(pick(row, "card_processing_fee"))},
           ${num(pick(row, "outsourced_construction_count"))}, ${num(pick(row, "internal_construction_count"))},
-          ${num(pick(row, "outsourced_construction_cost"))}, ${num(pick(row, "internal_construction_profit"))}
+          ${num(pick(row, "outsourced_construction_cost"))}, ${num(pick(row, "internal_construction_profit"))},
+          ${num(pick(row, "switchboard_count"))}
         )
         ON CONFLICT (area_id, business_category, year, month) DO UPDATE SET
           total_revenue=EXCLUDED.total_revenue, total_profit=EXCLUDED.total_profit,
@@ -120,7 +123,8 @@ export async function POST(req: NextRequest) {
           outsourced_construction_count=EXCLUDED.outsourced_construction_count,
           internal_construction_count=EXCLUDED.internal_construction_count,
           outsourced_construction_cost=EXCLUDED.outsourced_construction_cost,
-          internal_construction_profit=EXCLUDED.internal_construction_profit
+          internal_construction_profit=EXCLUDED.internal_construction_profit,
+          switchboard_count=EXCLUDED.switchboard_count
       `;
       imported++;
     } catch (e) {

@@ -56,6 +56,9 @@ export interface EntryFormState {
   // ⑤ HELP (入力 2)
   help_count: InputValue; // f27
   help_revenue: InputValue; // f28
+
+  // PR #48b: 電気業態専用 (他業態では常に "" → 保存時 0)
+  switchboard_count: InputValue;
 }
 
 /**

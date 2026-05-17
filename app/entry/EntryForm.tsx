@@ -14,15 +14,14 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useFormCalculations } from "./hooks/useFormCalculations";
 import { useFormValidation } from "./hooks/useFormValidation";
-import SectionSales from "./components/SectionSales";
-import SectionCosts from "./components/SectionCosts";
-import SectionAcquisition from "./components/SectionAcquisition";
-import SectionConstruction from "./components/SectionConstruction";
-import SectionHelp from "./components/SectionHelp";
-import AutoCalcDisplay from "./components/AutoCalcDisplay";
-import { BUSINESS_LABELS, type BusinessCategory } from "../lib/business-labels";
+import WaterForm from "./components/forms/WaterForm";
+import ElectricForm from "./components/forms/ElectricForm";
+import LocksmithForm from "./components/forms/LocksmithForm";
+import RoadForm from "./components/forms/RoadForm";
+import DetectiveForm from "./components/forms/DetectiveForm";
+import { BUSINESS_LABELS, type BusinessCategory, type FieldLabels } from "../lib/business-labels";
 import { BUSINESSES } from "../lib/businesses";
-import type { EntryFormState, InputFieldKey, InputValue } from "./types";
+import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "./types";
 
 type Props = {
   initialArea: string;
@@ -43,6 +42,35 @@ const CATEGORY_LABELS: Record<BusinessCategory, string> = {
   water: "水道", electric: "電気", locksmith: "鍵", road: "ロード", detective: "探偵",
 };
 
+// PR #48b c3: 業態別フォーム dispatch。
+// 現状は全業態 WaterForm を返す (動作変更ゼロを担保)。
+// c4 で electric → ElectricForm、locksmith → LocksmithForm を分岐に追加。
+// c5 で road → RoadForm、detective → DetectiveForm を分岐に追加。
+type FormProps = {
+  state: EntryFormState;
+  setField: (k: InputFieldKey, v: InputValue) => void;
+  validateField: (field: InputFieldKey, value: InputValue, state: EntryFormState) => boolean;
+  errors: ValidationErrors;
+  labels: FieldLabels;
+  calc: AutoCalcResult;
+};
+
+function renderBusinessForm(category: BusinessCategory, props: FormProps) {
+  switch (category) {
+    case "electric":
+      return <ElectricForm {...props} />;
+    case "locksmith":
+      return <LocksmithForm {...props} />;
+    case "road":
+      return <RoadForm {...props} />;
+    case "detective":
+      return <DetectiveForm {...props} />;
+    case "water":
+    default:
+      return <WaterForm {...props} />;
+  }
+}
+
 function emptyState(area: string, year: number, month: number, day: number, category: BusinessCategory): EntryFormState {
   return {
     area_id: area, year, month, day, category,
@@ -54,6 +82,7 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     outsourced_construction_count: "", internal_construction_count: "",
     outsourced_construction_cost: "", internal_construction_profit: "",
     help_count: "", help_revenue: "",
+    switchboard_count: "",
   };
 }
 
@@ -129,11 +158,12 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             internal_construction_profit: numOrEmpty(summary.internal_construction_profit),
             help_count: numOrEmpty(summary.help_count),
             help_revenue: numOrEmpty(summary.help_revenue),
+            switchboard_count: numOrEmpty(summary.switchboard_count),
           }));
           const aod = Number(summary.as_of_day);
           setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
         } else {
-          // 既存データなし → 入力 20 フィールドをクリア (メタは維持)
+          // 既存データなし → 入力フィールドをクリア (メタは維持)
           setState((s) => ({
             ...s,
             outsourced_sales_revenue: "", internal_staff_revenue: "",
@@ -144,6 +174,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             outsourced_construction_count: "", internal_construction_count: "",
             outsourced_construction_cost: "", internal_construction_profit: "",
             help_count: "", help_revenue: "",
+            switchboard_count: "",
           }));
           setExistingAsOfDay(null);
         }
@@ -205,6 +236,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         internal_construction_profit: numOrZero(state.internal_construction_profit),
         help_count: numOrZero(state.help_count),
         help_revenue: numOrZero(state.help_revenue),
+        switchboard_count: numOrZero(state.switchboard_count),
         // auto 計算結果のうち、既存 DB 列に対応するものを送信
         // (新規 DB 列なしの total_construction_count / actual_construction_cost / profit は送らない)
         total_revenue: Math.round(calc.total_revenue),
@@ -343,12 +375,13 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           </p>
         </div>
 
-        <SectionSales state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
-        <SectionCosts state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} />
-        <SectionAcquisition state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
-        <SectionConstruction state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
-        <SectionHelp state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
-        <AutoCalcDisplay calc={calc} labels={labels} />
+        {/* PR #48b c3: 業態別フォーム routing 層。
+            現状は全業態 WaterForm にルーティング (動作変更ゼロを担保)。
+            c4 で electric → ElectricForm、locksmith → LocksmithForm に分岐。
+            c5 で road → RoadForm、detective → DetectiveForm に分岐。 */}
+        {renderBusinessForm(category, {
+          state, setField, validateField, errors, labels, calc,
+        })}
       </div>
 
       {/* 固定保存バー */}
