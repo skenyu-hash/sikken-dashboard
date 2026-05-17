@@ -19,7 +19,7 @@ import type { BusinessCategory } from "../../lib/businesses";
 
 type Area = { id: string; name: string };
 
-// 編集対象 14 メトリクス。Targets 型のキーに対応。
+// 編集対象 16 メトリクス。Targets 型のキーに対応。
 type MetricKey =
   // ① 売上・粗利・件数 (4)
   | "targetSales"
@@ -37,7 +37,10 @@ type MetricKey =
   | "targetHelpSales"
   | "targetHelpCount"
   | "targetHelpUnitPrice"
-  | "targetHelpRate";
+  | "targetHelpRate"
+  // ④ 面談ファネル (探偵専用、PR #53)
+  | "targetMeetingCount"
+  | "targetMeetingRate";
 
 // 単位種別。
 //   yen_man: DB が万円単位で保存 (lib/calculations.manToYen が ×10000 する対象)
@@ -79,7 +82,15 @@ const HELP_METRICS: MetricDef[] = [
   { key: "targetHelpRate",      label: "HELP率目標",     unit: "percent" },
 ];
 
-const ALL_METRICS: MetricDef[] = [...SALES_METRICS, ...ADS_METRICS, ...HELP_METRICS];
+// セクション 4: 面談ファネル (探偵専用、PR #53)
+//   アポ獲得率目標は既存 targetConversionRate (= 成約率目標) を流用するため
+//   本セクションには含めない。targetMeetingCount / targetMeetingRate のみ新規。
+const MEETING_METRICS: MetricDef[] = [
+  { key: "targetMeetingCount", label: "面談数目標", unit: "count" },
+  { key: "targetMeetingRate",  label: "面談率目標", unit: "percent" },
+];
+
+const ALL_METRICS: MetricDef[] = [...SALES_METRICS, ...ADS_METRICS, ...HELP_METRICS, ...MEETING_METRICS];
 
 // 既存呼び出し元 (page.tsx setAllAreasSameValue / exportCsv、GroupView、CompanyView) は
 // この name で import している。意味は「全 14 項目」だが既存変数名で公開。
@@ -271,41 +282,51 @@ function emptyMetricRow(): Record<MetricKey, number> {
 }
 
 // PR #49b: 業態別に表示するメトリクスサブセットを返す。
-// 反さん仕様 (memory #15, 5/17 確定):
-//   - 水道 / 電気 : 全 14 項目を表示 (電気の分電盤件数 target は Phase 3)
+// 反さん仕様 (memory #15, 5/17 確定 + PR #53 追加):
+//   - 水道 / 電気 : 全 14 項目を表示 (電気の分電盤件数 target は Phase 4)
 //   - 鍵         : 工事取得率を ADS から除外 (鍵に施工概念なし)
 //   - ロード     : 工事取得率を除外 + HELP セクション全体を非表示
-//   - 探偵       : 工事取得率を除外 + HELP セクション全体を非表示
-//                  (面談指標 target は Phase 3 PR #53 で別途追加)
+//   - 探偵       : 工事取得率を除外 + HELP 非表示 + 面談ファネル追加 (PR #53)
+//                  + 「成約率目標」ラベルは「アポ獲得率目標」として読替
 //
-// help セクションは null を返した場合、呼び出し元 (TargetsSections) が
+// 各セクションが null を返した場合、呼び出し元 (TargetsSections) は
 // レンダリング自体をスキップする。
 function getMetricsForCategory(category: BusinessCategory): {
   sales: MetricDef[];
   ads: MetricDef[];
   help: MetricDef[] | null;
+  meeting: MetricDef[] | null;
 } {
   const hideConstructionRate = category === "locksmith" || category === "road" || category === "detective";
   const hideHelp = category === "road" || category === "detective";
+  const showMeeting = category === "detective";
+
+  // 探偵の ADS では targetConversionRate のラベルを「アポ獲得率目標」に読替
+  let ads = ADS_METRICS;
+  if (hideConstructionRate) ads = ads.filter((m) => m.key !== "targetConstructionRate");
+  if (category === "detective") {
+    ads = ads.map((m) => m.key === "targetConversionRate"
+      ? { ...m, label: "アポ獲得率目標" }
+      : m);
+  }
 
   return {
     sales: SALES_METRICS,
-    ads: hideConstructionRate
-      ? ADS_METRICS.filter((m) => m.key !== "targetConstructionRate")
-      : ADS_METRICS,
+    ads,
     help: hideHelp ? null : HELP_METRICS,
+    meeting: showMeeting ? MEETING_METRICS : null,
   };
 }
 
 // 業態別のフラットなメトリクス一覧 (グループビュー / CSV エクスポート / 一括設定で使用)
 function getAllMetricsForCategory(category: BusinessCategory): MetricDef[] {
-  const { sales, ads, help } = getMetricsForCategory(category);
-  return [...sales, ...ads, ...(help ?? [])];
+  const { sales, ads, help, meeting } = getMetricsForCategory(category);
+  return [...sales, ...ads, ...(help ?? []), ...(meeting ?? [])];
 }
 
 export {
   METRICS as TARGETS_METRICS,
-  SALES_METRICS, ADS_METRICS, HELP_METRICS,
+  SALES_METRICS, ADS_METRICS, HELP_METRICS, MEETING_METRICS,
   formatYen, formatYenRaw, formatCount, formatPercent, formatByUnit,
   emptyMetricRow,
   getMetricsForCategory, getAllMetricsForCategory,
