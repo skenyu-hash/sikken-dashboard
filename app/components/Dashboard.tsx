@@ -19,6 +19,7 @@ import AsOfBadge from "./AsOfBadge";
 import LocksmithDashboardSection from "./LocksmithDashboardSection";
 import RoadDashboardSection from "./RoadDashboardSection";
 import DetectiveDashboardSection from "./DetectiveDashboardSection";
+import ElectricDashboardSection from "./ElectricDashboardSection";
 import { resolveTotalProfit } from "../lib/profit";
 
 // ============ エリア定義 ============
@@ -1152,8 +1153,9 @@ export default function Dashboard() {
       {/* PR #51: 鍵業態は LocksmithDashboardSection に置換。
           PR #52: ロード業態は RoadDashboardSection に置換。
           PR #53: 探偵業態は DetectiveDashboardSection に置換 (面談ファネル含む)。
-          他業態 (水道/電気) は引き続き「全17項目 指標一覧」を表示
-          (PR #54 で順次置換予定)。 */}
+          PR #54: 電気業態は ElectricDashboardSection に置換 (分電盤件数含む)。
+          残る水道タブは引き続き「全17項目 指標一覧」を表示
+          (PR #56 以降で必要なら水道専用セクションに置換検討)。 */}
       {!isGroup && activeBusiness === "locksmith" && (
         <LocksmithDashboardSection monthlySummary={monthlySummary} targets={targets} />
       )}
@@ -1163,7 +1165,10 @@ export default function Dashboard() {
       {!isGroup && activeBusiness === "detective" && (
         <DetectiveDashboardSection monthlySummary={monthlySummary} targets={targets} />
       )}
-      {!isGroup && activeBusiness !== "locksmith" && activeBusiness !== "road" && activeBusiness !== "detective" && (
+      {!isGroup && activeBusiness === "electric" && (
+        <ElectricDashboardSection monthlySummary={monthlySummary} targets={targets} />
+      )}
+      {!isGroup && activeBusiness !== "locksmith" && activeBusiness !== "road" && activeBusiness !== "detective" && activeBusiness !== "electric" && (
         <section style={{ marginBottom: 16 }}>
           <SectionLabel>全17項目 指標一覧</SectionLabel>
           <div className="metrics-grid-2col" style={{
