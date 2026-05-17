@@ -194,6 +194,19 @@ export function ensureSchema(): Promise<void> {
       // PR #48b: 電気業態向け 分電盤件数 (electric のみ使用、他業態は常に 0)
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS switchboard_count INTEGER NOT NULL DEFAULT 0`);
 
+      // PR #51: 鍵業態 Phase B (LocksmithForm の獲得内訳・コストを DB 化)
+      //   - 獲得 4 内訳 (車LP+メール / インハウス / リピート / 再訪問)
+      //   - コスト 2 項目 (工事費 / 手数料) ※従来 total_labor_cost / sales_outsourcing_cost
+      //     に流用保存していたが、専用カラムに切替 (handleSave で category-aware に
+      //     total_labor_cost / sales_outsourcing_cost を 0 にする)
+      // 入電内訳 (車LP+メール / インハウス 入電) は本 PR では未対応 (Phase B 後続)
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_car_lp_email_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_inhouse_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_repeat_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_revisit_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_construction_cost NUMERIC NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_commission_fee NUMERIC NOT NULL DEFAULT 0`);
+
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,

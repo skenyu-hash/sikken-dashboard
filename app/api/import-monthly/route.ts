@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
       // 漏れていた構造的バグを修正。3 ヶ所すべてに新 15 列を追加。
       // ① 新規対応 7 / ② コスト 4 / ④ 施工 4 = 計 15 列。
       // PR #48b: 電気業態用 switchboard_count を追加 (1 列、計 16 列)。
+      // PR #51 : 鍵業態用 6 列を追加 (獲得 4 内訳 + コスト 2、計 22 列)。
       await sql`
         INSERT INTO monthly_summaries (
           area_id, business_category, year, month,
@@ -75,7 +76,10 @@ export async function POST(req: NextRequest) {
           total_labor_cost, material_cost, sales_outsourcing_cost, card_processing_fee,
           outsourced_construction_count, internal_construction_count,
           outsourced_construction_cost, internal_construction_profit,
-          switchboard_count
+          switchboard_count,
+          locksmith_car_lp_email_count, locksmith_inhouse_count,
+          locksmith_repeat_count, locksmith_revisit_count,
+          locksmith_construction_cost, locksmith_commission_fee
         ) VALUES (
           ${row.area_id}, ${cat}, ${year}, ${month},
           ${num(pick(row, "total_revenue", "revenue"))},
@@ -98,7 +102,10 @@ export async function POST(req: NextRequest) {
           ${num(pick(row, "sales_outsourcing_cost"))}, ${num(pick(row, "card_processing_fee"))},
           ${num(pick(row, "outsourced_construction_count"))}, ${num(pick(row, "internal_construction_count"))},
           ${num(pick(row, "outsourced_construction_cost"))}, ${num(pick(row, "internal_construction_profit"))},
-          ${num(pick(row, "switchboard_count"))}
+          ${num(pick(row, "switchboard_count"))},
+          ${num(pick(row, "locksmith_car_lp_email_count"))}, ${num(pick(row, "locksmith_inhouse_count"))},
+          ${num(pick(row, "locksmith_repeat_count"))}, ${num(pick(row, "locksmith_revisit_count"))},
+          ${num(pick(row, "locksmith_construction_cost"))}, ${num(pick(row, "locksmith_commission_fee"))}
         )
         ON CONFLICT (area_id, business_category, year, month) DO UPDATE SET
           total_revenue=EXCLUDED.total_revenue, total_profit=EXCLUDED.total_profit,
@@ -124,7 +131,13 @@ export async function POST(req: NextRequest) {
           internal_construction_count=EXCLUDED.internal_construction_count,
           outsourced_construction_cost=EXCLUDED.outsourced_construction_cost,
           internal_construction_profit=EXCLUDED.internal_construction_profit,
-          switchboard_count=EXCLUDED.switchboard_count
+          switchboard_count=EXCLUDED.switchboard_count,
+          locksmith_car_lp_email_count=EXCLUDED.locksmith_car_lp_email_count,
+          locksmith_inhouse_count=EXCLUDED.locksmith_inhouse_count,
+          locksmith_repeat_count=EXCLUDED.locksmith_repeat_count,
+          locksmith_revisit_count=EXCLUDED.locksmith_revisit_count,
+          locksmith_construction_cost=EXCLUDED.locksmith_construction_cost,
+          locksmith_commission_fee=EXCLUDED.locksmith_commission_fee
       `;
       imported++;
     } catch (e) {

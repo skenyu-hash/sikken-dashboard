@@ -59,6 +59,16 @@ export interface EntryFormState {
 
   // PR #48b: 電気業態専用 (他業態では常に "" → 保存時 0)
   switchboard_count: InputValue;
+
+  // PR #51: 鍵業態専用 (他業態では常に "" → 保存時 0)
+  //   獲得 4 内訳: 5 番目の HELP は state.help_count を再利用
+  locksmith_car_lp_email_count: InputValue;
+  locksmith_inhouse_count: InputValue;
+  locksmith_repeat_count: InputValue;
+  locksmith_revisit_count: InputValue;
+  //   コスト 2 項目: 旧 total_labor_cost / sales_outsourcing_cost 流用から専用カラムへ
+  locksmith_construction_cost: InputValue;
+  locksmith_commission_fee: InputValue;
 }
 
 /**
