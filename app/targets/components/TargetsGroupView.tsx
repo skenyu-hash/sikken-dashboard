@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { emptyTargets, type Targets } from "../../lib/calculations";
 import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../../lib/businesses";
-import { TARGETS_METRICS, formatYen, formatCount, formatByUnit, type MetricKey } from "./TargetsMatrix";
+import { TARGETS_METRICS, formatYen, formatCount, formatByUnit, emptyMetricRow, type MetricKey } from "./TargetsMatrix";
 
 type Area = { id: string; name: string };
 
@@ -84,14 +84,13 @@ export default function TargetsGroupView({ year, month, category }: Props) {
   }, [data, category]);
 
   // エリア別テーブル用: 選択業態の全エリア値（業態タブに追従）
+  // PR #49a: 全 14 メトリクス分の row を emptyMetricRow() で初期化
+  // (ハードコード literal だと TARGETS_METRICS 拡張時に毎回手書き更新が必要)
   const areaSummary = useMemo(() => {
     const result: Record<string, Record<MetricKey, number>> = {};
     const byArea = data[category] ?? {};
     for (const aId of ALL_AREA_IDS) {
-      const row: Record<MetricKey, number> = {
-        targetSales: 0, targetProfit: 0, targetAdCost: 0,
-        targetCount: 0, targetHelpSales: 0, targetHelpCount: 0,
-      };
+      const row = emptyMetricRow();
       const t = byArea[aId];
       if (t) {
         for (const m of TARGETS_METRICS) row[m.key] += Number(t[m.key] ?? 0);
@@ -105,10 +104,7 @@ export default function TargetsGroupView({ year, month, category }: Props) {
   const cross = useMemo(() => {
     const result: Record<string, Record<MetricKey, number>> = {};
     for (const biz of ALL_BUSINESSES) {
-      const row: Record<MetricKey, number> = {
-        targetSales: 0, targetProfit: 0, targetAdCost: 0,
-        targetCount: 0, targetHelpSales: 0, targetHelpCount: 0,
-      };
+      const row = emptyMetricRow();
       const byArea = data[biz.id] ?? {};
       for (const aId of Object.keys(byArea)) {
         for (const m of TARGETS_METRICS) row[m.key] += Number(byArea[aId][m.key] ?? 0);
@@ -116,10 +112,7 @@ export default function TargetsGroupView({ year, month, category }: Props) {
       result[biz.id] = row;
     }
     // グループ計
-    const totalRow: Record<MetricKey, number> = {
-      targetSales: 0, targetProfit: 0, targetAdCost: 0,
-      targetCount: 0, targetHelpSales: 0, targetHelpCount: 0,
-    };
+    const totalRow = emptyMetricRow();
     for (const biz of ALL_BUSINESSES) {
       for (const m of TARGETS_METRICS) totalRow[m.key] += result[biz.id][m.key];
     }

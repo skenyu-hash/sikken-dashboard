@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { COMPANIES } from "../../lib/companies";
 import { AREA_NAMES, BUSINESSES, type BusinessCategory } from "../../lib/businesses";
 import { emptyTargets, type Targets } from "../../lib/calculations";
-import { TARGETS_METRICS, formatByUnit, formatYen, type MetricKey } from "./TargetsMatrix";
+import { TARGETS_METRICS, formatByUnit, formatYen, emptyMetricRow } from "./TargetsMatrix";
 
 type Props = {
   activeCompanyId: string;
@@ -66,11 +66,9 @@ export default function TargetsCompanyView({ activeCompanyId, year, month, onCha
   }, [company, year, month]);
 
   // 会社合計
+  // PR #49a: emptyMetricRow() で 14 メトリクス全部を 0 初期化
   const totals = useMemo(() => {
-    const t: Record<MetricKey, number> = {
-      targetSales: 0, targetProfit: 0, targetAdCost: 0,
-      targetCount: 0, targetHelpSales: 0, targetHelpCount: 0,
-    };
+    const t = emptyMetricRow();
     for (const k of Object.keys(pairs)) {
       for (const m of TARGETS_METRICS) t[m.key] += Number(pairs[k][m.key] ?? 0);
     }

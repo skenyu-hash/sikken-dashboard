@@ -5,7 +5,8 @@ import { useRole } from "../components/RoleProvider";
 import { hasPageAccess } from "../lib/permissions";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import { COMPANIES } from "../lib/companies";
-import TargetsMatrix, { TARGETS_METRICS, formatByUnit } from "./components/TargetsMatrix";
+import TargetsSections from "./components/TargetsSections";
+import { TARGETS_METRICS, formatByUnit } from "./components/TargetsMatrix";
 import TargetsGroupView from "./components/TargetsGroupView";
 import TargetsCompanyView from "./components/TargetsCompanyView";
 import { useSaveStatus, type SaveStatus } from "./lib/useDebounceSave";
@@ -322,13 +323,13 @@ export default function TargetsPage() {
           />
         )}
         {viewMode === "business" && activeAreaTab !== GROUP_TAB_ID && (
-          <TargetsMatrix
+          <TargetsSections
             areas={businessAreas.filter((a) => a.id === activeAreaTab)}
             category={activeBusiness}
             year={year}
             month={month}
             canEdit={canEdit}
-            onSaveStatusChange={(s, f) => {
+            onSaveStatusChange={(s: SaveStatus, f: boolean) => {
               setBubbledStatus(s);
               setBubbledFlash(f);
             }}

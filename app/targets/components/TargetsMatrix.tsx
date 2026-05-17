@@ -1,161 +1,141 @@
 "use client";
-// エリア別ビュー: 縦軸=エリア(N行) + 合計行(参考、readonly)、
-//                横軸=指標(売上/粗利/広告費/合計件数/HELP売上/HELP件数)。
-// 各セルはインライン編集可能、debounce 500ms で /api/targets POST。
+// エリア別ビュー: 縦軸=エリア(N行) + 合計行(参考、readonly)、横軸=指標。
+//
+// PR #49a (Phase 1) で大幅刷新:
+//   - 編集対象メトリクスを 6 → 14 項目に拡張 (会議ページの 16 項目に対応)
+//   - 単位種別を yen / count から 4 種に拡張:
+//       yen_man: DB が万円単位で保存 (×10000 で表示) — 売上 / 粗利 / 広告費 / HELP売上 等
+//       yen_raw: DB が円単位で保存 (×変換なし)       — 客単価 / CPA / HELP客単価 等
+//       count  : 件数                                 — 獲得件数 / 入電件数 / HELP件数
+//       percent: 割合 0-100 (×変換なし)              — 広告費率 / 成約率 / 工事取得率 / HELP率
+//   - 後方互換: 旧 unit "yen" は yen_man のエイリアスとして保持 (TARGETS_METRICS 経由
+//     で参照する GroupView / CompanyView を壊さないため)
+//   - state 管理は useTargetsState フックに分離。本コンポーネントは presentational。
+//   - 1 マトリクスを 3 セクションに分割するため metrics prop を必須化。
 
-import { useEffect, useMemo, useState } from "react";
 import { emptyTargets, type Targets } from "../../lib/calculations";
-import { useDebouncedCallback, useSaveStatus, type SaveStatus } from "../lib/useDebounceSave";
+import type { AreaTargets } from "../lib/useTargetsState";
 
 type Area = { id: string; name: string };
 
-// 編集対象の指標6項目。target_ プレフィックス付きで Targets 型のキーに対応。
-// unit: yen=円整数（¥カンマ区切り表示）/ count=件数（数値のみ）
+// 編集対象 14 メトリクス。Targets 型のキーに対応。
 type MetricKey =
+  // ① 売上・粗利・件数 (4)
   | "targetSales"
   | "targetProfit"
-  | "targetAdCost"
   | "targetCount"
+  | "targetUnitPrice"
+  // ② 広告・効率指標 (6)
+  | "targetAdCost"
+  | "targetAdRate"
+  | "targetCallCount"
+  | "targetCpa"
+  | "targetConstructionRate"
+  | "targetConversionRate"
+  // ③ HELP 部門 (4)
   | "targetHelpSales"
-  | "targetHelpCount";
+  | "targetHelpCount"
+  | "targetHelpUnitPrice"
+  | "targetHelpRate";
+
+// 単位種別。
+//   yen_man: DB が万円単位で保存 (lib/calculations.manToYen が ×10000 する対象)
+//   yen_raw: DB が円単位で保存 (manToYen 対象外、客単価 / CPA など)
+//   count  : 件数
+//   percent: 割合 0-100
+// 後方互換: "yen" は yen_man のエイリアス。
+type MetricUnit = "yen_man" | "yen_raw" | "count" | "percent" | "yen";
 
 type MetricDef = {
   key: MetricKey;
   label: string;
-  unit: "yen" | "count";
+  unit: MetricUnit;
 };
 
-const METRICS: MetricDef[] = [
-  { key: "targetSales",     label: "売上目標",       unit: "yen" },
-  { key: "targetProfit",    label: "粗利目標",       unit: "yen" },
-  { key: "targetAdCost",    label: "広告費目標",     unit: "yen" },
-  { key: "targetCount",     label: "合計件数目標",   unit: "count" },
-  { key: "targetHelpSales", label: "HELP売上目標",  unit: "yen" },
-  { key: "targetHelpCount", label: "HELP件数目標",  unit: "count" },
+// セクション 1: 売上・粗利・件数
+const SALES_METRICS: MetricDef[] = [
+  { key: "targetSales",     label: "売上目標",     unit: "yen_man" },
+  { key: "targetProfit",    label: "粗利目標",     unit: "yen_man" },
+  { key: "targetCount",     label: "獲得件数目標", unit: "count" },
+  { key: "targetUnitPrice", label: "客単価目標",   unit: "yen_raw" },
 ];
 
-// DB の target_sales 等は万円単位で保存されている。/meeting は manToYen() で
-// 円換算しているのに /targets は無加工で表示していたため数値が 1/10000 で見える
-// バグになっていた。表示専用 formatter で × 10000 して raw yen 表示に統一する
-// （DB スキーマ・編集 input の単位は変更しない）。
+// セクション 2: 広告・効率指標
+const ADS_METRICS: MetricDef[] = [
+  { key: "targetAdCost",           label: "広告費目標",     unit: "yen_man" },
+  { key: "targetAdRate",           label: "広告費率目標",   unit: "percent" },
+  { key: "targetCallCount",        label: "入電件数目標",   unit: "count" },
+  { key: "targetCpa",              label: "CPA目標",        unit: "yen_raw" },
+  { key: "targetConstructionRate", label: "工事取得率目標", unit: "percent" },
+  { key: "targetConversionRate",   label: "成約率目標",     unit: "percent" },
+];
+
+// セクション 3: HELP 部門
+const HELP_METRICS: MetricDef[] = [
+  { key: "targetHelpSales",     label: "HELP売上目標",   unit: "yen_man" },
+  { key: "targetHelpCount",     label: "HELP件数目標",   unit: "count" },
+  { key: "targetHelpUnitPrice", label: "HELP客単価目標", unit: "yen_raw" },
+  { key: "targetHelpRate",      label: "HELP率目標",     unit: "percent" },
+];
+
+const ALL_METRICS: MetricDef[] = [...SALES_METRICS, ...ADS_METRICS, ...HELP_METRICS];
+
+// 既存呼び出し元 (page.tsx setAllAreasSameValue / exportCsv、GroupView、CompanyView) は
+// この name で import している。意味は「全 14 項目」だが既存変数名で公開。
+const METRICS = ALL_METRICS;
+
+// ===== 表示 formatter =====
+//
+// yen_man: DB は万円単位 (例: 1000 → ¥10,000,000)。/meeting は manToYen() で ×10000 換算。
+// yen_raw: DB は円単位 (例: 30000 → ¥30,000)。manToYen 非適用。
+// count  : そのまま件数表示。
+// percent: 小数点 1 桁の % 表示 (例: 30 → 30.0%)。
 function formatYen(v: number): string {
+  // 後方互換: 「yen」既存呼び出しは万円単位前提のため ×10000。
+  // 新規 yen_raw は formatYenRaw を使う。
   if (!v || v <= 0) return "—";
   return `¥${Math.round(v * 10000).toLocaleString()}`;
+}
+function formatYenRaw(v: number): string {
+  if (!v || v <= 0) return "—";
+  return `¥${Math.round(v).toLocaleString()}`;
 }
 function formatCount(v: number): string {
   if (!v || v <= 0) return "—";
   return v.toLocaleString();
 }
-function formatByUnit(unit: "yen" | "count", v: number): string {
-  return unit === "yen" ? formatYen(v) : formatCount(v);
+function formatPercent(v: number): string {
+  if (!v || v <= 0) return "—";
+  return `${v.toFixed(1)}%`;
 }
-
-type AreaTargets = Record<string, Targets>;
+function formatByUnit(unit: MetricUnit, v: number): string {
+  switch (unit) {
+    case "yen_man":
+    case "yen":      return formatYen(v);
+    case "yen_raw":  return formatYenRaw(v);
+    case "count":    return formatCount(v);
+    case "percent":  return formatPercent(v);
+  }
+}
 
 type Props = {
   areas: Area[];
-  category: string;
-  year: number;
-  month: number;
+  /** 表示・編集対象のメトリクスサブセット (SALES_METRICS / ADS_METRICS / HELP_METRICS など) */
+  metrics: MetricDef[];
+  areaTargets: AreaTargets;
+  setCell: (areaId: string, key: keyof Targets, raw: string) => void;
   canEdit: boolean;
-  onSaveStatusChange?: (status: SaveStatus, flash: boolean) => void;
+  flashCells: Set<string>;
 };
 
-export default function TargetsMatrix({ areas, category, year, month, canEdit, onSaveStatusChange }: Props) {
-  const [areaTargets, setAreaTargets] = useState<AreaTargets>({});
-  const [loading, setLoading] = useState(true);
-  const [flashCells, setFlashCells] = useState<Set<string>>(new Set());
-  const { status, flash, markSaving, markSaved, markError } = useSaveStatus();
-
-  useEffect(() => {
-    onSaveStatusChange?.(status, flash);
-  }, [status, flash, onSaveStatusChange]);
-
-  // 全エリアの targets を並列取得
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    Promise.all(
-      areas.map(async (a) => {
-        const res = await fetch(
-          `/api/targets?area=${a.id}&year=${year}&month=${month}&category=${category}`
-        );
-        const j = res.ok ? await res.json() : { targets: emptyTargets() };
-        return [a.id, { ...emptyTargets(), ...(j.targets ?? {}) }] as const;
-      })
-    ).then((entries) => {
-      if (cancelled) return;
-      const map: AreaTargets = {};
-      for (const [id, t] of entries) map[id] = t;
-      setAreaTargets(map);
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [areas, category, year, month]);
-
-  // debounced save: areaId + 全 targets を POST
-  const debouncedSave = useDebouncedCallback(async (areaId: string, t: Targets) => {
-    markSaving();
-    try {
-      const res = await fetch("/api/targets", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ areaId, year, month, targets: t, category }),
-      });
-      if (!res.ok) {
-        markError();
-        return;
-      }
-      markSaved();
-      const cellKey = `${areaId}::__row__`;
-      setFlashCells((prev) => {
-        const next = new Set(prev);
-        next.add(cellKey);
-        return next;
-      });
-      setTimeout(() => {
-        setFlashCells((prev) => {
-          const next = new Set(prev);
-          next.delete(cellKey);
-          return next;
-        });
-      }, 800);
-    } catch {
-      markError();
-    }
-  }, 500);
-
-  function setCell(areaId: string, key: MetricKey, raw: string) {
-    const num = raw === "" ? 0 : parseFloat(raw) || 0;
-    setAreaTargets((prev) => {
-      const next = { ...prev, [areaId]: { ...(prev[areaId] ?? emptyTargets()), [key]: num } };
-      debouncedSave(areaId, next[areaId]);
-      return next;
-    });
-  }
-
-  // 合計行（参考、readonly）
-  const totals = useMemo(() => {
-    const t: Record<MetricKey, number> = {
-      targetSales: 0, targetProfit: 0, targetAdCost: 0,
-      targetCount: 0, targetHelpSales: 0, targetHelpCount: 0,
-    };
-    for (const a of areas) {
-      const at = areaTargets[a.id];
-      if (!at) continue;
-      for (const m of METRICS) t[m.key] += Number(at[m.key] ?? 0);
-    }
-    return t;
-  }, [areaTargets, areas]);
-
-  if (loading) {
-    return (
-      <div style={{ padding: 24, color: "#9ca3af", fontSize: 12, textAlign: "center" }}>
-        目標データを読み込み中...
-      </div>
-    );
+export default function TargetsMatrix({ areas, metrics, areaTargets, setCell, canEdit, flashCells }: Props) {
+  // 合計行 (参考、readonly)
+  const totals: Record<string, number> = {};
+  for (const m of metrics) totals[m.key] = 0;
+  for (const a of areas) {
+    const at = areaTargets[a.id];
+    if (!at) continue;
+    for (const m of metrics) totals[m.key] += Number(at[m.key as keyof Targets] ?? 0);
   }
 
   return (
@@ -181,7 +161,7 @@ export default function TargetsMatrix({ areas, category, year, month, canEdit, o
               >
                 エリア
               </th>
-              {METRICS.map((m) => (
+              {metrics.map((m) => (
                 <th
                   key={m.key}
                   style={{
@@ -215,8 +195,8 @@ export default function TargetsMatrix({ areas, category, year, month, canEdit, o
                   >
                     {a.name}
                   </td>
-                  {METRICS.map((m) => {
-                    const v = Number(at[m.key] ?? 0);
+                  {metrics.map((m) => {
+                    const v = Number(at[m.key as keyof Targets] ?? 0);
                     return (
                       <td
                         key={m.key}
@@ -228,9 +208,10 @@ export default function TargetsMatrix({ areas, category, year, month, canEdit, o
                         {canEdit ? (
                           <input
                             type="number"
+                            step={m.unit === "percent" ? "0.1" : "1"}
                             value={v || ""}
                             placeholder="0"
-                            onChange={(e) => setCell(a.id, m.key, e.target.value)}
+                            onChange={(e) => setCell(a.id, m.key as keyof Targets, e.target.value)}
                             style={{
                               width: "100%", maxWidth: 130, height: 30,
                               border: "1px solid #d1fae5", borderRadius: 6,
@@ -250,7 +231,7 @@ export default function TargetsMatrix({ areas, category, year, month, canEdit, o
                 </tr>
               );
             })}
-            {/* 合計行（参考、readonly） */}
+            {/* 合計行 (参考、readonly) */}
             <tr style={{ background: "#fafffe" }}>
               <td
                 style={{
@@ -260,7 +241,7 @@ export default function TargetsMatrix({ areas, category, year, month, canEdit, o
               >
                 合計（参考）
               </td>
-              {METRICS.map((m) => (
+              {metrics.map((m) => (
                 <td
                   key={m.key}
                   style={{
@@ -279,5 +260,14 @@ export default function TargetsMatrix({ areas, category, year, month, canEdit, o
   );
 }
 
-export { METRICS as TARGETS_METRICS, formatYen, formatCount, formatByUnit };
-export type { MetricKey, MetricDef, AreaTargets };
+// 集計用: 全 MetricKey を 0 で初期化した Record を返す。
+// PR #49a 以前は呼び出し元が 6 キーをハードコードしていたが、14 キーに拡張する
+// と毎回書き換えが必要になるため共通化。
+function emptyMetricRow(): Record<MetricKey, number> {
+  const row = {} as Record<MetricKey, number>;
+  for (const m of METRICS) row[m.key] = 0;
+  return row;
+}
+
+export { METRICS as TARGETS_METRICS, SALES_METRICS, ADS_METRICS, HELP_METRICS, formatYen, formatYenRaw, formatCount, formatPercent, formatByUnit, emptyMetricRow };
+export type { MetricKey, MetricDef, MetricUnit };
