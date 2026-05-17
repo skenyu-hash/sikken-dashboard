@@ -17,6 +17,7 @@ import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../lib/businesses
 import { COMPANIES } from "../lib/companies";
 import AsOfBadge from "./AsOfBadge";
 import LocksmithDashboardSection from "./LocksmithDashboardSection";
+import RoadDashboardSection from "./RoadDashboardSection";
 import { resolveTotalProfit } from "../lib/profit";
 
 // ============ エリア定義 ============
@@ -1147,12 +1148,17 @@ export default function Dashboard() {
       })()}
 
       {/* ============ 業態別ダッシュボード / 全17項目 指標一覧 ============ */}
-      {/* PR #51: 鍵業態は LocksmithDashboardSection (フォーム入力と 1:1 対応の 4 セクション)
-          に置換。他業態は引き続き「全17項目 指標一覧」を表示 (PR #52-54 で順次置換予定)。 */}
+      {/* PR #51: 鍵業態は LocksmithDashboardSection に置換。
+          PR #52: ロード業態は RoadDashboardSection に置換。
+          他業態 (水道/電気/探偵) は引き続き「全17項目 指標一覧」を表示
+          (PR #53-54 で順次置換予定)。 */}
       {!isGroup && activeBusiness === "locksmith" && (
         <LocksmithDashboardSection monthlySummary={monthlySummary} targets={targets} />
       )}
-      {!isGroup && activeBusiness !== "locksmith" && (
+      {!isGroup && activeBusiness === "road" && (
+        <RoadDashboardSection monthlySummary={monthlySummary} targets={targets} />
+      )}
+      {!isGroup && activeBusiness !== "locksmith" && activeBusiness !== "road" && (
         <section style={{ marginBottom: 16 }}>
           <SectionLabel>全17項目 指標一覧</SectionLabel>
           <div className="metrics-grid-2col" style={{

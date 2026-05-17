@@ -51,8 +51,15 @@ const PR51_NEW_COLUMNS = [
   "locksmith_construction_cost", "locksmith_commission_fee",
 ];
 
+// PR #52 で追加されたロード業態用 7 列 (獲得 7 内訳)。
+const PR52_NEW_COLUMNS = [
+  "road_ad_count", "road_repeat_count", "road_referral_count",
+  "road_revisit_count", "road_wellnest_count", "road_seo_count",
+  "road_insurance_count",
+];
+
 // 全ての新規列 (静的テストで route.ts INSERT 3 セクション検証対象)
-const ALL_NEW_COLUMNS = [...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS, ...PR51_NEW_COLUMNS];
+const ALL_NEW_COLUMNS = [...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS, ...PR51_NEW_COLUMNS, ...PR52_NEW_COLUMNS];
 
 let pass = 0;
 let fail = 0;
@@ -177,6 +184,14 @@ const TEST_VALUES: Record<string, number> = {
   locksmith_revisit_count: 5,
   locksmith_construction_cost: 4000000,
   locksmith_commission_fee: 250000,
+  // 新 7 列 (PR #52: ロード業態用 獲得 7 内訳)
+  road_ad_count: 45,
+  road_repeat_count: 18,
+  road_referral_count: 9,
+  road_revisit_count: 6,
+  road_wellnest_count: 12,
+  road_seo_count: 22,
+  road_insurance_count: 8,
 };
 
 const TEST_AREA = "kansai";
