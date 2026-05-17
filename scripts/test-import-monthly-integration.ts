@@ -58,13 +58,8 @@ const PR52_NEW_COLUMNS = [
   "road_insurance_count",
 ];
 
-// PR #53 で追加された探偵業態用 2 列 (面談数 / 面談事前キャンセル数)。
-const PR53_NEW_COLUMNS = [
-  "detective_meeting_count", "detective_cancel_count",
-];
-
 // 全ての新規列 (静的テストで route.ts INSERT 3 セクション検証対象)
-const ALL_NEW_COLUMNS = [...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS, ...PR51_NEW_COLUMNS, ...PR52_NEW_COLUMNS, ...PR53_NEW_COLUMNS];
+const ALL_NEW_COLUMNS = [...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS, ...PR51_NEW_COLUMNS, ...PR52_NEW_COLUMNS];
 
 let pass = 0;
 let fail = 0;
@@ -197,9 +192,6 @@ const TEST_VALUES: Record<string, number> = {
   road_wellnest_count: 12,
   road_seo_count: 22,
   road_insurance_count: 8,
-  // 新 2 列 (PR #53: 探偵業態用 面談ファネル)
-  detective_meeting_count: 45,
-  detective_cancel_count: 3,
 };
 
 const TEST_AREA = "kansai";

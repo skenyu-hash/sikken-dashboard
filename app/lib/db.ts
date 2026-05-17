@@ -96,12 +96,6 @@ export function ensureSchema(): Promise<void> {
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_unit_price INT NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_call_unit_price INT NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_help_rate NUMERIC NOT NULL DEFAULT 0`,
-        // PR #53: 探偵業態 面談ファネル目標 (案 C)
-        //   target_meeting_count: 面談数目標 (INTEGER)
-        //   target_meeting_rate : 面談率目標 (NUMERIC, 0-100%)
-        //   アポ獲得率目標は既存 target_conversion_rate を流用 (新規列なし)
-        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_meeting_count INTEGER NOT NULL DEFAULT 0`,
-        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_meeting_rate NUMERIC NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS business_category TEXT NOT NULL DEFAULT 'water'`,
       ];
       for (const m of migrations) await safe(m);
@@ -228,14 +222,6 @@ export function ensureSchema(): Promise<void> {
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_seo_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_insurance_count INTEGER NOT NULL DEFAULT 0`);
 
-      // PR #53: 探偵業態 Phase B (DetectiveForm の面談ファネルを DB 化)
-      //   - 面談数 / 面談事前キャンセル数 (案 C、Web Claude 5/18 承認)
-      // 入電 4 内訳 / 獲得 6 内訳 / 販管費は引き続き UI only (Phase B 後続)
-      // 流用: アポ獲得数 = acquisition_count (既存)、アポ獲得率目標 = target_conversion_rate
-      // 探偵もロードと同様 calc.profit (= 売上 - 広告) が機能するため専用コスト列不要。
-      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_meeting_count INTEGER NOT NULL DEFAULT 0`);
-      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_cancel_count INTEGER NOT NULL DEFAULT 0`);
-
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,
@@ -320,8 +306,7 @@ export async function getTargets(
       target_new_sales, target_new_profit, target_new_count,
       target_ad_cost, target_ad_rate, target_labor_rate, target_material_rate,
       target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate,
-      target_unit_price, target_call_unit_price, target_help_rate,
-      target_meeting_count, target_meeting_rate
+      target_unit_price, target_call_unit_price, target_help_rate
     FROM targets WHERE area_id = ${areaId} AND year = ${year} AND month = ${month}
       AND COALESCE(business_category, 'water') = ${category}
   `) as Record<string, string | number>[];
@@ -335,7 +320,6 @@ export async function getTargets(
       targetVehicleCount: 0, targetCallCount: 0,
       targetConstructionRate: 0, targetPassRate: 0,
       targetUnitPrice: 0, targetCallUnitPrice: 0, targetHelpRate: 0,
-      targetMeetingCount: 0, targetMeetingRate: 0,
     };
   }
   const r = rows[0];
@@ -365,9 +349,6 @@ export async function getTargets(
     targetUnitPrice: Number(r.target_unit_price),
     targetCallUnitPrice: Number(r.target_call_unit_price),
     targetHelpRate: Number(r.target_help_rate),
-    // PR #53: 探偵業態 面談ファネル目標
-    targetMeetingCount: Number(r.target_meeting_count),
-    targetMeetingRate: Number(r.target_meeting_rate),
   };
 }
 
@@ -385,7 +366,6 @@ export async function upsertTargets(
       target_ad_cost, target_ad_rate, target_labor_rate, target_material_rate,
       target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate,
       target_unit_price, target_call_unit_price, target_help_rate,
-      target_meeting_count, target_meeting_rate,
       updated_at
     )
     VALUES (
@@ -397,7 +377,6 @@ export async function upsertTargets(
       ${t.targetAdCost}, ${t.targetAdRate}, ${t.targetLaborRate}, ${t.targetMaterialRate},
       ${t.targetVehicleCount}, ${t.targetCallCount}, ${t.targetConstructionRate}, ${t.targetPassRate},
       ${t.targetUnitPrice}, ${t.targetCallUnitPrice}, ${t.targetHelpRate},
-      ${t.targetMeetingCount}, ${t.targetMeetingRate},
       NOW()
     )
     ON CONFLICT (area_id, year, month, business_category) DO UPDATE
@@ -426,8 +405,6 @@ export async function upsertTargets(
         target_unit_price = EXCLUDED.target_unit_price,
         target_call_unit_price = EXCLUDED.target_call_unit_price,
         target_help_rate = EXCLUDED.target_help_rate,
-        target_meeting_count = EXCLUDED.target_meeting_count,
-        target_meeting_rate = EXCLUDED.target_meeting_rate,
         updated_at = NOW()
   `;
 }

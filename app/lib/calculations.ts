@@ -563,9 +563,6 @@ export type Targets = {
   targetUnitPrice: number;        // 客単価目標(円)
   targetCallUnitPrice: number;    // 入電単価目標(円)
   targetHelpRate: number;         // HELP率目標(%)
-  // PR #53: 探偵業態 面談ファネル目標 (探偵以外は 0)
-  targetMeetingCount: number;     // 面談数目標
-  targetMeetingRate: number;      // 面談率目標(%)
 };
 
 export const emptyTargets = (): Targets => ({
@@ -577,7 +574,6 @@ export const emptyTargets = (): Targets => ({
   targetVehicleCount: 0, targetCallCount: 0,
   targetConstructionRate: 0, targetPassRate: 0,
   targetUnitPrice: 0, targetCallUnitPrice: 0, targetHelpRate: 0,
-  targetMeetingCount: 0, targetMeetingRate: 0,
 });
 
 // 万円単位で保存されているフィールドを円に変換（比較・表示用）
