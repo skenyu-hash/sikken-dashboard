@@ -91,6 +91,8 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     road_ad_count: "", road_repeat_count: "", road_referral_count: "",
     road_revisit_count: "", road_wellnest_count: "",
     road_seo_count: "", road_insurance_count: "",
+    // PR #53: 探偵業態専用 面談ファネル (他業態は "" のまま、保存時 0)
+    detective_meeting_count: "", detective_cancel_count: "",
   };
 }
 
@@ -182,6 +184,9 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             road_wellnest_count: numOrEmpty(summary.road_wellnest_count),
             road_seo_count: numOrEmpty(summary.road_seo_count),
             road_insurance_count: numOrEmpty(summary.road_insurance_count),
+            // PR #53: 探偵業態専用 面談ファネル
+            detective_meeting_count: numOrEmpty(summary.detective_meeting_count),
+            detective_cancel_count: numOrEmpty(summary.detective_cancel_count),
           }));
           const aod = Number(summary.as_of_day);
           setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
@@ -204,6 +209,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             road_ad_count: "", road_repeat_count: "", road_referral_count: "",
             road_revisit_count: "", road_wellnest_count: "",
             road_seo_count: "", road_insurance_count: "",
+            detective_meeting_count: "", detective_cancel_count: "",
           }));
           setExistingAsOfDay(null);
         }
@@ -281,6 +287,9 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         road_wellnest_count: numOrZero(state.road_wellnest_count),
         road_seo_count: numOrZero(state.road_seo_count),
         road_insurance_count: numOrZero(state.road_insurance_count),
+        // PR #53: 探偵業態専用 面談ファネル (他業態は state="" → 0 で保存)
+        detective_meeting_count: numOrZero(state.detective_meeting_count),
+        detective_cancel_count: numOrZero(state.detective_cancel_count),
         // auto 計算結果のうち、既存 DB 列に対応するものを送信
         // (新規 DB 列なしの total_construction_count / actual_construction_cost / profit は送らない)
         total_revenue: Math.round(calc.total_revenue),

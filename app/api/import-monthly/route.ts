@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
       // PR #48b: 電気業態用 switchboard_count を追加 (1 列、計 16 列)。
       // PR #51 : 鍵業態用 6 列を追加 (獲得 4 内訳 + コスト 2、計 22 列)。
       // PR #52 : ロード業態用 7 列を追加 (獲得 7 内訳、計 29 列)。
+      // PR #53 : 探偵業態用 2 列を追加 (面談数 / 面談事前キャンセル数、計 31 列)。
       await sql`
         INSERT INTO monthly_summaries (
           area_id, business_category, year, month,
@@ -82,7 +83,8 @@ export async function POST(req: NextRequest) {
           locksmith_repeat_count, locksmith_revisit_count,
           locksmith_construction_cost, locksmith_commission_fee,
           road_ad_count, road_repeat_count, road_referral_count,
-          road_revisit_count, road_wellnest_count, road_seo_count, road_insurance_count
+          road_revisit_count, road_wellnest_count, road_seo_count, road_insurance_count,
+          detective_meeting_count, detective_cancel_count
         ) VALUES (
           ${row.area_id}, ${cat}, ${year}, ${month},
           ${num(pick(row, "total_revenue", "revenue"))},
@@ -111,7 +113,8 @@ export async function POST(req: NextRequest) {
           ${num(pick(row, "locksmith_construction_cost"))}, ${num(pick(row, "locksmith_commission_fee"))},
           ${num(pick(row, "road_ad_count"))}, ${num(pick(row, "road_repeat_count"))}, ${num(pick(row, "road_referral_count"))},
           ${num(pick(row, "road_revisit_count"))}, ${num(pick(row, "road_wellnest_count"))},
-          ${num(pick(row, "road_seo_count"))}, ${num(pick(row, "road_insurance_count"))}
+          ${num(pick(row, "road_seo_count"))}, ${num(pick(row, "road_insurance_count"))},
+          ${num(pick(row, "detective_meeting_count"))}, ${num(pick(row, "detective_cancel_count"))}
         )
         ON CONFLICT (area_id, business_category, year, month) DO UPDATE SET
           total_revenue=EXCLUDED.total_revenue, total_profit=EXCLUDED.total_profit,
@@ -150,7 +153,9 @@ export async function POST(req: NextRequest) {
           road_revisit_count=EXCLUDED.road_revisit_count,
           road_wellnest_count=EXCLUDED.road_wellnest_count,
           road_seo_count=EXCLUDED.road_seo_count,
-          road_insurance_count=EXCLUDED.road_insurance_count
+          road_insurance_count=EXCLUDED.road_insurance_count,
+          detective_meeting_count=EXCLUDED.detective_meeting_count,
+          detective_cancel_count=EXCLUDED.detective_cancel_count
       `;
       imported++;
     } catch (e) {
