@@ -4,6 +4,7 @@ import { calculateDashboard, getDaysInMonth, yen } from "../lib/calculations";
 import type { DailyEntry, Targets } from "../lib/calculations";
 import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../lib/businesses";
 import AsOfBadge from "../components/AsOfBadge";
+import { resolveTotalProfit } from "../lib/profit";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ReferenceLine, ResponsiveContainer,
@@ -182,7 +183,7 @@ export default function TrendsPage() {
       const endDate = new Date(year, m - 1, getDaysInMonth(year, m));
       const s = calculateDashboard(entries, year, m, endDate);
       const revenue = ms ? Number(ms.total_revenue ?? 0) : s.totalRevenue;
-      const profit = ms ? Number(ms.total_profit ?? 0) : s.totalProfit;
+      const profit = ms ? resolveTotalProfit(ms) : s.totalProfit;
       const count = ms ? Number(ms.total_count ?? 0) : s.totalCount;
       const salesRate = targets && targets.targetSales > 0
         ? Math.round(revenue / targets.targetSales * 1000) / 10 : null;
@@ -202,7 +203,7 @@ export default function TrendsPage() {
       const endDate = new Date(year, m - 1, getDaysInMonth(year, m));
       const s = calculateDashboard(entries, year, m, endDate);
       const revenue = ms ? Number(ms.total_revenue ?? 0) : s.totalRevenue;
-      const profit = ms ? Number(ms.total_profit ?? 0) : s.totalProfit;
+      const profit = ms ? resolveTotalProfit(ms) : s.totalProfit;
       const count = ms ? Number(ms.total_count ?? 0) : s.totalCount;
       const adCost = ms ? Number(ms.ad_cost ?? 0) : s.totalAdCost;
       switch (metric) {
@@ -399,7 +400,7 @@ export default function TrendsPage() {
                         const endDate = new Date(year, m - 1, getDaysInMonth(year, m));
                         const s = calculateDashboard(me, year, m, endDate);
                         const revenue = ms ? Number(ms.total_revenue ?? 0) : s.totalRevenue;
-                        const profit = ms ? Number(ms.total_profit ?? 0) : s.totalProfit;
+                        const profit = ms ? resolveTotalProfit(ms) : s.totalProfit;
                         const count = ms ? Number(ms.total_count ?? 0) : s.totalCount;
                         const adCost = ms ? Number(ms.ad_cost ?? 0) : s.totalAdCost;
                         return {
@@ -443,7 +444,7 @@ export default function TrendsPage() {
                       const endDate = new Date(year, m - 1, getDaysInMonth(year, m));
                       const s = calculateDashboard(entries, year, m, endDate);
                       const revenue = ms ? Number(ms.total_revenue ?? 0) : s.totalRevenue;
-                      const profit = ms ? Number(ms.total_profit ?? 0) : s.totalProfit;
+                      const profit = ms ? resolveTotalProfit(ms) : s.totalProfit;
                       const count = ms ? Number(ms.total_count ?? 0) : s.totalCount;
                       const adCost = ms ? Number(ms.ad_cost ?? 0) : s.totalAdCost;
                       const profitRate = revenue > 0 ? profit / revenue * 100 : 0;

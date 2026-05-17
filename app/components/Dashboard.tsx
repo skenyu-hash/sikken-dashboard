@@ -17,6 +17,7 @@ import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../lib/businesses
 import { COMPANIES } from "../lib/companies";
 import AsOfBadge from "./AsOfBadge";
 import LocksmithDashboardSection from "./LocksmithDashboardSection";
+import { resolveTotalProfit } from "../lib/profit";
 
 // ============ エリア定義 ============
 type Area = { id: string; name: string };
@@ -254,7 +255,7 @@ export default function Dashboard() {
         type BizAgg = { revenue: number; profit: number; adCost: number; count: number };
         const agg = monthRows.reduce<BizAgg>((acc, r) => ({
           revenue: acc.revenue + Number(r.total_revenue ?? 0),
-          profit: acc.profit + Number(r.total_profit ?? 0),
+          profit: acc.profit + resolveTotalProfit(r),
           adCost: acc.adCost + Number(r.ad_cost ?? 0),
           count: acc.count + Number(r.total_count ?? 0),
         }), { revenue: 0, profit: 0, adCost: 0, count: 0 });
@@ -309,7 +310,7 @@ export default function Dashboard() {
       for (const s of summaries) {
         if (!s) continue;
         result.totalRevenue += Number(s.total_revenue ?? 0);
-        result.totalProfit += Number(s.total_profit ?? 0);
+        result.totalProfit += resolveTotalProfit(s);
         result.totalCount += Number(s.total_count ?? 0);
         result.totalAdCost += Number(s.ad_cost ?? 0);
         result.helpRevenue += Number(s.help_revenue ?? 0);
@@ -432,7 +433,7 @@ export default function Dashboard() {
       if (!hasEntries && summaries.length > 0) {
         const dim = getDaysInMonth(viewYear, viewMonth);
         const totalRevenue = summaries.reduce((s, ms) => s + Number(ms.total_revenue ?? 0), 0);
-        const totalProfit = summaries.reduce((s, ms) => s + Number(ms.total_profit ?? 0), 0);
+        const totalProfit = summaries.reduce((s, ms) => s + resolveTotalProfit(ms), 0);
         const totalCount = summaries.reduce((s, ms) => s + Number(ms.total_count ?? 0), 0);
         const totalAdCost = summaries.reduce((s, ms) => s + Number(ms.ad_cost ?? 0), 0);
         const helpRevenue = summaries.reduce((s, ms) => s + Number(ms.help_revenue ?? 0), 0);
@@ -467,7 +468,7 @@ export default function Dashboard() {
     return {
       ...summary,
       totalRevenue: Number(monthlySummary.total_revenue ?? 0),
-      totalProfit: Number(monthlySummary.total_profit ?? 0),
+      totalProfit: resolveTotalProfit(monthlySummary),
       totalCount: Number(monthlySummary.total_count ?? 0),
       totalAdCost: Number(monthlySummary.ad_cost ?? 0),
       companyUnitPrice: Number(monthlySummary.unit_price ?? 0),
@@ -506,7 +507,7 @@ export default function Dashboard() {
       const unit = Number(ms.unit_price ?? 0) || (cnt > 0 ? Math.round(rev / cnt) : 0);
       return {
         totalRevenue: rev,
-        totalProfit: Number(prevMonthlySummary.total_profit ?? 0),
+        totalProfit: resolveTotalProfit(prevMonthlySummary),
         totalAdCost: Number(prevMonthlySummary.ad_cost ?? 0),
         totalCount: cnt,
         companyUnitPrice: unit,
@@ -586,7 +587,7 @@ export default function Dashboard() {
         return {
           area: a,
           summary: { ...raw,
-            totalRevenue: Number(ms.total_revenue ?? 0), totalProfit: Number(ms.total_profit ?? 0),
+            totalRevenue: Number(ms.total_revenue ?? 0), totalProfit: resolveTotalProfit(ms),
             totalCount: Number(ms.total_count ?? 0), totalAdCost: Number(ms.ad_cost ?? 0),
             companyUnitPrice: Number(ms.unit_price ?? 0), vehicleCount: Number(ms.vehicle_count ?? 0),
             help: { revenue: Number(ms.help_revenue ?? 0), profit: 0, count: Number(ms.help_count ?? 0),
@@ -921,7 +922,7 @@ export default function Dashboard() {
                       .filter(r => r.s)
                       .map(({ y, m, s }) => {
                         const rev = Number(s.total_revenue ?? 0);
-                        const profit = Number(s.total_profit ?? 0);
+                        const profit = resolveTotalProfit(s);
                         const profitRate = rev > 0 ? (profit / rev * 100).toFixed(1) : "0";
                         const count = Number(s.total_count ?? 0);
                         const unitPrice = count > 0 ? Math.round(rev / count) : 0;

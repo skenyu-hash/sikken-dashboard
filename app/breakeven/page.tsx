@@ -9,6 +9,7 @@ import { useRole } from "../components/RoleProvider";
 import { hasPageAccess } from "../lib/permissions";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import AsOfBadge from "../components/AsOfBadge";
+import { resolveTotalProfit } from "../lib/profit";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -108,7 +109,7 @@ export default function BreakevenPage() {
       const s = calculateDashboard(eJson.entries ?? [], year, month, now);
       const ms = sJson.summary;
       const revenue = ms ? Number(ms.total_revenue ?? 0) : s.totalRevenue;
-      const profit = ms ? Number(ms.total_profit ?? 0) : s.totalProfit;
+      const profit = ms ? resolveTotalProfit(ms) : s.totalProfit;
       const count = ms ? Number(ms.total_count ?? 0) : s.totalCount;
       const unitPrice = ms ? Number(ms.unit_price ?? 0) : s.companyUnitPrice;
 
@@ -132,7 +133,7 @@ export default function BreakevenPage() {
 
   // displaySummary: monthly_summariesがある場合はその値を使用
   const displayRevenue = monthlySummary ? Number(monthlySummary.total_revenue ?? 0) : rawSummary.totalRevenue;
-  const displayProfit = monthlySummary ? Number(monthlySummary.total_profit ?? 0) : rawSummary.totalProfit;
+  const displayProfit = monthlySummary ? resolveTotalProfit(monthlySummary) : rawSummary.totalProfit;
   const displayCount = monthlySummary ? Number(monthlySummary.total_count ?? 0) : rawSummary.totalCount;
   const displayUnitPrice = monthlySummary ? Number(monthlySummary.unit_price ?? 0) : rawSummary.companyUnitPrice;
   const displayGrossMargin = displayRevenue > 0 ? displayProfit / displayRevenue * 100 : 0;

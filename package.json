@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test:utils": "tsx scripts/test-numberCoerce.ts",
     "test:permissions": "tsx scripts/test-permissions.ts",
+    "test:profit": "tsx scripts/test-profit.ts",
     "test:integration:import-monthly": "tsx scripts/test-import-monthly-integration.ts"
   },
   "dependencies": {
