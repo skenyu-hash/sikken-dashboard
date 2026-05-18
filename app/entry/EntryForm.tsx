@@ -96,6 +96,11 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     // PR #57: 探偵業態 入電 4 内訳 (他業態は "" のまま、保存時 0)
     detective_phone_only_call_count: "", detective_mail_only_call_count: "",
     detective_line_only_call_count: "", detective_wrong_call_count: "",
+    // PR #58b: 探偵業態 獲得 6 内訳 + 販管費 (他業態は "" のまま、保存時 0)
+    detective_phone_uwaki_acquisition_count: "", detective_phone_other_acquisition_count: "",
+    detective_mail_uwaki_acquisition_count: "",  detective_mail_other_acquisition_count: "",
+    detective_line_uwaki_acquisition_count: "",  detective_line_other_acquisition_count: "",
+    detective_selling_admin_cost: "",
   };
 }
 
@@ -195,6 +200,14 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             detective_mail_only_call_count: numOrEmpty(summary.detective_mail_only_call_count),
             detective_line_only_call_count: numOrEmpty(summary.detective_line_only_call_count),
             detective_wrong_call_count: numOrEmpty(summary.detective_wrong_call_count),
+            // PR #58b: 探偵業態 獲得 6 内訳 + 販管費
+            detective_phone_uwaki_acquisition_count: numOrEmpty(summary.detective_phone_uwaki_acquisition_count),
+            detective_phone_other_acquisition_count: numOrEmpty(summary.detective_phone_other_acquisition_count),
+            detective_mail_uwaki_acquisition_count: numOrEmpty(summary.detective_mail_uwaki_acquisition_count),
+            detective_mail_other_acquisition_count: numOrEmpty(summary.detective_mail_other_acquisition_count),
+            detective_line_uwaki_acquisition_count: numOrEmpty(summary.detective_line_uwaki_acquisition_count),
+            detective_line_other_acquisition_count: numOrEmpty(summary.detective_line_other_acquisition_count),
+            detective_selling_admin_cost: numOrEmpty(summary.detective_selling_admin_cost),
           }));
           const aod = Number(summary.as_of_day);
           setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
@@ -220,6 +233,10 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             detective_meeting_count: "", detective_cancel_count: "",
             detective_phone_only_call_count: "", detective_mail_only_call_count: "",
             detective_line_only_call_count: "", detective_wrong_call_count: "",
+            detective_phone_uwaki_acquisition_count: "", detective_phone_other_acquisition_count: "",
+            detective_mail_uwaki_acquisition_count: "",  detective_mail_other_acquisition_count: "",
+            detective_line_uwaki_acquisition_count: "",  detective_line_other_acquisition_count: "",
+            detective_selling_admin_cost: "",
           }));
           setExistingAsOfDay(null);
         }
@@ -305,6 +322,14 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         detective_mail_only_call_count: numOrZero(state.detective_mail_only_call_count),
         detective_line_only_call_count: numOrZero(state.detective_line_only_call_count),
         detective_wrong_call_count: numOrZero(state.detective_wrong_call_count),
+        // PR #58b: 探偵業態 獲得 6 内訳 + 販管費 (他業態は state="" → 0 で保存)
+        detective_phone_uwaki_acquisition_count: numOrZero(state.detective_phone_uwaki_acquisition_count),
+        detective_phone_other_acquisition_count: numOrZero(state.detective_phone_other_acquisition_count),
+        detective_mail_uwaki_acquisition_count: numOrZero(state.detective_mail_uwaki_acquisition_count),
+        detective_mail_other_acquisition_count: numOrZero(state.detective_mail_other_acquisition_count),
+        detective_line_uwaki_acquisition_count: numOrZero(state.detective_line_uwaki_acquisition_count),
+        detective_line_other_acquisition_count: numOrZero(state.detective_line_other_acquisition_count),
+        detective_selling_admin_cost: numOrZero(state.detective_selling_admin_cost),
         // auto 計算結果のうち、既存 DB 列に対応するものを送信
         // (新規 DB 列なしの total_construction_count / actual_construction_cost / profit は送らない)
         total_revenue: Math.round(calc.total_revenue),

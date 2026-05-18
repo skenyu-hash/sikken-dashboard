@@ -53,6 +53,15 @@ export default function DetectiveMeetingSection({
   const lineOnlyCount = numOf(monthlySummary?.detective_line_only_call_count);
   const wrongCount = numOf(monthlySummary?.detective_wrong_call_count);
 
+  // PR #58b: 獲得 6 内訳 + 販管費 (DB 化済)
+  const acqPhoneUwaki = numOf(monthlySummary?.detective_phone_uwaki_acquisition_count);
+  const acqPhoneOther = numOf(monthlySummary?.detective_phone_other_acquisition_count);
+  const acqMailUwaki = numOf(monthlySummary?.detective_mail_uwaki_acquisition_count);
+  const acqMailOther = numOf(monthlySummary?.detective_mail_other_acquisition_count);
+  const acqLineUwaki = numOf(monthlySummary?.detective_line_uwaki_acquisition_count);
+  const acqLineOther = numOf(monthlySummary?.detective_line_other_acquisition_count);
+  const sellingAdminCost = numOf(monthlySummary?.detective_selling_admin_cost);
+
   // 面談ファネル (PR #53)
   const meetingCount = numOf(monthlySummary?.detective_meeting_count);
   const cancelCount = numOf(monthlySummary?.detective_cancel_count);
@@ -66,9 +75,10 @@ export default function DetectiveMeetingSection({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <SectionTable title="① 新規対応・コスト・営業利益">
-        <MetricRow label="売上"           actual={sales}    target={targets.targetSales}  {...mp} format={fmtYen} />
-        <MetricRow label="広告費 (探偵LP)" actual={adCost}  target={targets.targetAdCost} {...mp} format={fmtYen} invertGap />
-        <MetricRow label="営業利益"       actual={profit}   target={targets.targetProfit} {...mp} format={fmtYen} />
+        <MetricRow label="売上"           actual={sales}            target={targets.targetSales}  {...mp} format={fmtYen} />
+        <MetricRow label="広告費 (探偵LP)" actual={adCost}          target={targets.targetAdCost} {...mp} format={fmtYen} invertGap />
+        <MetricRow label="販管費"         actual={sellingAdminCost} target={0}                     {...mp} format={fmtYen} invertGap />
+        <MetricRow label="営業利益"       actual={profit}           target={targets.targetProfit} {...mp} format={fmtYen} />
       </SectionTable>
 
       <SectionTable title="② 入電">
@@ -81,6 +91,12 @@ export default function DetectiveMeetingSection({
       </SectionTable>
 
       <SectionTable title="③ 獲得">
+        <MetricRow label="電話 × 浮気"     actual={acqPhoneUwaki}    target={0}                   {...mp} format={fmtCount} />
+        <MetricRow label="電話 × その他"   actual={acqPhoneOther}    target={0}                   {...mp} format={fmtCount} />
+        <MetricRow label="メール × 浮気"   actual={acqMailUwaki}     target={0}                   {...mp} format={fmtCount} />
+        <MetricRow label="メール × その他" actual={acqMailOther}     target={0}                   {...mp} format={fmtCount} />
+        <MetricRow label="LINE × 浮気"     actual={acqLineUwaki}     target={0}                   {...mp} format={fmtCount} />
+        <MetricRow label="LINE × その他"   actual={acqLineOther}     target={0}                   {...mp} format={fmtCount} />
         <MetricRow label="合計獲得件数 (面談予定数)" actual={acquisitionCount} target={targets.targetCount} {...mp} format={fmtCount} />
         <MetricRow label="CPA"                       actual={cpa}              target={targets.targetCpa}   {...mp} format={fmtYen} isRate invertGap />
       </SectionTable>

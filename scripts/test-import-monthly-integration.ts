@@ -69,8 +69,20 @@ const PR57_NEW_COLUMNS = [
   "detective_line_only_call_count", "detective_wrong_call_count",
 ];
 
+// PR #58b で追加された探偵業態 獲得 6 内訳 + 販管費。
+const PR58B_NEW_COLUMNS = [
+  "detective_phone_uwaki_acquisition_count", "detective_phone_other_acquisition_count",
+  "detective_mail_uwaki_acquisition_count",  "detective_mail_other_acquisition_count",
+  "detective_line_uwaki_acquisition_count",  "detective_line_other_acquisition_count",
+  "detective_selling_admin_cost",
+];
+
 // 全ての新規列 (静的テストで route.ts INSERT 3 セクション検証対象)
-const ALL_NEW_COLUMNS = [...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS, ...PR51_NEW_COLUMNS, ...PR52_NEW_COLUMNS, ...PR53_NEW_COLUMNS, ...PR57_NEW_COLUMNS];
+const ALL_NEW_COLUMNS = [
+  ...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS,
+  ...PR51_NEW_COLUMNS, ...PR52_NEW_COLUMNS, ...PR53_NEW_COLUMNS,
+  ...PR57_NEW_COLUMNS, ...PR58B_NEW_COLUMNS,
+];
 
 let pass = 0;
 let fail = 0;
@@ -211,6 +223,14 @@ const TEST_VALUES: Record<string, number> = {
   detective_mail_only_call_count: 25,
   detective_line_only_call_count: 35,
   detective_wrong_call_count: 7,
+  // 新 7 列 (PR #58b: 探偵業態 獲得 6 内訳 + 販管費)
+  detective_phone_uwaki_acquisition_count: 18,
+  detective_phone_other_acquisition_count: 6,
+  detective_mail_uwaki_acquisition_count: 8,
+  detective_mail_other_acquisition_count: 3,
+  detective_line_uwaki_acquisition_count: 12,
+  detective_line_other_acquisition_count: 4,
+  detective_selling_admin_cost: 1200000,
 };
 
 const TEST_AREA = "kansai";

@@ -42,10 +42,8 @@
 //
 // 注: 入電内訳 ≠ 入電数 の不一致は warning 出さない (実機運用での仕様、5/17 確認)
 
-import { useState } from "react";
 import SectionShell from "../SectionShell";
 import NumberField from "../NumberField";
-import LocalNumberField from "../LocalNumberField";
 import { AutoRow, fmtYen, fmtCount, fmtPct } from "../AutoCalcDisplay";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "../../types";
 import type { FieldLabels } from "../../../lib/business-labels";
@@ -98,26 +96,24 @@ const ACQ_CHANNEL_LABELS: Record<AcqChannelKey, string> = {
   line_other: "LINE × その他",
 };
 
-type AcqChannels = Record<AcqChannelKey, InputValue>;
-
-const emptyAcqChannels: AcqChannels = {
-  phone_uwaki: "", phone_other: "",
-  mail_uwaki: "", mail_other: "",
-  line_uwaki: "", line_other: "",
+// PR #58b: 獲得 6 内訳 → EntryFormState DB フィールドへのマッピング (PR #57 同型)
+const ACQ_CHANNEL_TO_DB: Record<AcqChannelKey, InputFieldKey> = {
+  phone_uwaki: "detective_phone_uwaki_acquisition_count",
+  phone_other: "detective_phone_other_acquisition_count",
+  mail_uwaki: "detective_mail_uwaki_acquisition_count",
+  mail_other: "detective_mail_other_acquisition_count",
+  line_uwaki: "detective_line_uwaki_acquisition_count",
+  line_other: "detective_line_other_acquisition_count",
 };
 
 const num = (v: InputValue): number => (v === "" ? 0 : v);
 const safePct = (a: number, b: number): number => (b === 0 ? 0 : (a / b) * 100);
 
-const sumAcqChannels = (c: AcqChannels): number =>
-  ACQ_CHANNEL_KEYS.reduce((sum, k) => sum + num(c[k]), 0);
-
 export default function DetectiveForm({ state, setField, validateField, errors, labels, calc }: Props) {
   // PR #53: 面談数 / キャンセル数 を shared state に切替 (DB 保存対応)
   // PR #57: 入電 4 内訳も shared state に切替 (DB 保存対応)
-  // 残る UI-only state (販管費 / 獲得 6 内訳) は引き続き local (Phase B 後続候補)
-  const [sellingAdmin, setSellingAdmin] = useState<InputValue>("");
-  const [acqBreakdown, setAcqBreakdown] = useState<AcqChannels>(emptyAcqChannels);
+  // PR #58b: 獲得 6 内訳 + 販管費も shared state に切替 (DB 保存対応)
+  // 探偵フォームの全 UI フィールドが DB 化完了 (Phase B 完結)
 
   // PR #57: 入電 4 内訳の更新時、state を上書き + 合計を call_count に sync
   const updateCallChannel = (key: CallChannelKey, v: InputValue) => {
@@ -129,10 +125,15 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
     }, 0);
     setField("call_count", sum);
   };
+
+  // PR #58b: 獲得 6 内訳の更新時、state を上書き + 合計を acquisition_count に sync (PR #57 同型)
   const updateAcqChannel = (key: AcqChannelKey, v: InputValue) => {
-    const next = { ...acqBreakdown, [key]: v };
-    setAcqBreakdown(next);
-    setField("acquisition_count", sumAcqChannels(next));
+    setField(ACQ_CHANNEL_TO_DB[key], v);
+    const sum = ACQ_CHANNEL_KEYS.reduce((acc, k) => {
+      const value = k === key ? v : state[ACQ_CHANNEL_TO_DB[k]] as InputValue;
+      return acc + num(value);
+    }, 0);
+    setField("acquisition_count", sum);
   };
 
   // 探偵固有のローカル auto-calc
@@ -160,14 +161,17 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
           <NumberField field="ad_cost" label={labels.ad_cost} unit="円"
             value={state.ad_cost} onChange={(v) => setField("ad_cost", v)}
             onBlur={validateField} state={state} error={errors.ad_cost} />
-          <LocalNumberField label="販管費" unit="円" value={sellingAdmin} onChange={setSellingAdmin} />
+          <NumberField field="detective_selling_admin_cost" label="販管費" unit="円"
+            value={state.detective_selling_admin_cost}
+            onChange={(v) => setField("detective_selling_admin_cost", v)}
+            onBlur={validateField} state={state} error={errors.detective_selling_admin_cost} />
         </div>
 
         <p style={{
           marginTop: 8, padding: "8px 10px", fontSize: 11, color: "#374151", lineHeight: 1.5,
           background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb",
         }}>
-          💡 販管費は現在は記録のみ。営業利益計算への反映は Phase B (PR #49 以降) で対応予定。
+          💡 PR #58b で販管費も DB 保存対象になりました。営業利益計算への反映は将来 PR で別途検討。
         </p>
 
         <AutoRow label="営業利益" value={fmtYen(calc.profit)} formula="= 売上 − 広告費" />
@@ -196,20 +200,24 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
         <AutoRow label={labels.call_unit_price} value={fmtYen(calc.call_unit_price)} formula="= 広告費 ÷ 入電数" />
       </SectionShell>
 
-      {/* ③ 獲得セクション */}
+      {/* ③ 獲得セクション (PR #58b で 6 内訳を DB 保存化、PR #57 同型) */}
       <SectionShell title="③ 獲得" subtitle="入力 6項目 (3 媒体 × 2 カテゴリ) + 自動計算 (合計獲得件数 / 獲得単価)">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-          {ACQ_CHANNEL_KEYS.map((key) => (
-            <LocalNumberField key={key} label={ACQ_CHANNEL_LABELS[key]} unit="件"
-              value={acqBreakdown[key]}
-              onChange={(v) => updateAcqChannel(key, v)} />
-          ))}
+          {ACQ_CHANNEL_KEYS.map((key) => {
+            const dbKey = ACQ_CHANNEL_TO_DB[key];
+            return (
+              <NumberField key={key} field={dbKey} label={ACQ_CHANNEL_LABELS[key]} unit="件"
+                value={state[dbKey] as InputValue}
+                onChange={(v) => updateAcqChannel(key, v)}
+                onBlur={validateField} state={state} error={errors[dbKey]} />
+            );
+          })}
         </div>
         <p style={{
           marginTop: 8, padding: "8px 10px", fontSize: 11, color: "#374151", lineHeight: 1.5,
           background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb",
         }}>
-          💡 内訳を入力すると合計獲得件数が自動更新されます。内訳自体は DB 保存対象外 (Phase B 予定)。
+          💡 PR #58b で獲得 6 内訳も DB 保存対象になりました。編集モードで内訳が DB から復元されます。
         </p>
         <AutoRow label="合計獲得件数 (面談予定数)" value={fmtCount(totalAcq)} formula="= 6 内訳合計" />
         <AutoRow label={labels.cpa} value={fmtYen(calc.cpa)} formula="= 広告費 ÷ 合計獲得件数" />

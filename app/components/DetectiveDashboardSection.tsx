@@ -63,6 +63,15 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
   const lineOnlyCount = numOf(monthlySummary?.detective_line_only_call_count);
   const wrongCount = numOf(monthlySummary?.detective_wrong_call_count);
 
+  // PR #58b: 獲得 6 内訳 + 販管費 (DB 化済)
+  const acqPhoneUwaki = numOf(monthlySummary?.detective_phone_uwaki_acquisition_count);
+  const acqPhoneOther = numOf(monthlySummary?.detective_phone_other_acquisition_count);
+  const acqMailUwaki = numOf(monthlySummary?.detective_mail_uwaki_acquisition_count);
+  const acqMailOther = numOf(monthlySummary?.detective_mail_other_acquisition_count);
+  const acqLineUwaki = numOf(monthlySummary?.detective_line_uwaki_acquisition_count);
+  const acqLineOther = numOf(monthlySummary?.detective_line_other_acquisition_count);
+  const sellingAdminCost = numOf(monthlySummary?.detective_selling_admin_cost);
+
   // 面談ファネル (PR #53 で DB 化)
   const meetingCount = numOf(monthlySummary?.detective_meeting_count);
   const cancelCount = numOf(monthlySummary?.detective_cancel_count);
@@ -96,7 +105,7 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
         <Card title="① 新規対応 (売上・コスト・営業利益)">
           <Row label="売上"   actual={fmtYen(sales)}    target={fmtYen(targetSales)}   achievement={achv(sales, targetSales)} />
           <Row label="広告費 (探偵LP)" actual={fmtYen(adCost)} target={fmtYen(targetAdCost)} achievement={achv(adCost, targetAdCost, true)} sub={`売上比 ${fmtPct(ratio(adCost))}`} />
-          <Row label="販管費" actual="— (UI のみ、Phase 4 予定)" target="—" />
+          <Row label="販管費" actual={fmtYen(sellingAdminCost)} target="—" sub="記録のみ (営業利益式は変更なし)" />
           <Row label="営業利益" actual={fmtYen(profit)}    target="—" sub="= 売上 − 広告費" highlight />
         </Card>
 
@@ -110,14 +119,14 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
           <Row label="入電単価"   actual={fmtYen(callUnitPrice)}    target="—" sub="= 広告費 ÷ 入電数" />
         </Card>
 
-        {/* ③ 獲得 (6 内訳は UI のみ) */}
+        {/* ③ 獲得 (PR #58b で 6 内訳 DB 化、実値表示) */}
         <Card title="③ 獲得 (6 内訳)">
-          <Row label="電話 × 浮気"   actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="電話 × その他" actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="メール × 浮気" actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="メール × その他" actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="LINE × 浮気"   actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="LINE × その他" actual="— (UI のみ、Phase B 後続予定)" target="—" />
+          <Row label="電話 × 浮気"     actual={fmtCount(acqPhoneUwaki)} target="—" />
+          <Row label="電話 × その他"   actual={fmtCount(acqPhoneOther)} target="—" />
+          <Row label="メール × 浮気"   actual={fmtCount(acqMailUwaki)}  target="—" />
+          <Row label="メール × その他" actual={fmtCount(acqMailOther)}  target="—" />
+          <Row label="LINE × 浮気"     actual={fmtCount(acqLineUwaki)}  target="—" />
+          <Row label="LINE × その他"   actual={fmtCount(acqLineOther)}  target="—" />
           <Row label="合計獲得件数 (面談予定数 / アポ獲得数)"
             actual={fmtCount(acquisitionCount)}
             target={fmtCount(targetCount)}

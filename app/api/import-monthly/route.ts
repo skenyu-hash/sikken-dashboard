@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
       // PR #52 : ロード業態用 7 列を追加 (獲得 7 内訳、計 29 列)。
       // PR #53 : 探偵業態用 2 列を追加 (面談数 / 面談事前キャンセル数、計 31 列)。
       // PR #57 : 探偵業態 入電 4 内訳を追加 (電のみ/メールのみ/LINEのみ/誤入電、計 35 列)。
+      // PR #58b: 探偵業態 獲得 6 内訳 + 販管費を追加 (計 42 列)。
       await sql`
         INSERT INTO monthly_summaries (
           area_id, business_category, year, month,
@@ -87,7 +88,11 @@ export async function POST(req: NextRequest) {
           road_revisit_count, road_wellnest_count, road_seo_count, road_insurance_count,
           detective_meeting_count, detective_cancel_count,
           detective_phone_only_call_count, detective_mail_only_call_count,
-          detective_line_only_call_count, detective_wrong_call_count
+          detective_line_only_call_count, detective_wrong_call_count,
+          detective_phone_uwaki_acquisition_count, detective_phone_other_acquisition_count,
+          detective_mail_uwaki_acquisition_count, detective_mail_other_acquisition_count,
+          detective_line_uwaki_acquisition_count, detective_line_other_acquisition_count,
+          detective_selling_admin_cost
         ) VALUES (
           ${row.area_id}, ${cat}, ${year}, ${month},
           ${num(pick(row, "total_revenue", "revenue"))},
@@ -119,7 +124,11 @@ export async function POST(req: NextRequest) {
           ${num(pick(row, "road_seo_count"))}, ${num(pick(row, "road_insurance_count"))},
           ${num(pick(row, "detective_meeting_count"))}, ${num(pick(row, "detective_cancel_count"))},
           ${num(pick(row, "detective_phone_only_call_count"))}, ${num(pick(row, "detective_mail_only_call_count"))},
-          ${num(pick(row, "detective_line_only_call_count"))}, ${num(pick(row, "detective_wrong_call_count"))}
+          ${num(pick(row, "detective_line_only_call_count"))}, ${num(pick(row, "detective_wrong_call_count"))},
+          ${num(pick(row, "detective_phone_uwaki_acquisition_count"))}, ${num(pick(row, "detective_phone_other_acquisition_count"))},
+          ${num(pick(row, "detective_mail_uwaki_acquisition_count"))}, ${num(pick(row, "detective_mail_other_acquisition_count"))},
+          ${num(pick(row, "detective_line_uwaki_acquisition_count"))}, ${num(pick(row, "detective_line_other_acquisition_count"))},
+          ${num(pick(row, "detective_selling_admin_cost"))}
         )
         ON CONFLICT (area_id, business_category, year, month) DO UPDATE SET
           total_revenue=EXCLUDED.total_revenue, total_profit=EXCLUDED.total_profit,
@@ -164,7 +173,14 @@ export async function POST(req: NextRequest) {
           detective_phone_only_call_count=EXCLUDED.detective_phone_only_call_count,
           detective_mail_only_call_count=EXCLUDED.detective_mail_only_call_count,
           detective_line_only_call_count=EXCLUDED.detective_line_only_call_count,
-          detective_wrong_call_count=EXCLUDED.detective_wrong_call_count
+          detective_wrong_call_count=EXCLUDED.detective_wrong_call_count,
+          detective_phone_uwaki_acquisition_count=EXCLUDED.detective_phone_uwaki_acquisition_count,
+          detective_phone_other_acquisition_count=EXCLUDED.detective_phone_other_acquisition_count,
+          detective_mail_uwaki_acquisition_count=EXCLUDED.detective_mail_uwaki_acquisition_count,
+          detective_mail_other_acquisition_count=EXCLUDED.detective_mail_other_acquisition_count,
+          detective_line_uwaki_acquisition_count=EXCLUDED.detective_line_uwaki_acquisition_count,
+          detective_line_other_acquisition_count=EXCLUDED.detective_line_other_acquisition_count,
+          detective_selling_admin_cost=EXCLUDED.detective_selling_admin_cost
       `;
       imported++;
     } catch (e) {
