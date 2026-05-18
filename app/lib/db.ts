@@ -240,11 +240,23 @@ export function ensureSchema(): Promise<void> {
       // PR #57: 探偵業態 入電 4 内訳 (Phase B 残課題、案 A 完結)
       //   電のみ / メールのみ / LINEのみ / 間違い電話
       //   合計は既存 call_count にローカル sync (DetectiveForm 内で計算)
-      //   獲得 6 内訳 / 販管費は引き続き UI only (Phase B 後続候補)
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_phone_only_call_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_mail_only_call_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_line_only_call_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_wrong_call_count INTEGER NOT NULL DEFAULT 0`);
+
+      // PR #58b: 探偵業態 獲得 6 内訳 + 販管費 (Phase B 残課題、案 A、PR #57 同型)
+      //   獲得 6: 電話×浮気 / 電話×その他 / メール×浮気 / メール×その他 / LINE×浮気 / LINE×その他
+      //   合計は既存 acquisition_count にローカル sync (DetectiveForm 内で計算)
+      //   販管費: 営業利益式は変更しない (sales - adCost のまま、記録のみ)
+      //     → 反映は将来 PR で別途検討
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_phone_uwaki_acquisition_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_phone_other_acquisition_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_mail_uwaki_acquisition_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_mail_other_acquisition_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_line_uwaki_acquisition_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_line_other_acquisition_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_selling_admin_cost INTEGER NOT NULL DEFAULT 0`);
 
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (

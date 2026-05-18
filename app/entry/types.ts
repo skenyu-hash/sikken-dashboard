@@ -94,6 +94,18 @@ export interface EntryFormState {
   detective_mail_only_call_count: InputValue;
   detective_line_only_call_count: InputValue;
   detective_wrong_call_count: InputValue;
+
+  // PR #58b: 探偵業態 獲得 6 内訳 + 販管費 (Phase B 残課題、案 A)
+  //   獲得 6: 電話×浮気 / 電話×その他 / メール×浮気 / メール×その他 / LINE×浮気 / LINE×その他
+  //   合計は acquisition_count に DetectiveForm 内で sync
+  //   販管費: 円単位、営業利益式は変更なし (sales - adCost のまま、記録のみ)
+  detective_phone_uwaki_acquisition_count: InputValue;
+  detective_phone_other_acquisition_count: InputValue;
+  detective_mail_uwaki_acquisition_count: InputValue;
+  detective_mail_other_acquisition_count: InputValue;
+  detective_line_uwaki_acquisition_count: InputValue;
+  detective_line_other_acquisition_count: InputValue;
+  detective_selling_admin_cost: InputValue;
 }
 
 /**
