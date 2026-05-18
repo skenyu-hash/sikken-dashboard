@@ -106,6 +106,28 @@ export interface EntryFormState {
   detective_line_uwaki_acquisition_count: InputValue;
   detective_line_other_acquisition_count: InputValue;
   detective_selling_admin_cost: InputValue;
+
+  // PR #58c: ロード業態 入電 7 内訳 + 保険売上 2 分割 + 販管費 (Phase B 完結、PR #58b 同型)
+  //
+  // 注意: road_*_count = 獲得件数 (PR #52)、road_*_call_count = 入電件数 (本 PR、PR #58c)
+  // 特に保険関連の 3 列は概念が異なるので注意:
+  //   road_insurance_count       = 保険会社経由の獲得件数 (既存、PR #52)
+  //   road_insurance_call_count  = 保険会社経由の入電件数 (新規、本 PR)
+  //   road_insurance_revenue     = 保険業務由来の売上 (新規、本 PR、保険でカバーされる業務)
+  //
+  //   入電 7 内訳の合計は call_count に RoadForm 内で sync
+  //   保険売上 + 無保険売上 = total_revenue は強制しない (splitMismatch warning のみ、記録優先)
+  //   販管費: 円単位、営業利益式は変更なし (sales - adCost - sales_outsourcing_cost のまま、記録のみ)
+  road_ad_call_count: InputValue;
+  road_repeat_call_count: InputValue;
+  road_referral_call_count: InputValue;
+  road_revisit_call_count: InputValue;
+  road_wellnest_call_count: InputValue;
+  road_seo_call_count: InputValue;
+  road_insurance_call_count: InputValue;
+  road_insurance_revenue: InputValue;
+  road_non_insurance_revenue: InputValue;
+  road_selling_admin_cost: InputValue;
 }
 
 /**

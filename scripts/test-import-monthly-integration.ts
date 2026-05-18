@@ -77,11 +77,22 @@ const PR58B_NEW_COLUMNS = [
   "detective_selling_admin_cost",
 ];
 
+// PR #58c で追加されたロード業態 入電 7 内訳 + 保険売上 2 分割 + 販管費 (Phase B 完結)。
+// 注意: road_*_count = 獲得件数 (PR #52)、road_*_call_count = 入電件数 (本 PR)。
+// road_insurance_revenue / road_non_insurance_revenue は BIGINT (売上スケール)。
+const PR58C_NEW_COLUMNS = [
+  "road_ad_call_count", "road_repeat_call_count", "road_referral_call_count",
+  "road_revisit_call_count", "road_wellnest_call_count", "road_seo_call_count",
+  "road_insurance_call_count",
+  "road_insurance_revenue", "road_non_insurance_revenue",
+  "road_selling_admin_cost",
+];
+
 // 全ての新規列 (静的テストで route.ts INSERT 3 セクション検証対象)
 const ALL_NEW_COLUMNS = [
   ...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS,
   ...PR51_NEW_COLUMNS, ...PR52_NEW_COLUMNS, ...PR53_NEW_COLUMNS,
-  ...PR57_NEW_COLUMNS, ...PR58B_NEW_COLUMNS,
+  ...PR57_NEW_COLUMNS, ...PR58B_NEW_COLUMNS, ...PR58C_NEW_COLUMNS,
 ];
 
 let pass = 0;
@@ -231,6 +242,19 @@ const TEST_VALUES: Record<string, number> = {
   detective_line_uwaki_acquisition_count: 12,
   detective_line_other_acquisition_count: 4,
   detective_selling_admin_cost: 1200000,
+  // 新 10 列 (PR #58c: ロード業態 入電 7 内訳 + 保険売上 2 分割 + 販管費)
+  //   road_*_call_count = 入電件数 (本 PR、INTEGER)
+  //   road_insurance_revenue / road_non_insurance_revenue = 売上 (BIGINT)
+  road_ad_call_count: 50,
+  road_repeat_call_count: 20,
+  road_referral_call_count: 10,
+  road_revisit_call_count: 7,
+  road_wellnest_call_count: 13,
+  road_seo_call_count: 25,
+  road_insurance_call_count: 10,
+  road_insurance_revenue: 8500000,
+  road_non_insurance_revenue: 6500000,
+  road_selling_admin_cost: 900000,
 };
 
 const TEST_AREA = "kansai";

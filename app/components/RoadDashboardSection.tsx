@@ -1,5 +1,5 @@
 "use client";
-// PR #52 c3: ロード業態専用ダッシュボードセクション。
+// PR #52 c3 + PR #58c: ロード業態専用ダッシュボードセクション。
 //
 // 役割:
 //   Dashboard.tsx の「全 17 項目 指標一覧」を、activeBusiness === 'road' の
@@ -7,9 +7,8 @@
 //   3 セクション表示 (フォーム ⇄ ダッシュボード 双方向確認可能)。
 //
 // 構成 (RoadForm と同構造):
-//   ① 新規対応 — 売上 / 広告費 / 手数料 / 粗利 + 各売上比%
-//                 (保険売上 / 無保険売上 / 販管費 は UI のみのため表示せず)
-//   ② 入電    — 総入電件数 / 入電単価 (内訳は "— UI のみ、Phase B 予定")
+//   ① 新規対応 — 売上 / 保険売上 / 無保険売上 / 広告費 / 手数料 / 販管費 / 粗利
+//   ② 入電    — 7 内訳 + 総入電件数 / 入電単価 (PR #58c で DB 化)
 //   ③ 獲得    — 7 内訳 (広告/リピート/紹介/再訪問/ウェルネスト/SEO/保険会社)
 //                + 総獲得件数 / 客単価 / CPA / 成約率
 //
@@ -18,7 +17,7 @@
 //   targets       : /api/targets から取得済 (Dashboard.tsx で fetch、manToYen 適用済)
 //
 // 派生値:
-//   粗利     = 売上 − 広告費 − 手数料  (RoadForm と同式)
+//   粗利     = 売上 − 広告費 − 手数料  (RoadForm と同式、販管費は記録のみで式に含めない)
 //   CPA      = 広告費 ÷ 総獲得件数
 //   成約率   = 総獲得件数 ÷ 総入電件数 × 100
 
@@ -58,6 +57,18 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
   const acqSeo = numOf(monthlySummary?.road_seo_count);
   const acqInsurance = numOf(monthlySummary?.road_insurance_count);
 
+  // PR #58c: 入電 7 内訳 + 保険売上 2 分割 + 販管費 (Phase B 完結)
+  const callAd = numOf(monthlySummary?.road_ad_call_count);
+  const callRepeat = numOf(monthlySummary?.road_repeat_call_count);
+  const callReferral = numOf(monthlySummary?.road_referral_call_count);
+  const callRevisit = numOf(monthlySummary?.road_revisit_call_count);
+  const callWellnest = numOf(monthlySummary?.road_wellnest_call_count);
+  const callSeo = numOf(monthlySummary?.road_seo_call_count);
+  const callInsurance = numOf(monthlySummary?.road_insurance_call_count);
+  const insuranceRevenue = numOf(monthlySummary?.road_insurance_revenue);
+  const nonInsuranceRevenue = numOf(monthlySummary?.road_non_insurance_revenue);
+  const sellingAdminCost = numOf(monthlySummary?.road_selling_admin_cost);
+
   // 売上比%
   const ratio = (cost: number) => (sales > 0 ? (cost / sales) * 100 : 0);
 
@@ -77,23 +88,23 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
         {/* ① 新規対応 */}
         <Card title="① 新規対応 (売上・コスト・粗利)">
           <Row label="売上"   actual={fmtYen(sales)}     target={fmtYen(targetSales)}   achievement={achv(sales, targetSales)} />
+          <Row label="保険売上"   actual={fmtYen(insuranceRevenue)}    target="—" sub="保険業務由来の売上" />
+          <Row label="無保険売上" actual={fmtYen(nonInsuranceRevenue)} target="—" sub="保険業務以外の売上" />
           <Row label="広告費" actual={fmtYen(adCost)}    target={fmtYen(targetAdCost)} achievement={achv(adCost, targetAdCost, true)} sub={`売上比 ${fmtPct(ratio(adCost))}`} />
           <Row label="手数料" actual={fmtYen(commission)} target="—" sub={`売上比 ${fmtPct(ratio(commission))}`} />
-          <Row label="保険売上" actual="— (UI のみ、Phase B 予定)" target="—" />
-          <Row label="無保険売上" actual="— (UI のみ、Phase B 予定)" target="—" />
-          <Row label="販管費" actual="— (UI のみ、Phase 4 予定)" target="—" />
+          <Row label="販管費" actual={fmtYen(sellingAdminCost)} target="—" sub="記録のみ (営業利益式には含めず)" />
           <Row label="粗利"   actual={fmtYen(profit)}    target="—" sub="= 売上 − (広告費 + 手数料)" highlight />
         </Card>
 
-        {/* ② 入電 */}
-        <Card title="② 入電">
-          <Row label="広告 入電"       actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="リピート 入電"   actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="紹介 入電"       actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="再訪問 入電"     actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="ウェルネスト 入電" actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="SEO 入電"        actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="保険会社 入電"   actual="— (UI のみ、Phase B 後続予定)" target="—" />
+        {/* ② 入電 (PR #58c で 7 内訳 DB 化) */}
+        <Card title="② 入電 (7 内訳)">
+          <Row label="広告 入電"       actual={fmtCount(callAd)}       target="—" />
+          <Row label="リピート 入電"   actual={fmtCount(callRepeat)}   target="—" />
+          <Row label="紹介 入電"       actual={fmtCount(callReferral)} target="—" />
+          <Row label="再訪問 入電"     actual={fmtCount(callRevisit)}  target="—" />
+          <Row label="ウェルネスト 入電" actual={fmtCount(callWellnest)} target="—" />
+          <Row label="SEO 入電"        actual={fmtCount(callSeo)}      target="—" />
+          <Row label="保険会社 入電"   actual={fmtCount(callInsurance)} target="—" />
           <Row label="総入電件数" actual={fmtCount(callCount)}      target={fmtCount(targetCallCount)} achievement={achv(callCount, targetCallCount)} />
           <Row label="入電単価"   actual={fmtYen(callUnitPrice)}    target="—" sub="= 広告費 ÷ 総入電件数" />
         </Card>

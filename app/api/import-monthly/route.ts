@@ -92,7 +92,12 @@ export async function POST(req: NextRequest) {
           detective_phone_uwaki_acquisition_count, detective_phone_other_acquisition_count,
           detective_mail_uwaki_acquisition_count, detective_mail_other_acquisition_count,
           detective_line_uwaki_acquisition_count, detective_line_other_acquisition_count,
-          detective_selling_admin_cost
+          detective_selling_admin_cost,
+          road_ad_call_count, road_repeat_call_count, road_referral_call_count,
+          road_revisit_call_count, road_wellnest_call_count, road_seo_call_count,
+          road_insurance_call_count,
+          road_insurance_revenue, road_non_insurance_revenue,
+          road_selling_admin_cost
         ) VALUES (
           ${row.area_id}, ${cat}, ${year}, ${month},
           ${num(pick(row, "total_revenue", "revenue"))},
@@ -128,7 +133,12 @@ export async function POST(req: NextRequest) {
           ${num(pick(row, "detective_phone_uwaki_acquisition_count"))}, ${num(pick(row, "detective_phone_other_acquisition_count"))},
           ${num(pick(row, "detective_mail_uwaki_acquisition_count"))}, ${num(pick(row, "detective_mail_other_acquisition_count"))},
           ${num(pick(row, "detective_line_uwaki_acquisition_count"))}, ${num(pick(row, "detective_line_other_acquisition_count"))},
-          ${num(pick(row, "detective_selling_admin_cost"))}
+          ${num(pick(row, "detective_selling_admin_cost"))},
+          ${num(pick(row, "road_ad_call_count"))}, ${num(pick(row, "road_repeat_call_count"))}, ${num(pick(row, "road_referral_call_count"))},
+          ${num(pick(row, "road_revisit_call_count"))}, ${num(pick(row, "road_wellnest_call_count"))}, ${num(pick(row, "road_seo_call_count"))},
+          ${num(pick(row, "road_insurance_call_count"))},
+          ${num(pick(row, "road_insurance_revenue"))}, ${num(pick(row, "road_non_insurance_revenue"))},
+          ${num(pick(row, "road_selling_admin_cost"))}
         )
         ON CONFLICT (area_id, business_category, year, month) DO UPDATE SET
           total_revenue=EXCLUDED.total_revenue, total_profit=EXCLUDED.total_profit,
@@ -180,7 +190,17 @@ export async function POST(req: NextRequest) {
           detective_mail_other_acquisition_count=EXCLUDED.detective_mail_other_acquisition_count,
           detective_line_uwaki_acquisition_count=EXCLUDED.detective_line_uwaki_acquisition_count,
           detective_line_other_acquisition_count=EXCLUDED.detective_line_other_acquisition_count,
-          detective_selling_admin_cost=EXCLUDED.detective_selling_admin_cost
+          detective_selling_admin_cost=EXCLUDED.detective_selling_admin_cost,
+          road_ad_call_count=EXCLUDED.road_ad_call_count,
+          road_repeat_call_count=EXCLUDED.road_repeat_call_count,
+          road_referral_call_count=EXCLUDED.road_referral_call_count,
+          road_revisit_call_count=EXCLUDED.road_revisit_call_count,
+          road_wellnest_call_count=EXCLUDED.road_wellnest_call_count,
+          road_seo_call_count=EXCLUDED.road_seo_call_count,
+          road_insurance_call_count=EXCLUDED.road_insurance_call_count,
+          road_insurance_revenue=EXCLUDED.road_insurance_revenue,
+          road_non_insurance_revenue=EXCLUDED.road_non_insurance_revenue,
+          road_selling_admin_cost=EXCLUDED.road_selling_admin_cost
       `;
       imported++;
     } catch (e) {

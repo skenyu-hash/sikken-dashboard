@@ -101,6 +101,12 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     detective_mail_uwaki_acquisition_count: "",  detective_mail_other_acquisition_count: "",
     detective_line_uwaki_acquisition_count: "",  detective_line_other_acquisition_count: "",
     detective_selling_admin_cost: "",
+    // PR #58c: ロード業態 入電 7 内訳 + 保険売上 2 分割 + 販管費 (他業態は "" のまま、保存時 0)
+    road_ad_call_count: "", road_repeat_call_count: "", road_referral_call_count: "",
+    road_revisit_call_count: "", road_wellnest_call_count: "",
+    road_seo_call_count: "", road_insurance_call_count: "",
+    road_insurance_revenue: "", road_non_insurance_revenue: "",
+    road_selling_admin_cost: "",
   };
 }
 
@@ -208,6 +214,17 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             detective_line_uwaki_acquisition_count: numOrEmpty(summary.detective_line_uwaki_acquisition_count),
             detective_line_other_acquisition_count: numOrEmpty(summary.detective_line_other_acquisition_count),
             detective_selling_admin_cost: numOrEmpty(summary.detective_selling_admin_cost),
+            // PR #58c: ロード業態 入電 7 内訳 + 保険売上 2 分割 + 販管費
+            road_ad_call_count: numOrEmpty(summary.road_ad_call_count),
+            road_repeat_call_count: numOrEmpty(summary.road_repeat_call_count),
+            road_referral_call_count: numOrEmpty(summary.road_referral_call_count),
+            road_revisit_call_count: numOrEmpty(summary.road_revisit_call_count),
+            road_wellnest_call_count: numOrEmpty(summary.road_wellnest_call_count),
+            road_seo_call_count: numOrEmpty(summary.road_seo_call_count),
+            road_insurance_call_count: numOrEmpty(summary.road_insurance_call_count),
+            road_insurance_revenue: numOrEmpty(summary.road_insurance_revenue),
+            road_non_insurance_revenue: numOrEmpty(summary.road_non_insurance_revenue),
+            road_selling_admin_cost: numOrEmpty(summary.road_selling_admin_cost),
           }));
           const aod = Number(summary.as_of_day);
           setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
@@ -237,6 +254,11 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             detective_mail_uwaki_acquisition_count: "",  detective_mail_other_acquisition_count: "",
             detective_line_uwaki_acquisition_count: "",  detective_line_other_acquisition_count: "",
             detective_selling_admin_cost: "",
+            road_ad_call_count: "", road_repeat_call_count: "", road_referral_call_count: "",
+            road_revisit_call_count: "", road_wellnest_call_count: "",
+            road_seo_call_count: "", road_insurance_call_count: "",
+            road_insurance_revenue: "", road_non_insurance_revenue: "",
+            road_selling_admin_cost: "",
           }));
           setExistingAsOfDay(null);
         }
@@ -330,6 +352,17 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         detective_line_uwaki_acquisition_count: numOrZero(state.detective_line_uwaki_acquisition_count),
         detective_line_other_acquisition_count: numOrZero(state.detective_line_other_acquisition_count),
         detective_selling_admin_cost: numOrZero(state.detective_selling_admin_cost),
+        // PR #58c: ロード業態 入電 7 内訳 + 保険売上 2 分割 + 販管費 (他業態は state="" → 0 で保存)
+        road_ad_call_count: numOrZero(state.road_ad_call_count),
+        road_repeat_call_count: numOrZero(state.road_repeat_call_count),
+        road_referral_call_count: numOrZero(state.road_referral_call_count),
+        road_revisit_call_count: numOrZero(state.road_revisit_call_count),
+        road_wellnest_call_count: numOrZero(state.road_wellnest_call_count),
+        road_seo_call_count: numOrZero(state.road_seo_call_count),
+        road_insurance_call_count: numOrZero(state.road_insurance_call_count),
+        road_insurance_revenue: numOrZero(state.road_insurance_revenue),
+        road_non_insurance_revenue: numOrZero(state.road_non_insurance_revenue),
+        road_selling_admin_cost: numOrZero(state.road_selling_admin_cost),
         // auto 計算結果のうち、既存 DB 列に対応するものを送信
         // (新規 DB 列なしの total_construction_count / actual_construction_cost / profit は送らない)
         total_revenue: Math.round(calc.total_revenue),
