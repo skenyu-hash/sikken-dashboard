@@ -47,6 +47,12 @@ export default function DetectiveMeetingSection({
   const callUnitPrice = Math.round(safeDiv(adCost, callCount));
   const cpa = Math.round(safeDiv(adCost, acquisitionCount));
 
+  // PR #57: 入電 4 内訳 (DB 化済)
+  const phoneOnlyCount = numOf(monthlySummary?.detective_phone_only_call_count);
+  const mailOnlyCount = numOf(monthlySummary?.detective_mail_only_call_count);
+  const lineOnlyCount = numOf(monthlySummary?.detective_line_only_call_count);
+  const wrongCount = numOf(monthlySummary?.detective_wrong_call_count);
+
   // 面談ファネル (PR #53)
   const meetingCount = numOf(monthlySummary?.detective_meeting_count);
   const cancelCount = numOf(monthlySummary?.detective_cancel_count);
@@ -66,8 +72,12 @@ export default function DetectiveMeetingSection({
       </SectionTable>
 
       <SectionTable title="② 入電">
-        <MetricRow label="入電数"   actual={callCount}     target={targets.targetCallCount} {...mp} format={fmtCount} />
-        <MetricRow label="入電単価" actual={callUnitPrice} target={0}                        {...mp} format={fmtYen} isRate />
+        <MetricRow label="電のみ 入電"     actual={phoneOnlyCount} target={0}                       {...mp} format={fmtCount} />
+        <MetricRow label="メールのみ 入電" actual={mailOnlyCount}  target={0}                       {...mp} format={fmtCount} />
+        <MetricRow label="LINEのみ 入電"   actual={lineOnlyCount}  target={0}                       {...mp} format={fmtCount} />
+        <MetricRow label="間違い電話"      actual={wrongCount}     target={0}                       {...mp} format={fmtCount} />
+        <MetricRow label="入電数"          actual={callCount}      target={targets.targetCallCount} {...mp} format={fmtCount} />
+        <MetricRow label="入電単価"        actual={callUnitPrice}  target={0}                       {...mp} format={fmtYen} isRate />
       </SectionTable>
 
       <SectionTable title="③ 獲得">

@@ -93,6 +93,9 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     road_seo_count: "", road_insurance_count: "",
     // PR #53: 探偵業態専用 面談ファネル (他業態は "" のまま、保存時 0)
     detective_meeting_count: "", detective_cancel_count: "",
+    // PR #57: 探偵業態 入電 4 内訳 (他業態は "" のまま、保存時 0)
+    detective_phone_only_call_count: "", detective_mail_only_call_count: "",
+    detective_line_only_call_count: "", detective_wrong_call_count: "",
   };
 }
 
@@ -187,6 +190,11 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             // PR #53: 探偵業態専用 面談ファネル
             detective_meeting_count: numOrEmpty(summary.detective_meeting_count),
             detective_cancel_count: numOrEmpty(summary.detective_cancel_count),
+            // PR #57: 探偵業態 入電 4 内訳
+            detective_phone_only_call_count: numOrEmpty(summary.detective_phone_only_call_count),
+            detective_mail_only_call_count: numOrEmpty(summary.detective_mail_only_call_count),
+            detective_line_only_call_count: numOrEmpty(summary.detective_line_only_call_count),
+            detective_wrong_call_count: numOrEmpty(summary.detective_wrong_call_count),
           }));
           const aod = Number(summary.as_of_day);
           setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
@@ -210,6 +218,8 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             road_revisit_count: "", road_wellnest_count: "",
             road_seo_count: "", road_insurance_count: "",
             detective_meeting_count: "", detective_cancel_count: "",
+            detective_phone_only_call_count: "", detective_mail_only_call_count: "",
+            detective_line_only_call_count: "", detective_wrong_call_count: "",
           }));
           setExistingAsOfDay(null);
         }
@@ -290,6 +300,11 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         // PR #53: 探偵業態専用 面談ファネル (他業態は state="" → 0 で保存)
         detective_meeting_count: numOrZero(state.detective_meeting_count),
         detective_cancel_count: numOrZero(state.detective_cancel_count),
+        // PR #57: 探偵業態 入電 4 内訳 (他業態は state="" → 0 で保存)
+        detective_phone_only_call_count: numOrZero(state.detective_phone_only_call_count),
+        detective_mail_only_call_count: numOrZero(state.detective_mail_only_call_count),
+        detective_line_only_call_count: numOrZero(state.detective_line_only_call_count),
+        detective_wrong_call_count: numOrZero(state.detective_wrong_call_count),
         // auto 計算結果のうち、既存 DB 列に対応するものを送信
         // (新規 DB 列なしの total_construction_count / actual_construction_cost / profit は送らない)
         total_revenue: Math.round(calc.total_revenue),

@@ -63,8 +63,14 @@ const PR53_NEW_COLUMNS = [
   "detective_meeting_count", "detective_cancel_count",
 ];
 
+// PR #57 で追加された探偵業態 入電 4 内訳 (電のみ / メールのみ / LINEのみ / 誤入電)。
+const PR57_NEW_COLUMNS = [
+  "detective_phone_only_call_count", "detective_mail_only_call_count",
+  "detective_line_only_call_count", "detective_wrong_call_count",
+];
+
 // 全ての新規列 (静的テストで route.ts INSERT 3 セクション検証対象)
-const ALL_NEW_COLUMNS = [...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS, ...PR51_NEW_COLUMNS, ...PR52_NEW_COLUMNS, ...PR53_NEW_COLUMNS];
+const ALL_NEW_COLUMNS = [...PR38_NEW_COLUMNS, ...PR48B_NEW_COLUMNS, ...PR51_NEW_COLUMNS, ...PR52_NEW_COLUMNS, ...PR53_NEW_COLUMNS, ...PR57_NEW_COLUMNS];
 
 let pass = 0;
 let fail = 0;
@@ -200,6 +206,11 @@ const TEST_VALUES: Record<string, number> = {
   // 新 2 列 (PR #53: 探偵業態用 面談ファネル)
   detective_meeting_count: 45,
   detective_cancel_count: 3,
+  // 新 4 列 (PR #57: 探偵業態 入電 4 内訳)
+  detective_phone_only_call_count: 80,
+  detective_mail_only_call_count: 25,
+  detective_line_only_call_count: 35,
+  detective_wrong_call_count: 7,
 };
 
 const TEST_AREA = "kansai";

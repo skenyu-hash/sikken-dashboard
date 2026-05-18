@@ -232,11 +232,19 @@ export function ensureSchema(): Promise<void> {
 
       // PR #53: 探偵業態 Phase B (DetectiveForm の面談ファネルを DB 化)
       //   - 面談数 / 面談事前キャンセル数 (案 C、Web Claude 5/18 承認)
-      // 入電 4 内訳 / 獲得 6 内訳 / 販管費は引き続き UI only (Phase B 後続)
       // 流用: アポ獲得数 = acquisition_count (既存)、アポ獲得率目標 = target_conversion_rate
       // 探偵もロードと同様 calc.profit (= 売上 - 広告) が機能するため専用コスト列不要。
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_meeting_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_cancel_count INTEGER NOT NULL DEFAULT 0`);
+
+      // PR #57: 探偵業態 入電 4 内訳 (Phase B 残課題、案 A 完結)
+      //   電のみ / メールのみ / LINEのみ / 間違い電話
+      //   合計は既存 call_count にローカル sync (DetectiveForm 内で計算)
+      //   獲得 6 内訳 / 販管費は引き続き UI only (Phase B 後続候補)
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_phone_only_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_mail_only_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_line_only_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_wrong_call_count INTEGER NOT NULL DEFAULT 0`);
 
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (

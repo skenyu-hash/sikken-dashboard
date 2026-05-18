@@ -57,6 +57,12 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
   const callUnitPrice = Math.round(safeDiv(adCost, callCount));
   const cpa = Math.round(safeDiv(adCost, acquisitionCount));
 
+  // PR #57: 入電 4 内訳 (DB 化済)
+  const phoneOnlyCount = numOf(monthlySummary?.detective_phone_only_call_count);
+  const mailOnlyCount = numOf(monthlySummary?.detective_mail_only_call_count);
+  const lineOnlyCount = numOf(monthlySummary?.detective_line_only_call_count);
+  const wrongCount = numOf(monthlySummary?.detective_wrong_call_count);
+
   // 面談ファネル (PR #53 で DB 化)
   const meetingCount = numOf(monthlySummary?.detective_meeting_count);
   const cancelCount = numOf(monthlySummary?.detective_cancel_count);
@@ -94,12 +100,12 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
           <Row label="営業利益" actual={fmtYen(profit)}    target="—" sub="= 売上 − 広告費" highlight />
         </Card>
 
-        {/* ② 入電 */}
+        {/* ② 入電 (PR #57 で 4 内訳 DB 化、実値表示) */}
         <Card title="② 入電">
-          <Row label="電のみ 入電"     actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="メールのみ 入電" actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="LINEのみ 入電"   actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="間違い電話"      actual="— (UI のみ、Phase B 後続予定)" target="—" />
+          <Row label="電のみ 入電"     actual={fmtCount(phoneOnlyCount)} target="—" />
+          <Row label="メールのみ 入電" actual={fmtCount(mailOnlyCount)}  target="—" />
+          <Row label="LINEのみ 入電"   actual={fmtCount(lineOnlyCount)}  target="—" />
+          <Row label="間違い電話"      actual={fmtCount(wrongCount)}     target="—" />
           <Row label="入電数" actual={fmtCount(callCount)}        target={fmtCount(targetCallCount)} achievement={achv(callCount, targetCallCount)} />
           <Row label="入電単価"   actual={fmtYen(callUnitPrice)}    target="—" sub="= 広告費 ÷ 入電数" />
         </Card>
