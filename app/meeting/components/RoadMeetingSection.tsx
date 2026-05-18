@@ -1,16 +1,15 @@
 "use client";
-// PR #55 c2: ロード業態用 会議シートセクション。
+// PR #55 c2 + PR #58c: ロード業態用 会議シートセクション。
 //
 // 構成 (RoadDashboardSection と 1:1 対応):
-//   ① 新規対応・コスト・粗利 (売上 / 広告費 / 手数料 + 粗利)
-//                              ※ 保険売上 / 無保険売上 / 販管費 は UI のみで非表示
-//   ② 入電 (総入電件数 / 入電単価)
+//   ① 新規対応・コスト・粗利 (売上 / 保険売上 / 無保険売上 / 広告費 / 手数料 / 販管費 / 粗利)
+//   ② 入電 7 内訳 + 総入電件数 / 入電単価 (PR #58c で DB 化)
 //   ③ 獲得 7 チャネル + 集計
 //
 // HELP / 工事取得率 / 施工 は非表示。
 //
 // 派生値:
-//   粗利 = 売上 - (広告費 + 手数料) (RoadForm と同式、calc.profit 互換)
+//   粗利 = 売上 - (広告費 + 手数料) (RoadForm と同式、販管費は記録のみで式に含めない)
 
 import { MetricRow, SectionTable, fmtYen, fmtCount, fmtPct, type MeetingPeriodProps } from "./MetricRow";
 import type { Targets } from "../../lib/calculations";
@@ -50,18 +49,40 @@ export default function RoadMeetingSection({
   const acqSeo = numOf(monthlySummary?.road_seo_count);
   const acqInsurance = numOf(monthlySummary?.road_insurance_count);
 
+  // PR #58c: 入電 7 内訳 + 保険売上 2 分割 + 販管費 (Phase B 完結)
+  const callAd = numOf(monthlySummary?.road_ad_call_count);
+  const callRepeat = numOf(monthlySummary?.road_repeat_call_count);
+  const callReferral = numOf(monthlySummary?.road_referral_call_count);
+  const callRevisit = numOf(monthlySummary?.road_revisit_call_count);
+  const callWellnest = numOf(monthlySummary?.road_wellnest_call_count);
+  const callSeo = numOf(monthlySummary?.road_seo_call_count);
+  const callInsurance = numOf(monthlySummary?.road_insurance_call_count);
+  const insuranceRevenue = numOf(monthlySummary?.road_insurance_revenue);
+  const nonInsuranceRevenue = numOf(monthlySummary?.road_non_insurance_revenue);
+  const sellingAdminCost = numOf(monthlySummary?.road_selling_admin_cost);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <SectionTable title="① 新規対応・コスト・粗利">
-        <MetricRow label="売上"   actual={sales}      target={targets.targetSales}   {...mp} format={fmtYen} />
-        <MetricRow label="広告費" actual={adCost}     target={targets.targetAdCost}  {...mp} format={fmtYen} invertGap />
-        <MetricRow label="手数料" actual={commission} target={0}                      {...mp} format={fmtYen} invertGap />
-        <MetricRow label="粗利"   actual={profit}     target={targets.targetProfit}  {...mp} format={fmtYen} />
+        <MetricRow label="売上"       actual={sales}              target={targets.targetSales}   {...mp} format={fmtYen} />
+        <MetricRow label="保険売上"   actual={insuranceRevenue}   target={0}                      {...mp} format={fmtYen} />
+        <MetricRow label="無保険売上" actual={nonInsuranceRevenue} target={0}                     {...mp} format={fmtYen} />
+        <MetricRow label="広告費"     actual={adCost}             target={targets.targetAdCost}  {...mp} format={fmtYen} invertGap />
+        <MetricRow label="手数料"     actual={commission}         target={0}                      {...mp} format={fmtYen} invertGap />
+        <MetricRow label="販管費"     actual={sellingAdminCost}   target={0}                      {...mp} format={fmtYen} invertGap />
+        <MetricRow label="粗利"       actual={profit}             target={targets.targetProfit}  {...mp} format={fmtYen} />
       </SectionTable>
 
-      <SectionTable title="② 入電">
-        <MetricRow label="総入電件数" actual={callCount}     target={targets.targetCallCount} {...mp} format={fmtCount} />
-        <MetricRow label="入電単価"   actual={callUnitPrice} target={0}                        {...mp} format={fmtYen} isRate />
+      <SectionTable title="② 入電 7 内訳 + 集計">
+        <MetricRow label="広告 入電"       actual={callAd}       target={0} {...mp} format={fmtCount} />
+        <MetricRow label="リピート 入電"   actual={callRepeat}   target={0} {...mp} format={fmtCount} />
+        <MetricRow label="紹介 入電"       actual={callReferral} target={0} {...mp} format={fmtCount} />
+        <MetricRow label="再訪問 入電"     actual={callRevisit}  target={0} {...mp} format={fmtCount} />
+        <MetricRow label="ウェルネスト 入電" actual={callWellnest} target={0} {...mp} format={fmtCount} />
+        <MetricRow label="SEO 入電"        actual={callSeo}      target={0} {...mp} format={fmtCount} />
+        <MetricRow label="保険会社 入電"   actual={callInsurance} target={0} {...mp} format={fmtCount} />
+        <MetricRow label="総入電件数"      actual={callCount}    target={targets.targetCallCount} {...mp} format={fmtCount} />
+        <MetricRow label="入電単価"        actual={callUnitPrice} target={0}                       {...mp} format={fmtYen} isRate />
       </SectionTable>
 
       <SectionTable title="③ 獲得 7 チャネル + 集計">

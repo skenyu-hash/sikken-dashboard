@@ -258,6 +258,26 @@ export function ensureSchema(): Promise<void> {
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_line_other_acquisition_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS detective_selling_admin_cost INTEGER NOT NULL DEFAULT 0`);
 
+      // PR #58c: ロード業態 入電 7 内訳 + 保険売上 2 分割 + 販管費 (Phase B 完結、PR #58b 同型)
+      //   注意: road_*_count = 獲得件数 (PR #52)、road_*_call_count = 入電件数 (本 PR)
+      //   保険関連 3 列:
+      //     road_insurance_count       = 保険会社経由の獲得件数 (既存、PR #52)
+      //     road_insurance_call_count  = 保険会社経由の入電件数 (新規、本 PR)
+      //     road_insurance_revenue     = 保険業務由来の売上 (新規、本 PR、保険でカバーされる業務)
+      //   入電 7 内訳の合計は call_count にローカル sync (RoadForm 内で計算)
+      //   保険売上 + 無保険売上 = total_revenue は強制しない (splitMismatch warning のみ)
+      //   営業利益式は変更しない (sales - adCost - sales_outsourcing_cost のまま、販管費は記録のみ)
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_ad_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_repeat_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_referral_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_revisit_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_wellnest_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_seo_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_insurance_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_insurance_revenue BIGINT NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_non_insurance_revenue BIGINT NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_selling_admin_cost INTEGER NOT NULL DEFAULT 0`);
+
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,
