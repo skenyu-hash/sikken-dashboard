@@ -71,6 +71,14 @@ const CALL_CHANNEL_LABELS: Record<CallChannelKey, string> = {
   wrong: "間違い電話件数",
 };
 
+// PR #57: 入電 4 内訳 → EntryFormState DB フィールドへのマッピング
+const CALL_CHANNEL_TO_DB: Record<CallChannelKey, InputFieldKey> = {
+  phoneOnly: "detective_phone_only_call_count",
+  mailOnly: "detective_mail_only_call_count",
+  lineOnly: "detective_line_only_call_count",
+  wrong: "detective_wrong_call_count",
+};
+
 // 獲得 6 チャネル (3 媒体 × 2 カテゴリ)
 type AcqChannelKey =
   | "phone_uwaki" | "phone_other"
@@ -90,10 +98,8 @@ const ACQ_CHANNEL_LABELS: Record<AcqChannelKey, string> = {
   line_other: "LINE × その他",
 };
 
-type CallChannels = Record<CallChannelKey, InputValue>;
 type AcqChannels = Record<AcqChannelKey, InputValue>;
 
-const emptyCallChannels: CallChannels = { phoneOnly: "", mailOnly: "", lineOnly: "", wrong: "" };
 const emptyAcqChannels: AcqChannels = {
   phone_uwaki: "", phone_other: "",
   mail_uwaki: "", mail_other: "",
@@ -103,22 +109,25 @@ const emptyAcqChannels: AcqChannels = {
 const num = (v: InputValue): number => (v === "" ? 0 : v);
 const safePct = (a: number, b: number): number => (b === 0 ? 0 : (a / b) * 100);
 
-const sumCallChannels = (c: CallChannels): number =>
-  CALL_CHANNEL_KEYS.reduce((sum, k) => sum + num(c[k]), 0);
 const sumAcqChannels = (c: AcqChannels): number =>
   ACQ_CHANNEL_KEYS.reduce((sum, k) => sum + num(c[k]), 0);
 
 export default function DetectiveForm({ state, setField, validateField, errors, labels, calc }: Props) {
   // PR #53: 面談数 / キャンセル数 を shared state に切替 (DB 保存対応)
-  // 他の UI-only state (販管費 / 入電 4 内訳 / 獲得 6 内訳) は引き続き local
+  // PR #57: 入電 4 内訳も shared state に切替 (DB 保存対応)
+  // 残る UI-only state (販管費 / 獲得 6 内訳) は引き続き local (Phase B 後続候補)
   const [sellingAdmin, setSellingAdmin] = useState<InputValue>("");
-  const [callBreakdown, setCallBreakdown] = useState<CallChannels>(emptyCallChannels);
   const [acqBreakdown, setAcqBreakdown] = useState<AcqChannels>(emptyAcqChannels);
 
+  // PR #57: 入電 4 内訳の更新時、state を上書き + 合計を call_count に sync
   const updateCallChannel = (key: CallChannelKey, v: InputValue) => {
-    const next = { ...callBreakdown, [key]: v };
-    setCallBreakdown(next);
-    setField("call_count", sumCallChannels(next));
+    setField(CALL_CHANNEL_TO_DB[key], v);
+    // sum 計算: 編集対象は新値 v、それ以外は state から
+    const sum = CALL_CHANNEL_KEYS.reduce((acc, k) => {
+      const value = k === key ? v : state[CALL_CHANNEL_TO_DB[k]] as InputValue;
+      return acc + num(value);
+    }, 0);
+    setField("call_count", sum);
   };
   const updateAcqChannel = (key: AcqChannelKey, v: InputValue) => {
     const next = { ...acqBreakdown, [key]: v };
@@ -164,20 +173,24 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
         <AutoRow label="営業利益" value={fmtYen(calc.profit)} formula="= 売上 − 広告費" />
       </SectionShell>
 
-      {/* ② 入電セクション */}
+      {/* ② 入電セクション (PR #57 で 4 内訳を DB 保存化) */}
       <SectionShell title="② 入電" subtitle="入力 4項目 + 自動計算 (入電数 / 入電単価)">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-          {CALL_CHANNEL_KEYS.map((key) => (
-            <LocalNumberField key={key} label={CALL_CHANNEL_LABELS[key]} unit="件"
-              value={callBreakdown[key]}
-              onChange={(v) => updateCallChannel(key, v)} />
-          ))}
+          {CALL_CHANNEL_KEYS.map((key) => {
+            const dbKey = CALL_CHANNEL_TO_DB[key];
+            return (
+              <NumberField key={key} field={dbKey} label={CALL_CHANNEL_LABELS[key]} unit="件"
+                value={state[dbKey] as InputValue}
+                onChange={(v) => updateCallChannel(key, v)}
+                onBlur={validateField} state={state} error={errors[dbKey]} />
+            );
+          })}
         </div>
         <p style={{
           marginTop: 8, padding: "8px 10px", fontSize: 11, color: "#374151", lineHeight: 1.5,
           background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb",
         }}>
-          💡 内訳を入力すると入電数が自動更新されます。内訳自体は DB 保存対象外 (Phase B 予定)。
+          💡 PR #57 で入電 4 内訳も DB 保存対象になりました。編集モードで内訳が DB から復元されます。
         </p>
         <AutoRow label="入電数" value={fmtCount(num(state.call_count))} formula="= 4 内訳合計" />
         <AutoRow label={labels.call_unit_price} value={fmtYen(calc.call_unit_price)} formula="= 広告費 ÷ 入電数" />

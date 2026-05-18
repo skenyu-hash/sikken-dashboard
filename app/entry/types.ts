@@ -83,9 +83,17 @@ export interface EntryFormState {
 
   // PR #53: 探偵業態専用 面談ファネル (他業態では常に "" → 保存時 0)
   //   面談数 + 面談事前キャンセル数 を DB 化 (案 C 採用)
-  //   入電 4 内訳 / 獲得 6 内訳 / 販管費は引き続き UI only
+  //   獲得 6 内訳 / 販管費は引き続き UI only (Phase B 後続候補)
   detective_meeting_count: InputValue;
   detective_cancel_count: InputValue;
+
+  // PR #57: 探偵業態 入電 4 内訳 (Phase B 残課題、案 A 完結)
+  //   電のみ / メールのみ / LINEのみ / 誤入電
+  //   合計は call_count に DetectiveForm 内で sync
+  detective_phone_only_call_count: InputValue;
+  detective_mail_only_call_count: InputValue;
+  detective_line_only_call_count: InputValue;
+  detective_wrong_call_count: InputValue;
 }
 
 /**
