@@ -4,9 +4,14 @@
 // PR #61 c1: v9 グループ色の左 3px ボーダー対応。
 //   group prop は optional — 未指定時は従来の灰縁 (1px solid #d1fae5) のまま (回帰なし)。
 //   指定時は左辺のみ 3px のグループ色に上書き (PR #59 c1 と同じ意味伝達パターン)。
+//
+// PR #61 c3: section title を <GroupPill> ラップで group color tint バッジ化。
+//   ヘッダ背景は薄緑バー (#ecfdf5) から白に変更 → 全 group の pill が視認可能に。
+//   group 未指定時は素のテキスト (回帰なし)。
 
 import React from "react";
 import { getGroupBorderColor, type GroupType } from "../../components/dashboard/metric-groups";
+import { GroupPill } from "../../components/ui";
 
 type Props = {
   title: string;
@@ -27,16 +32,22 @@ export default function SectionShell({ title, subtitle, group, children }: Props
       boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
     }}>
       <div style={{
-        background: "#ecfdf5",
+        // PR #61 c3: ヘッダ背景を白に変更、ボーダー色は neutral gray に → 全 group の pill が視認可能
+        background: "#fff",
         padding: "8px 14px",
-        borderBottom: "1px solid #d1fae5",
+        borderBottom: "1px solid #e5e7eb",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
       }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#065f46", letterSpacing: "0.04em" }}>
-          {title}
-        </span>
+        {/* PR #61 c3: group 指定時は GroupPill ラップ、未指定時は素のテキスト (回帰なし) */}
+        {group ? (
+          <GroupPill type={group}>{title}</GroupPill>
+        ) : (
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#065f46", letterSpacing: "0.04em" }}>
+            {title}
+          </span>
+        )}
         {subtitle && (
           <span style={{ fontSize: 10, color: "#6b7280" }}>{subtitle}</span>
         )}
