@@ -153,7 +153,7 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
   return (
     <>
       {/* ① 新規対応セクション */}
-      <SectionShell title={labels.section_sales} subtitle="入力 3項目 (販管費は記録のみ) + 自動計算 (営業利益)">
+      <SectionShell title={labels.section_sales} subtitle="入力 3項目 (販管費は記録のみ) + 自動計算 (営業利益)" group="rev">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           <NumberField field="outsourced_sales_revenue" label={labels.total_revenue} unit="円"
             value={state.outsourced_sales_revenue} onChange={(v) => setField("outsourced_sales_revenue", v)}
@@ -178,7 +178,7 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
       </SectionShell>
 
       {/* ② 入電セクション (PR #57 で 4 内訳を DB 保存化) */}
-      <SectionShell title="② 入電" subtitle="入力 4項目 + 自動計算 (入電数 / 入電単価)">
+      <SectionShell title="② 入電" subtitle="入力 4項目 + 自動計算 (入電数 / 入電単価)" group="acq">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           {CALL_CHANNEL_KEYS.map((key) => {
             const dbKey = CALL_CHANNEL_TO_DB[key];
@@ -201,7 +201,7 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
       </SectionShell>
 
       {/* ③ 獲得セクション (PR #58b で 6 内訳を DB 保存化、PR #57 同型) */}
-      <SectionShell title="③ 獲得" subtitle="入力 6項目 (3 媒体 × 2 カテゴリ) + 自動計算 (合計獲得件数 / 獲得単価)">
+      <SectionShell title="③ 獲得" subtitle="入力 6項目 (3 媒体 × 2 カテゴリ) + 自動計算 (合計獲得件数 / 獲得単価)" group="acq">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           {ACQ_CHANNEL_KEYS.map((key) => {
             const dbKey = ACQ_CHANNEL_TO_DB[key];
@@ -224,7 +224,7 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
       </SectionShell>
 
       {/* ④ 面談プロセス セクション (PR #53 で面談数/キャンセル数を DB 化) */}
-      <SectionShell title="④ 面談プロセス" subtitle="入力 3項目 + 自動計算 (アポ獲得率 / 面談率 / 成約率)">
+      <SectionShell title="④ 面談プロセス" subtitle="入力 3項目 + 自動計算 (アポ獲得率 / 面談率 / 成約率)" group="acq">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           <NumberField field="detective_cancel_count" label="面談事前キャンセル数" unit="件"
             value={state.detective_cancel_count}
