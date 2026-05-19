@@ -32,7 +32,10 @@
 //   面談率        = 面談数 ÷ 総獲得件数 × 100
 //   成約率        = 成約件数 ÷ 面談数 × 100
 
+import React from "react";
 import { yen, type Targets } from "../lib/calculations";
+import { MetricBadge, type GroupType } from "./ui";
+import { getGroupBorderColor } from "./dashboard/metric-groups";
 
 type Props = {
   monthlySummary: Record<string, unknown> | null;
@@ -102,7 +105,7 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
       <SectionLabel>探偵業態 — フォーム連動 KPI 一覧 (面談ファネル含む)</SectionLabel>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {/* ① 新規対応 */}
-        <Card title="① 新規対応 (売上・コスト・営業利益)">
+        <Card title="① 新規対応 (売上・コスト・営業利益)" group="rev">
           <Row label="売上"   actual={fmtYen(sales)}    target={fmtYen(targetSales)}   achievement={achv(sales, targetSales)} />
           <Row label="広告費 (探偵LP)" actual={fmtYen(adCost)} target={fmtYen(targetAdCost)} achievement={achv(adCost, targetAdCost, true)} sub={`売上比 ${fmtPct(ratio(adCost))}`} />
           <Row label="販管費" actual={fmtYen(sellingAdminCost)} target="—" sub="記録のみ (営業利益式は変更なし)" />
@@ -110,7 +113,7 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
         </Card>
 
         {/* ② 入電 (PR #57 で 4 内訳 DB 化、実値表示) */}
-        <Card title="② 入電">
+        <Card title="② 入電" group="acq">
           <Row label="電のみ 入電"     actual={fmtCount(phoneOnlyCount)} target="—" />
           <Row label="メールのみ 入電" actual={fmtCount(mailOnlyCount)}  target="—" />
           <Row label="LINEのみ 入電"   actual={fmtCount(lineOnlyCount)}  target="—" />
@@ -120,7 +123,7 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
         </Card>
 
         {/* ③ 獲得 (PR #58b で 6 内訳 DB 化、実値表示) */}
-        <Card title="③ 獲得 (6 内訳)">
+        <Card title="③ 獲得 (6 内訳)" group="acq">
           <Row label="電話 × 浮気"     actual={fmtCount(acqPhoneUwaki)} target="—" />
           <Row label="電話 × その他"   actual={fmtCount(acqPhoneOther)} target="—" />
           <Row label="メール × 浮気"   actual={fmtCount(acqMailUwaki)}  target="—" />
@@ -136,7 +139,7 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
         </Card>
 
         {/* ④ 面談プロセス (探偵専用、PR #53 で面談数 / キャンセル数 DB 化) */}
-        <Card title="④ 面談プロセス (探偵専用ファネル)">
+        <Card title="④ 面談プロセス (探偵専用ファネル)" group="acq">
           <Row label="アポ獲得率"
             actual={fmtPct(appointmentRate)}
             target={fmtPct(targetConvRate)}
@@ -183,7 +186,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+// PR #59 c1: Card は group を受け取り、子 <Row> 全てに cloneElement で注入する。
+function Card({ title, group, children }: { title: string; group: GroupType; children: React.ReactNode }) {
+  const childrenWithGroup = React.Children.map(children, (child) =>
+    React.isValidElement(child)
+      ? React.cloneElement(child as React.ReactElement<{ group?: GroupType }>, { group })
+      : child
+  );
   return (
     <div style={{
       background: "#fff", borderRadius: 12,
@@ -213,14 +222,14 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
             ))}
           </tr>
         </thead>
-        <tbody>{children}</tbody>
+        <tbody>{childrenWithGroup}</tbody>
       </table>
     </div>
   );
 }
 
 function Row({
-  label, actual, target, achievement, sub, highlight,
+  label, actual, target, achievement, sub, highlight, group,
 }: {
   label: string;
   actual: string;
@@ -228,35 +237,35 @@ function Row({
   achievement?: { pct: number; status: "good" | "warn" | "bad" } | null;
   sub?: string;
   highlight?: boolean;
+  /** PR #59 c1: 親 Card から cloneElement で注入される */
+  group?: GroupType;
 }) {
   const td: React.CSSProperties = {
     padding: "9px 12px", fontSize: 12, color: "#374151",
     borderBottom: "1px solid #f5faf5", whiteSpace: "nowrap",
   };
   const bg = highlight ? "#f0fdf4" : "transparent";
-
-  const achColor =
-    !achievement ? "#9ca3af" :
-    achievement.status === "good" ? "#065f46" :
-    achievement.status === "warn" ? "#854d0e" : "#991b1b";
-  const achBg =
-    !achievement ? "transparent" :
-    achievement.status === "good" ? "#d1fae5" :
-    achievement.status === "warn" ? "#fef9c3" : "#fee2e2";
+  const borderColor = group ? getGroupBorderColor(group) : "transparent";
 
   return (
     <tr style={{ background: bg }}>
-      <td style={{ ...td, textAlign: "left", fontWeight: highlight ? 800 : 700, color: highlight ? "#065f46" : "#111" }}>
+      <td style={{
+        ...td, textAlign: "left", fontWeight: highlight ? 800 : 700,
+        color: highlight ? "#065f46" : "#111",
+        borderLeft: `3px solid ${borderColor}`,
+      }}>
         {label}
       </td>
       <td style={{ ...td, textAlign: "right", fontWeight: 700, color: highlight ? "#065f46" : "#111" }}>{actual}</td>
       <td style={{ ...td, textAlign: "right", color: "#6b7280" }}>{target}</td>
       <td style={{ ...td, textAlign: "right" }}>
         {achievement ? (
-          <span style={{
-            display: "inline-block", padding: "2px 8px", borderRadius: 4,
-            fontSize: 11, fontWeight: 700, color: achColor, background: achBg,
-          }}>{achievement.pct.toFixed(1)}%</span>
+          <MetricBadge
+            color={achievement.status === "good" ? "green" : achievement.status === "warn" ? "yellow" : "red"}
+            minWidth={false}
+          >
+            {achievement.pct.toFixed(1)}%
+          </MetricBadge>
         ) : sub ? (
           <span style={{ fontSize: 10, color: "#9ca3af" }}>{sub}</span>
         ) : (

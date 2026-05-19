@@ -21,7 +21,10 @@
 //   CPA      = 広告費 ÷ 総獲得件数
 //   成約率   = 総獲得件数 ÷ 総入電件数 × 100
 
+import React from "react";
 import { yen, type Targets } from "../lib/calculations";
+import { MetricBadge, type GroupType } from "./ui";
+import { getGroupBorderColor } from "./dashboard/metric-groups";
 
 type Props = {
   monthlySummary: Record<string, unknown> | null;
@@ -86,7 +89,7 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
       <SectionLabel>ロード業態 — フォーム連動 KPI 一覧</SectionLabel>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {/* ① 新規対応 */}
-        <Card title="① 新規対応 (売上・コスト・粗利)">
+        <Card title="① 新規対応 (売上・コスト・粗利)" group="rev">
           <Row label="売上"   actual={fmtYen(sales)}     target={fmtYen(targetSales)}   achievement={achv(sales, targetSales)} />
           <Row label="保険売上"   actual={fmtYen(insuranceRevenue)}    target="—" sub="保険業務由来の売上" />
           <Row label="無保険売上" actual={fmtYen(nonInsuranceRevenue)} target="—" sub="保険業務以外の売上" />
@@ -97,7 +100,7 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
         </Card>
 
         {/* ② 入電 (PR #58c で 7 内訳 DB 化) */}
-        <Card title="② 入電 (7 内訳)">
+        <Card title="② 入電 (7 内訳)" group="acq">
           <Row label="広告 入電"       actual={fmtCount(callAd)}       target="—" />
           <Row label="リピート 入電"   actual={fmtCount(callRepeat)}   target="—" />
           <Row label="紹介 入電"       actual={fmtCount(callReferral)} target="—" />
@@ -110,7 +113,7 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
         </Card>
 
         {/* ③ 獲得 (PR #52 で 7 内訳 DB 化) */}
-        <Card title="③ 獲得 (7 内訳)">
+        <Card title="③ 獲得 (7 内訳)" group="acq">
           <Row label="広告 獲得"       actual={fmtCount(acqAd)}        target="—" />
           <Row label="リピート 獲得"   actual={fmtCount(acqRepeat)}    target="—" />
           <Row label="紹介 獲得"       actual={fmtCount(acqReferral)}  target="—" />
@@ -140,7 +143,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+// PR #59 c1: Card は group を受け取り、子 <Row> 全てに cloneElement で注入する。
+function Card({ title, group, children }: { title: string; group: GroupType; children: React.ReactNode }) {
+  const childrenWithGroup = React.Children.map(children, (child) =>
+    React.isValidElement(child)
+      ? React.cloneElement(child as React.ReactElement<{ group?: GroupType }>, { group })
+      : child
+  );
   return (
     <div style={{
       background: "#fff", borderRadius: 12,
@@ -170,14 +179,14 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
             ))}
           </tr>
         </thead>
-        <tbody>{children}</tbody>
+        <tbody>{childrenWithGroup}</tbody>
       </table>
     </div>
   );
 }
 
 function Row({
-  label, actual, target, achievement, sub, highlight,
+  label, actual, target, achievement, sub, highlight, group,
 }: {
   label: string;
   actual: string;
@@ -185,35 +194,35 @@ function Row({
   achievement?: { pct: number; status: "good" | "warn" | "bad" } | null;
   sub?: string;
   highlight?: boolean;
+  /** PR #59 c1: 親 Card から cloneElement で注入される */
+  group?: GroupType;
 }) {
   const td: React.CSSProperties = {
     padding: "9px 12px", fontSize: 12, color: "#374151",
     borderBottom: "1px solid #f5faf5", whiteSpace: "nowrap",
   };
   const bg = highlight ? "#f0fdf4" : "transparent";
-
-  const achColor =
-    !achievement ? "#9ca3af" :
-    achievement.status === "good" ? "#065f46" :
-    achievement.status === "warn" ? "#854d0e" : "#991b1b";
-  const achBg =
-    !achievement ? "transparent" :
-    achievement.status === "good" ? "#d1fae5" :
-    achievement.status === "warn" ? "#fef9c3" : "#fee2e2";
+  const borderColor = group ? getGroupBorderColor(group) : "transparent";
 
   return (
     <tr style={{ background: bg }}>
-      <td style={{ ...td, textAlign: "left", fontWeight: highlight ? 800 : 700, color: highlight ? "#065f46" : "#111" }}>
+      <td style={{
+        ...td, textAlign: "left", fontWeight: highlight ? 800 : 700,
+        color: highlight ? "#065f46" : "#111",
+        borderLeft: `3px solid ${borderColor}`,
+      }}>
         {label}
       </td>
       <td style={{ ...td, textAlign: "right", fontWeight: 700, color: highlight ? "#065f46" : "#111" }}>{actual}</td>
       <td style={{ ...td, textAlign: "right", color: "#6b7280" }}>{target}</td>
       <td style={{ ...td, textAlign: "right" }}>
         {achievement ? (
-          <span style={{
-            display: "inline-block", padding: "2px 8px", borderRadius: 4,
-            fontSize: 11, fontWeight: 700, color: achColor, background: achBg,
-          }}>{achievement.pct.toFixed(1)}%</span>
+          <MetricBadge
+            color={achievement.status === "good" ? "green" : achievement.status === "warn" ? "yellow" : "red"}
+            minWidth={false}
+          >
+            {achievement.pct.toFixed(1)}%
+          </MetricBadge>
         ) : sub ? (
           <span style={{ fontSize: 10, color: "#9ca3af" }}>{sub}</span>
         ) : (

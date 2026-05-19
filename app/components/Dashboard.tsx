@@ -21,6 +21,33 @@ import RoadDashboardSection from "./RoadDashboardSection";
 import DetectiveDashboardSection from "./DetectiveDashboardSection";
 import ElectricDashboardSection from "./ElectricDashboardSection";
 import { resolveTotalProfit } from "../lib/profit";
+import { MetricBadge, getBadgeColor, type GroupType } from "./ui";
+import { getGroupBorderColor } from "./dashboard/metric-groups";
+
+// PR #59 c1: 水道 canonical 19 項目 → v9 グループ色マッピング
+// buildMetricRows (calculations.ts) は触らず Dashboard レイヤーで name→group を引く。
+// マッチしないメトリック (新規業態固有等) は row.lineColor へフォールバック。
+const WATER_METRIC_TO_GROUP: Record<string, GroupType> = {
+  "売上":         "rev",
+  "客単価":       "rev",
+  "粗利":         "rev",
+  "合計件数":     "cnt",
+  "工事件数":     "cnt",
+  "対応率":       "cnt",
+  "車両数":       "cnt",
+  "広告費":       "acq",
+  "入電件数":     "acq",
+  "入電単価":     "acq",
+  "獲得件数":     "acq",
+  "獲得単価(CPA)": "acq",
+  "成約率":       "acq",
+  "職人費":       "cost",
+  "材料費":       "cost",
+  "営業外注費":   "cost",
+  "HELP売上":     "help",
+  "HELP客単価":   "help",
+  "HELP件数":     "help",
+};
 
 // ============ エリア定義 ============
 type Area = { id: string; name: string };
@@ -1389,22 +1416,12 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 function MetricsTable({ rows }: { rows: MetricRow[] }) {
-  const badge = (level: string, text: string) => {
-    const styles: Record<string, { bg: string; color: string }> = {
-      good: { bg: "#d1fae5", color: "#065f46" },
-      warn: { bg: "#fef9c3", color: "#854d0e" },
-      bad:  { bg: "#fee2e2", color: "#991b1b" },
-      none: { bg: "transparent", color: "#d1d5db" },
-    };
-    const s = styles[level] ?? styles.none;
-    return (
-      <span style={{
-        display: "inline-block", fontSize: 10, fontWeight: 700,
-        borderRadius: 4, padding: "2px 7px",
-        background: s.bg, color: s.color,
-      }}>{text}</span>
-    );
-  };
+  // PR #59 c1: 達成率表示を <MetricBadge> に統一 (旧 local badge() 廃止)
+  const badge = (targetRatio: number | null) => (
+    <MetricBadge color={getBadgeColor(targetRatio)} minWidth={false}>
+      {targetRatio !== null ? `${targetRatio.toFixed(1)}%` : "—"}
+    </MetricBadge>
+  );
 
   return (
     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
@@ -1421,11 +1438,15 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
         </tr>
       </thead>
       <tbody>
-        {rows.map((row, i) => (
+        {rows.map((row, i) => {
+          // PR #59 c1: 水道 canonical 名で v9 グループ色を引く。未マッチは lineColor フォールバック。
+          const group = WATER_METRIC_TO_GROUP[row.name];
+          const borderColor = group ? getGroupBorderColor(group) : (row.lineColor ?? "transparent");
+          return (
           <tr key={i} style={{ borderBottom: "1px solid #f0faf0" }}>
             <td style={{
               padding: "8px 10px", fontSize: 13, fontWeight: 700, color: "#111",
-              borderLeft: `3px solid ${row.lineColor}`, paddingLeft: 10,
+              borderLeft: `3px solid ${borderColor}`, paddingLeft: 10,
             }}>{row.name}</td>
             <td style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#111", textAlign: "right" }}>
               {row.value}
@@ -1448,16 +1469,14 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
             </td>
             <td style={{ padding: "8px 10px", textAlign: "right" }}>
               {row.targetRatio !== null
-                ? badge(row.targetRatio >= 100 ? "good" : row.targetRatio >= 80 ? "warn" : "bad", `${row.targetRatio.toFixed(1)}%`)
+                ? badge(row.targetRatio)
                 : <span style={{ color: "#d1d5db", fontSize: 10 }}>未設定</span>}
             </td>
             <td style={{ padding: "8px 10px", textAlign: "right" }}>
               {row.landingRate !== null ? (
-                <span style={{
-                  display: "inline-block", fontSize: 10, fontWeight: 700, borderRadius: 3, padding: "2px 7px",
-                  background: row.landingRate >= 100 ? "#d1fae5" : row.landingRate >= 80 ? "#fef9c3" : "#fee2e2",
-                  color: row.landingRate >= 100 ? "#065f46" : row.landingRate >= 80 ? "#854d0e" : "#991b1b",
-                }}>{row.landingRate}%</span>
+                <MetricBadge color={getBadgeColor(row.landingRate)} minWidth={false}>
+                  {row.landingRate}%
+                </MetricBadge>
               ) : row.landingValue > 0 ? (
                 <span style={{ fontSize: 11, color: "#9ca3af" }}>
                   {row.name.includes("件") ? `${row.landingValue}件` : `¥${row.landingValue.toLocaleString()}`}
@@ -1467,7 +1486,8 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
               )}
             </td>
           </tr>
-        ))}
+          );
+        })}
       </tbody>
     </table>
   );
@@ -1481,21 +1501,13 @@ function DeptTable({ summary, targets, daysElapsed, daysInMonth }: {
 }) {
   const ratio = daysElapsed > 0 ? daysInMonth / daysElapsed : 0;
 
+  // PR #59 c1: DeptTable 達成率バッジも <MetricBadge> に統一
   const badge = (targetRatio: number | null) => {
     if (targetRatio === null) return <span style={{ color: "#d1d5db", fontSize: 9 }}>未設定</span>;
-    const level = targetRatio >= 100 ? "good" : targetRatio >= 80 ? "warn" : "bad";
-    const styles = {
-      good: { bg: "#d1fae5", color: "#065f46" },
-      warn: { bg: "#fef9c3", color: "#854d0e" },
-      bad:  { bg: "#fee2e2", color: "#991b1b" },
-    } as const;
-    const s = styles[level];
     return (
-      <span style={{
-        display: "inline-block", fontSize: 10, fontWeight: 700,
-        borderRadius: 4, padding: "2px 7px",
-        background: s.bg, color: s.color,
-      }}>{targetRatio.toFixed(1)}%</span>
+      <MetricBadge color={getBadgeColor(targetRatio)} minWidth={false}>
+        {targetRatio.toFixed(1)}%
+      </MetricBadge>
     );
   };
 
