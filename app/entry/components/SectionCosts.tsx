@@ -16,7 +16,7 @@ type Props = {
 
 export default function SectionCosts({ state, setField, validateField, errors, labels }: Props) {
   return (
-    <SectionShell title={labels.section_costs} subtitle="入力 4項目">
+    <SectionShell title={labels.section_costs} subtitle="入力 4項目" group="cost">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         <NumberField field="total_labor_cost" label={labels.total_labor_cost} unit="円"
           value={state.total_labor_cost} onChange={(v) => setField("total_labor_cost", v)}
