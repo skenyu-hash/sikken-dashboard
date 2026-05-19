@@ -1468,7 +1468,8 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
       <thead>
         <tr style={{ background: "#ecfdf5" }}>
-          {["指標", "実績", "売上比", "目標比", "着地見込"].map((h) => (
+          {/* PR #59 c3: 列名 v9 統一 — 目標比→達成率、着地見込→月末予測 */}
+          {["指標", "実績", "売上比", "達成率", "月末予測"].map((h) => (
             <th key={h} style={{
               padding: "7px 10px", fontSize: 10, fontWeight: 700,
               color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
@@ -1513,11 +1514,21 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
                 ? badge(row.targetRatio)
                 : <span style={{ color: "#d1d5db", fontSize: 10 }}>未設定</span>}
             </td>
+            {/* PR #59 c3: 月末予測セル 2 段化 (バッジ + landingValue 絶対値併記)。
+                landingValue は MetricRow に number 型で既存 (calculations.ts 不変)。
+                達成率セルの絶対値併記は本 PR スコープ外 (c4 以降 / 別 PR で再検討)。 */}
             <td style={{ padding: "8px 10px", textAlign: "right" }}>
               {row.landingRate !== null ? (
-                <MetricBadge color={getBadgeColor(row.landingRate)} minWidth={false}>
-                  {row.landingRate}%
-                </MetricBadge>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                  <MetricBadge color={getBadgeColor(row.landingRate)} minWidth={false}>
+                    {row.landingRate}%
+                  </MetricBadge>
+                  {row.landingValue > 0 && (
+                    <span style={{ fontSize: 10, color: "#9ca3af", fontVariantNumeric: "tabular-nums" }}>
+                      {row.name.includes("件") ? `${row.landingValue}件` : `¥${row.landingValue.toLocaleString()}`}
+                    </span>
+                  )}
+                </div>
               ) : row.landingValue > 0 ? (
                 <span style={{ fontSize: 11, color: "#9ca3af" }}>
                   {row.name.includes("件") ? `${row.landingValue}件` : `¥${row.landingValue.toLocaleString()}`}
