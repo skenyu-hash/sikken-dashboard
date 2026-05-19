@@ -59,7 +59,22 @@ textarea {
 
 @media (max-width: 640px) {
   .kpi-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
-  .kpi-grid-5 { grid-template-columns: repeat(2, 1fr) !important; }
+  /* PR #59 c4: KPI 5 枚はモバイルで横スクロール 1 段に変更 (Hero amber 枠の縦長変形回避) */
+  .kpi-grid-5 {
+    grid-template-columns: none !important;
+    display: flex !important;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .kpi-grid-5 > * {
+    flex: 0 0 calc(80% - 8px);
+    scroll-snap-align: start;
+    min-width: 200px;
+    /* Hero amber 枠 (PR #59 c2) が押し縮められないよう border-box で固定 */
+    box-sizing: border-box;
+  }
   .kpi-grid-6 { grid-template-columns: repeat(2, 1fr) !important; }
   .metrics-grid-2col { grid-template-columns: 1fr !important; }
   .table-scroll-mobile { overflow-x: auto; -webkit-overflow-scrolling: touch; }

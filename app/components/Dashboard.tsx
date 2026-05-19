@@ -1239,7 +1239,8 @@ export default function Dashboard() {
       {!isGroup && activeBusiness !== "locksmith" && activeBusiness !== "road" && activeBusiness !== "detective" && activeBusiness !== "electric" && (
         <section style={{ marginBottom: 16 }}>
           <SectionLabel>全17項目 指標一覧</SectionLabel>
-          <div className="metrics-grid-2col" style={{
+          {/* PR #59 c4: PC 版 (≥641px) は現状の左右 2 列テーブル維持 */}
+          <div className="hide-mobile metrics-grid-2col" style={{
             display: "grid", gridTemplateColumns: "1fr 1fr", background: "#fff",
             borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden",
           }}>
@@ -1249,6 +1250,10 @@ export default function Dashboard() {
             <div className="table-scroll-mobile" style={{ minWidth: 0 }}>
               <MetricsTable rows={metricRowsResult.right} />
             </div>
+          </div>
+          {/* PR #59 c4: モバイル版 (≤640px) は 5 グループアコーディオン */}
+          <div className="show-mobile" style={{ display: "none" }}>
+            <MetricsTableMobile rows={[...metricRowsResult.left, ...metricRowsResult.right]} />
           </div>
         </section>
       )}
@@ -1542,6 +1547,133 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
         })}
       </tbody>
     </table>
+  );
+}
+
+// PR #59 c4: モバイル版 17 項目テーブル (5 グループ・アコーディオン)。
+//   - WATER_METRIC_TO_GROUP で各行を rev/cnt/acq/cost/help に分類
+//   - useState で開閉状態管理 (default: rev のみ open、Hero の優先順位と整合)
+//   - PC レイアウト (≥641px) では .show-mobile が display:none で非表示
+//   - 行レイアウトはコンパクト 2 段 (上: ラベル + 実績、下: 達成率 / 月末予測 % + 絶対値)
+//   - 売上比 / subValue はモバイルでは省略 (画面占有最小化、PC で確認可能)
+function MetricsTableMobile({ rows }: { rows: MetricRow[] }) {
+  const [openGroups, setOpenGroups] = useState<Set<GroupType>>(new Set(["rev"]));
+
+  const grouped: Record<GroupType, MetricRow[]> = { rev: [], cnt: [], acq: [], cost: [], help: [] };
+  const ungrouped: MetricRow[] = [];
+  for (const row of rows) {
+    const g = WATER_METRIC_TO_GROUP[row.name];
+    if (g) grouped[g].push(row);
+    else ungrouped.push(row);
+  }
+
+  const GROUP_ORDER: GroupType[] = ["rev", "cnt", "acq", "cost", "help"];
+  const GROUP_LABELS_ACC: Record<GroupType, string> = {
+    rev: "① 収益", cnt: "② 件数", acq: "③ 集客", cost: "④ コスト", help: "⑤ HELP",
+  };
+  const GROUP_HEADER_BG: Record<GroupType, string> = {
+    rev: "#ecfdf5", cnt: "#eff6ff", acq: "#fef3c7", cost: "#fce7f3", help: "#f3e8ff",
+  };
+
+  const toggleGroup = (g: GroupType) => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g); else next.add(g);
+      return next;
+    });
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+      {GROUP_ORDER.map((g) => {
+        const items = grouped[g];
+        if (items.length === 0) return null;
+        const isOpen = openGroups.has(g);
+        const borderColor = getGroupBorderColor(g);
+        return (
+          <div key={g} style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e7eb", background: "#fff" }}>
+            <button
+              type="button"
+              onClick={() => toggleGroup(g)}
+              style={{
+                width: "100%", padding: "10px 12px",
+                background: GROUP_HEADER_BG[g], color: borderColor,
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700,
+                borderBottom: isOpen ? `1px solid ${borderColor}22` : "none",
+              }}
+              aria-expanded={isOpen}
+            >
+              <span>{GROUP_LABELS_ACC[g]} ({items.length} 項目)</span>
+              <span style={{ fontSize: 11 }}>{isOpen ? "▼" : "▶"}</span>
+            </button>
+            {isOpen && (
+              <div>
+                {items.map((row, i) => (
+                  <MobileMetricRow key={i} row={row} borderColor={borderColor} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {ungrouped.length > 0 && (
+        <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e7eb", background: "#fff" }}>
+          {ungrouped.map((row, i) => (
+            <MobileMetricRow key={i} row={row} borderColor="#9ca3af" />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileMetricRow({ row, borderColor }: { row: MetricRow; borderColor: string }) {
+  const numStyle: React.CSSProperties = {
+    fontSize: 10, color: "#9ca3af", fontVariantNumeric: "tabular-nums",
+  };
+  return (
+    <div style={{
+      padding: "8px 12px",
+      borderLeft: `3px solid ${borderColor}`,
+      borderBottom: "1px solid #f5faf5",
+      fontSize: 12,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#111" }}>{row.name}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#111", fontVariantNumeric: "tabular-nums" }}>{row.value}</span>
+      </div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        {row.targetRatio !== null ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 10, color: "#6b7280" }}>達成率</span>
+            <MetricBadge color={getBadgeColor(row.targetRatio)} minWidth={false}>
+              {row.targetRatio.toFixed(1)}%
+            </MetricBadge>
+          </span>
+        ) : null}
+        {row.landingRate !== null ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 10, color: "#6b7280" }}>月末予測</span>
+            <MetricBadge color={getBadgeColor(row.landingRate)} minWidth={false}>
+              {row.landingRate}%
+            </MetricBadge>
+            {row.landingValue > 0 && (
+              <span style={numStyle}>
+                {row.name.includes("件") ? `${row.landingValue}件` : `¥${row.landingValue.toLocaleString()}`}
+              </span>
+            )}
+          </span>
+        ) : row.landingValue > 0 ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 10, color: "#6b7280" }}>月末予測</span>
+            <span style={numStyle}>
+              {row.name.includes("件") ? `${row.landingValue}件` : `¥${row.landingValue.toLocaleString()}`}
+            </span>
+          </span>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
