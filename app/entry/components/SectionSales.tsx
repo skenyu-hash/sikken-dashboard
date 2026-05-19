@@ -18,7 +18,7 @@ type Props = {
 
 export default function SectionSales({ state, setField, validateField, errors, labels, calc }: Props) {
   return (
-    <SectionShell title={labels.section_sales} subtitle="入力 7項目 + 自動計算 3項目">
+    <SectionShell title={labels.section_sales} subtitle="入力 7項目 + 自動計算 3項目" group="rev">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         {/* 売上系 (f2, f3) → auto f1 */}
         <NumberField field="outsourced_sales_revenue" label={labels.outsourced_sales_revenue} unit="円"

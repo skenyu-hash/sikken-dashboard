@@ -18,7 +18,7 @@ type Props = {
 
 export default function SectionAcquisition({ state, setField, validateField, errors, labels, calc }: Props) {
   return (
-    <SectionShell title={labels.section_acquisition} subtitle="入力 3項目 + 自動計算 3項目">
+    <SectionShell title={labels.section_acquisition} subtitle="入力 3項目 + 自動計算 3項目" group="acq">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
         <NumberField field="ad_cost" label={labels.ad_cost} unit="円"
           value={state.ad_cost} onChange={(v) => setField("ad_cost", v)}

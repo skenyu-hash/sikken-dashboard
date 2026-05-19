@@ -26,7 +26,7 @@ type Props = {
 export default function SectionConstruction({ state, setField, validateField, errors, labels, calc, showSwitchboardCount }: Props) {
   const subtitle = showSwitchboardCount ? "入力 5項目 + 自動計算 2項目" : "入力 4項目 + 自動計算 2項目";
   return (
-    <SectionShell title={labels.section_construction} subtitle={subtitle}>
+    <SectionShell title={labels.section_construction} subtitle={subtitle} group="cnt">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         <NumberField field="outsourced_construction_count" label={labels.outsourced_construction_count} unit="件"
           value={state.outsourced_construction_count} onChange={(v) => setField("outsourced_construction_count", v)}

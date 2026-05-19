@@ -18,7 +18,7 @@ type Props = {
 
 export default function SectionHelp({ state, setField, validateField, errors, labels, calc }: Props) {
   return (
-    <SectionShell title={labels.section_help} subtitle="入力 2項目 + 自動計算 1項目">
+    <SectionShell title={labels.section_help} subtitle="入力 2項目 + 自動計算 1項目" group="help">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         <NumberField field="help_count" label={labels.help_count} unit="件"
           value={state.help_count} onChange={(v) => setField("help_count", v)}
