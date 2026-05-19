@@ -137,7 +137,7 @@ export default function RoadForm({ state, setField, validateField, errors, label
   return (
     <>
       {/* ① 新規対応セクション (PR #58c で保険売上 2 分割・販管費を DB 化) */}
-      <SectionShell title={labels.section_sales} subtitle="入力 6項目 (販管費は記録のみ) + 自動計算 (売上比 / 粗利)">
+      <SectionShell title={labels.section_sales} subtitle="入力 6項目 (販管費は記録のみ) + 自動計算 (売上比 / 粗利)" group="rev">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           <NumberField field="outsourced_sales_revenue" label={labels.total_revenue} unit="円"
             value={state.outsourced_sales_revenue} onChange={(v) => setField("outsourced_sales_revenue", v)}
@@ -183,7 +183,7 @@ export default function RoadForm({ state, setField, validateField, errors, label
       </SectionShell>
 
       {/* ② 入電セクション (PR #58c で 7 内訳を DB 保存化、PR #58b 同型) */}
-      <SectionShell title="② 入電" subtitle="入力 7項目 + 自動計算 (総入電件数 / 入電単価)">
+      <SectionShell title="② 入電" subtitle="入力 7項目 + 自動計算 (総入電件数 / 入電単価)" group="acq">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           {CHANNEL_KEYS.map((key) => (
             <NumberField key={key} field={CALL_FIELD[key]} label={CHANNEL_LABELS[key]} unit="件"
@@ -203,7 +203,7 @@ export default function RoadForm({ state, setField, validateField, errors, label
       </SectionShell>
 
       {/* ③ 獲得セクション (PR #52 で 7 内訳を DB 保存化) */}
-      <SectionShell title="③ 獲得" subtitle="入力 7項目 + 自動計算 (総獲得件数 / 獲得単価 / 成約率)">
+      <SectionShell title="③ 獲得" subtitle="入力 7項目 + 自動計算 (総獲得件数 / 獲得単価 / 成約率)" group="acq">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           {CHANNEL_KEYS.map((key) => (
             <NumberField key={key} field={ACQ_FIELD[key]} label={CHANNEL_LABELS[key]} unit="件"
