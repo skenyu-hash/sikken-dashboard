@@ -1014,64 +1014,105 @@ export default function Dashboard() {
             const lCount = landing(displaySummary.totalCount);
             // 客単価の landing は比例関係上 actual と等しい (lRevenue/lCount = currentRevenue/currentCount)
             const unitPriceActual = displaySummary.companyUnitPrice;
+            // PR #59 c2: 目標絶対値併記用ヘルパー (円系/件数系で単位を切替)
+            const fmtCount = (v: number) => `${v.toLocaleString()}件`;
             const kpis = [
-              { label: "売上", val: yen(displaySummary.totalRevenue),
+              { label: "売上", val: yen(displaySummary.totalRevenue), isHero: true,
                 targetRatio: targets.targetSales > 0 ? Math.round(displaySummary.totalRevenue / targets.targetSales * 1000) / 10 : null,
+                targetLabel: targets.targetSales > 0 ? yen(targets.targetSales) : null,
                 landRate: lRate(lRevenue, targets.targetSales), landLabel: lRevenue > 0 ? yen(lRevenue) : null, landInvert: false,
                 momVal: momRevenue, momInvert: false,
                 momDiff: momRevenue !== null ? `${displaySummary.totalRevenue - prevSummaryCalc.totalRevenue >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalRevenue - prevSummaryCalc.totalRevenue).toLocaleString()}` : null,
               },
-              { label: "粗利", val: yen(displaySummary.totalProfit),
+              { label: "粗利", val: yen(displaySummary.totalProfit), isHero: false,
                 targetRatio: targets.targetProfit > 0 ? Math.round(displaySummary.totalProfit / targets.targetProfit * 1000) / 10 : null,
+                targetLabel: targets.targetProfit > 0 ? yen(targets.targetProfit) : null,
                 landRate: lRate(lProfit, targets.targetProfit), landLabel: lProfit > 0 ? yen(lProfit) : null, landInvert: false,
                 momVal: momProfit, momInvert: false,
                 momDiff: momProfit !== null ? `${displaySummary.totalProfit - prevSummaryCalc.totalProfit >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalProfit - prevSummaryCalc.totalProfit).toLocaleString()}` : null,
               },
-              { label: "対応件数", val: `${displaySummary.totalCount}件`,
+              { label: "対応件数", val: `${displaySummary.totalCount}件`, isHero: false,
                 targetRatio: targets.targetCount > 0 ? Math.round(displaySummary.totalCount / targets.targetCount * 1000) / 10 : null,
+                targetLabel: targets.targetCount > 0 ? fmtCount(targets.targetCount) : null,
                 landRate: lRate(lCount, targets.targetCount), landLabel: lCount > 0 ? `${lCount}件` : null, landInvert: false,
                 momVal: momCount, momInvert: false,
                 momDiff: momCount !== null ? `${displaySummary.totalCount - prevSummaryCalc.totalCount >= 0 ? "+" : ""}${displaySummary.totalCount - prevSummaryCalc.totalCount}件` : null,
               },
-              { label: "客単価", val: yen(unitPriceActual),
+              { label: "客単価", val: yen(unitPriceActual), isHero: false,
                 targetRatio: targets.targetUnitPrice > 0 ? Math.round(unitPriceActual / targets.targetUnitPrice * 1000) / 10 : null,
+                targetLabel: targets.targetUnitPrice > 0 ? yen(targets.targetUnitPrice) : null,
                 // 客単価は比例ゆえ landing = actual (詳細は上のコメント参照)
                 landRate: lRate(unitPriceActual, targets.targetUnitPrice), landLabel: unitPriceActual > 0 ? yen(unitPriceActual) : null, landInvert: false,
                 momVal: momUnitPrice, momInvert: false,
                 momDiff: momUnitPrice !== null ? `${unitPriceActual - prevSummaryCalc.companyUnitPrice >= 0 ? "+" : ""}¥${Math.abs(unitPriceActual - prevSummaryCalc.companyUnitPrice).toLocaleString()}` : null,
               },
-              { label: "広告費", val: yen(displaySummary.totalAdCost),
+              { label: "広告費", val: yen(displaySummary.totalAdCost), isHero: false,
                 targetRatio: targets.targetAdCost > 0 ? Math.round(displaySummary.totalAdCost / targets.targetAdCost * 1000) / 10 : null,
+                targetLabel: targets.targetAdCost > 0 ? yen(targets.targetAdCost) : null,
                 landRate: lRate(lAdCost, targets.targetAdCost), landLabel: lAdCost > 0 ? yen(lAdCost) : null, landInvert: true,
                 momVal: momAdCost, momInvert: true,
                 momDiff: momAdCost !== null ? `${displaySummary.totalAdCost - prevSummaryCalc.totalAdCost >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalAdCost - prevSummaryCalc.totalAdCost).toLocaleString()}` : null,
               },
             ];
+            // PR #59 c2: invert 考慮の badge 色判定 (広告費等の cost 系)
+            const kpiBadgeColor = (pct: number, invert: boolean): "green" | "yellow" | "red" => {
+              if (invert) {
+                if (pct <= 100) return "green";
+                if (pct <= 120) return "yellow";
+                return "red";
+              }
+              if (pct >= 100) return "green";
+              if (pct >= 80) return "yellow";
+              return "red";
+            };
+            // PR #59 c2: 絶対値表示 (薄緑色) 共通スタイル
+            const numStyle: React.CSSProperties = {
+              fontSize: 11, color: "#a7f3d0",
+              fontVariantNumeric: "tabular-nums",
+            };
             return (
               <div className="kpi-grid-5" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
                 {kpis.map((kpi) => (
-                  <div key={kpi.label} style={{ padding: "14px 18px", borderRight: "1px solid rgba(255,255,255,0.12)" }}>
+                  <div key={kpi.label} style={{
+                    padding: "14px 18px",
+                    // PR #59 c2 Hero: 売上は amber 1.5px 枠 + 右上「最優先」タグ、border-right 抑制
+                    borderRight: kpi.isHero ? "none" : "1px solid rgba(255,255,255,0.12)",
+                    border: kpi.isHero ? "1.5px solid #fbbf24" : undefined,
+                    borderRadius: kpi.isHero ? 6 : undefined,
+                    position: kpi.isHero ? "relative" : undefined,
+                  }}>
+                    {kpi.isHero && (
+                      <span style={{
+                        position: "absolute", top: -8, right: 10,
+                        background: "#fbbf24", color: "#422006",
+                        fontSize: 10, fontWeight: 500,
+                        padding: "2px 8px", borderRadius: 4,
+                      }}>最優先</span>
+                    )}
                     <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{kpi.label}</div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>{kpi.val}</div>
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 4 }}>
+                    {/* PR #59 c2: 目標 / 着地 を 2 行に分離、各行で [バッジ] [絶対値] を併記 */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 4 }}>
                       {kpi.targetRatio !== null && (
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
-                          background: kpi.targetRatio >= 100 ? "#d1fae5" : kpi.targetRatio >= 80 ? "#fef9c3" : "#fee2e2",
-                          color: kpi.targetRatio >= 100 ? "#065f46" : kpi.targetRatio >= 80 ? "#854d0e" : "#991b1b",
-                        }}>目標比 {kpi.targetRatio}%</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <MetricBadge color={kpiBadgeColor(kpi.targetRatio, false)} minWidth={false}>
+                            目標比 {kpi.targetRatio}%
+                          </MetricBadge>
+                          {kpi.targetLabel && <span style={numStyle}>{kpi.targetLabel}</span>}
+                        </div>
                       )}
                       {kpi.landRate !== null ? (
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
-                          background: kpi.landInvert
-                            ? (kpi.landRate <= 100 ? "#d1fae5" : kpi.landRate <= 120 ? "#fef9c3" : "#fee2e2")
-                            : (kpi.landRate >= 100 ? "#d1fae5" : kpi.landRate >= 80 ? "#fef9c3" : "#fee2e2"),
-                          color: kpi.landInvert
-                            ? (kpi.landRate <= 100 ? "#065f46" : kpi.landRate <= 120 ? "#854d0e" : "#991b1b")
-                            : (kpi.landRate >= 100 ? "#065f46" : kpi.landRate >= 80 ? "#854d0e" : "#991b1b"),
-                        }}>着地 {kpi.landRate}%</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <MetricBadge color={kpiBadgeColor(kpi.landRate, kpi.landInvert)} minWidth={false}>
+                            着地 {kpi.landRate}%
+                          </MetricBadge>
+                          {kpi.landLabel && <span style={numStyle}>{kpi.landLabel}</span>}
+                        </div>
                       ) : kpi.landLabel ? (
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
-                          background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }}>着地 {kpi.landLabel}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                            background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }}>着地 {kpi.landLabel}</span>
+                        </div>
                       ) : null}
                     </div>
                     {kpi.momVal === null ? (
