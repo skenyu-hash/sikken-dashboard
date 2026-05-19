@@ -71,3 +71,57 @@ textarea {
 @media (min-width: 641px) {
   .show-mobile { display: none !important; }
 }
+
+/* ================================================================
+ * PR #60: SIKKEN Design System tokens
+ * Tailwind v4 @theme 直書き方式 (案 A) — CSS 変数と Tailwind ユーティリティを同時生成。
+ * 既存の :root / @theme inline {} (--background 系) には影響なし。
+ * 後続 PR #59 / #61 / #62 / #63 の UI 改修で利用。
+ * ================================================================ */
+@theme {
+  /* Brand colors (SIKKEN 深緑系) */
+  --color-brand-top: #064e3b;
+  --color-brand-grad-from: #059669;
+  --color-brand-grad-to: #047857;
+  --color-brand-text-light: #a7f3d0;
+
+  /* 5 メトリックグループ色 (rev/cnt/acq/cost/help) */
+  --color-grp-rev-bg:  #ecfdf5;
+  --color-grp-rev-fg:  #065f46;
+  --color-grp-cnt-bg:  #eff6ff;
+  --color-grp-cnt-fg:  #1e40af;
+  --color-grp-acq-bg:  #fef3c7;
+  --color-grp-acq-fg:  #854d0e;
+  --color-grp-cost-bg: #fce7f3;
+  --color-grp-cost-fg: #831843;
+  --color-grp-help-bg: #f3e8ff;
+  --color-grp-help-fg: #581c87;
+
+  /* ステータスバッジ色 (達成率判定) */
+  --color-badge-red-bg:    #fee2e2;
+  --color-badge-red-fg:    #991b1b;
+  --color-badge-green-bg:  #d1fae5;
+  --color-badge-green-fg:  #065f46;
+  --color-badge-yellow-bg: #fef3c7;
+  --color-badge-yellow-fg: #854d0e;
+  --color-badge-gray-bg:   #f3f4f6;
+  --color-badge-gray-fg:   #9ca3af;
+
+  /* 1 日あたり目安カード色 */
+  --color-daily-orange-bg:  #fff7ed;
+  --color-daily-orange-bd:  #fed7aa;
+  --color-daily-orange-fg:  #9a3412;
+  --color-daily-orange-sub: #c2410c;
+  --color-daily-green-bg:   #ecfdf5;
+  --color-daily-green-bd:   #a7f3d0;
+  --color-daily-green-fg:   #065f46;
+  --color-daily-green-sub:  #047857;
+  --color-daily-red-bg:     #fef2f2;
+  --color-daily-red-bd:     #fecaca;
+  --color-daily-red-fg:     #991b1b;
+  --color-daily-red-sub:    #b91c1c;
+
+  /* アクセント (hero card 琥珀色枠) */
+  --color-accent-amber:    #fbbf24;
+  --color-accent-amber-fg: #422006;
+}
