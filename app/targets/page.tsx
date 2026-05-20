@@ -175,7 +175,12 @@ export default function TargetsPage() {
     downloadTargetsCsv(filename, csv);
   }
 
-  // 表示モード変更時にエリアタブ初期化
+  // PR c76d: area タブ有効性 guard。
+  //   業態切替 / 表示モード切替時に「現在の area が新業態のエリアセットに
+  //   含まれない」場合のみ GROUP_TAB_ID にリセット。含まれる場合は area を保持し、
+  //   ユーザーが業態切替のたびに area を再選択する手間を解消する。
+  //   例: 関西+水道 → 電気 = 関西+電気 (kansai が両方に存在 → 保持)
+  //       関東+水道 → ロード = グループ+ロード (kanto が road になし → reset)
   useEffect(() => {
     if (viewMode === "business") {
       const biz = BUSINESSES.find((b) => b.id === activeBusiness);
@@ -184,11 +189,6 @@ export default function TargetsPage() {
       }
     }
   }, [viewMode, activeBusiness, activeAreaTab]);
-
-  // 業態切替時はグループ全体タブに戻す（既存動作の安全側維持）
-  useEffect(() => {
-    setActiveAreaTab(GROUP_TAB_ID);
-  }, [activeBusiness]);
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2" }}>
