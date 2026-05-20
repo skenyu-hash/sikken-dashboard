@@ -46,6 +46,13 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 
+// PR c89-p1 (致命的緊急 hotfix): /entry auto-save 完全停止フラグ。
+//   詳細は state-watching effect 上のコメント参照。
+//   explicit `: boolean` 注釈で literal narrowing を抑止し、TS reachability
+//   analysis を発火させない (= 後続コードに型エラーが波及しない)。
+//   Phase 2 で auto-save を再活性化する際は本フラグを false に変更するだけ。
+const AUTOSAVE_DISABLED_C89_P1: boolean = true;
+
 export type AutoSaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
 
 /** PR c6.2: saveFn の戻り値型。 boolean overload を解消し validation skip と
@@ -130,9 +137,26 @@ export function useDebouncedAutoSave<T>({
     prevEnabledRef.current = enabled;
   }, [enabled]);
 
+  // PR c89-p1 (致命的緊急 hotfix): auto-save を完全停止。
+  //   症状: state 変更 (特にカレンダー日付クリック) で POST /api/import-monthly が
+  //   発火し、現在表示中のフィールド値で monthly_summaries 行を上書き → 過去日次
+  //   データが消失。as_of_day も古い値で固定され、dashboard が「データは 5/1 時点」
+  //   表示で復旧不能になっていた。
+  //   緊急対応: state-watching effect の冒頭で AUTOSAVE_DISABLED_C89_P1 を見て
+  //   早期 return し、debounce → saveFn の発火経路を完全に遮断する。
+  //   triggerSave (確定送信ボタン用) は別 useCallback で定義されているため、
+  //   本変更の影響を受けず通常通り動作する。
+  //   Phase 2: 累積入力設計 (日次差分) と組み合わせて auto-save を再活性化する際は、
+  //   AUTOSAVE_DISABLED_C89_P1 を false にすれば既存ロジック (baseline / shallowEqual /
+  //   debounce / SaveOutcome) がそのまま復活する。基盤実装は意図的に削除せず保持。
+  //   (literal `return;` ではなく runtime const フラグ経由にしているのは、TS
+  //    reachability analysis を発火させないため — 既存 narrowing が壊れないように。)
+  //
   // PR c6.1: state 変更検知 → baseline 比較 → debounce → saveFn
   //   shallowEqual(state, baseline) なら fetch 由来の変更とみなして skip
   useEffect(() => {
+    if (AUTOSAVE_DISABLED_C89_P1) return; // PR c89-p1: auto-save 完全停止
+
     if (!enabled) return;
     if (shallowEqual(state, baselineRef.current)) return; // 差分なし = fetch 由来 → skip
 
