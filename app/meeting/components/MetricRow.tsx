@@ -90,19 +90,20 @@ export function MetricRow({
     : achievement >= 80 ? "#854d0e" : "#991b1b";
   const gapPositive = invertGap ? (gap !== null && gap <= 0) : (gap !== null && gap >= 0);
 
+  // PR #75: PC v9 装飾整理 — padding 10px 10px、各セル font 軽量化
   const td: React.CSSProperties = {
-    padding: "9px 10px", fontSize: 12, textAlign: "right",
+    padding: "10px 10px", fontSize: 12, textAlign: "right",
     color: "#374151", borderBottom: "1px solid #f0faf0",
   };
 
   return (
     <tr>
       <td style={{
-        ...td, textAlign: "left", fontWeight: 600, fontSize: 13,
+        ...td, textAlign: "left", fontWeight: 400,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>{label}</td>
-      <td style={{ ...td, fontWeight: 700, color: "#111" }}>{format(actual)}</td>
-      <td style={{ ...td, color: "#059669", fontWeight: 700 }}>
+      <td style={{ ...td, fontWeight: 500, color: "#111" }}>{format(actual)}</td>
+      <td style={{ ...td, color: "#059669", fontWeight: 500 }}>
         {isEndPeriod || isRate ? "—" : format(landing)}
       </td>
       <td style={td}>
@@ -114,32 +115,33 @@ export function MetricRow({
           }}>{achievement.toFixed(1)}%</span>
         ) : <span style={{ color: "#d1d5db", fontSize: 11 }}>未設定</span>}
       </td>
+      {/* PR #75: 目標差を mockup pattern (gap-inline) に変更
+            - 縦並び + 🎯 目標表記 → 横並び (数値 + 不足/余裕 タグ)
+            - 余裕/不足 (mobile #74 と用語統一、mockup 準拠)
+            - color: gap-num pos→#065f46 / neg→#991b1b (v9 系)、font-weight 500
+            - 🎯 目標行は削除 (target 値は別列の達成率から逆算可能、列幅有効活用) */}
       <td style={{ ...td, whiteSpace: "nowrap" }}>
         {gap === null ? <span style={{ color: "#d1d5db", fontSize: 11 }}>{"—"}</span> : (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: gapPositive ? "#059669" : "#dc2626" }}>
-                {gap >= 0 ? "+" : "−"}{format(Math.abs(gap))}
-              </span>
-              <span style={{
-                fontSize: 10, fontWeight: 600, borderRadius: 3, padding: "1px 5px", flexShrink: 0,
-                background: gapPositive ? "#d1fae5" : "#fee2e2",
-                color: gapPositive ? "#065f46" : "#991b1b",
-              }}>{gapPositive ? "超過" : "不足"}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap", justifyContent: "flex-end" }}>
+            <span style={{
+              fontSize: 12, fontWeight: 500, lineHeight: 1.1,
+              color: gapPositive ? "#065f46" : "#991b1b",
+            }}>
+              {gap >= 0 ? "+" : "−"}{format(Math.abs(gap))}
             </span>
-            {target > 0 && (
-              <span style={{
-                fontSize: 10, color: "#6b7280", fontWeight: 500,
-                borderTop: "1px dashed #e5e7eb", paddingTop: 3,
-                whiteSpace: "nowrap", textAlign: "right",
-              }}>🎯 目標: {format(target)}</span>
-            )}
-          </div>
+            <span style={{
+              fontSize: 10, fontWeight: 500, borderRadius: 3, padding: "2px 7px",
+              lineHeight: 1.3, flexShrink: 0,
+              background: gapPositive ? "#d1fae5" : "#fee2e2",
+              color: gapPositive ? "#065f46" : "#991b1b",
+            }}>{gapPositive ? "余裕" : "不足"}</span>
+          </span>
         )}
       </td>
+      {/* PR #75: 1日の目安 color #d97706 → #6b7280、font 軽量化 (mockup 準拠) */}
       <td style={td}>
         {daily > 0 && !isRate ? (
-          <span style={{ color: "#d97706", fontWeight: 700, fontSize: 12 }}>{format(daily)}</span>
+          <span style={{ color: "#6b7280", fontWeight: 400, fontSize: 11 }}>{format(daily)}</span>
         ) : <span style={{ color: "#d1d5db", fontSize: 11 }}>{"—"}</span>}
       </td>
     </tr>
@@ -299,23 +301,25 @@ export function SectionTable({
       )}
 
       {/* PC: 常時 render (isOpen に関係なく表示、会議中の一覧性優先) */}
+      {/* PR #75: 列幅再配分 (actual 17%→14%, gap 24%→26%, daily 15%→16%)、
+                  thead bg #ecfdf5→#fafafa、padding 8px→10px、font-weight 700→500、
+                  textTransform/letterSpacing 削除 (mockup 準拠) */}
       <div className="hide-mobile" style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", minWidth: 520 }}>
           <colgroup>
             <col style={{ width: "18%" }} />
-            <col style={{ width: "17%" }} />
+            <col style={{ width: "14%" }} />
             <col style={{ width: "14%" }} />
             <col style={{ width: "12%" }} />
-            <col style={{ width: "24%" }} />
-            <col style={{ width: "15%" }} />
+            <col style={{ width: "26%" }} />
+            <col style={{ width: "16%" }} />
           </colgroup>
           <thead>
-            <tr style={{ background: "#ecfdf5" }}>
+            <tr style={{ background: "#fafafa" }}>
               {["指標", "実績", "着地予測", "見込み", "目標差", "1日の目安"].map((h, i) => (
                 <th key={h} style={{
-                  padding: "8px 10px", fontSize: 10, fontWeight: 700, color: "#6b7280",
-                  textTransform: "uppercase", letterSpacing: "0.06em",
-                  borderBottom: "1px solid #d1fae5",
+                  padding: "10px 10px", fontSize: 10, fontWeight: 500, color: "#6b7280",
+                  borderBottom: "0.5px solid rgba(0,0,0,0.1)",
                   textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap",
                 }}>{h}</th>
               ))}
