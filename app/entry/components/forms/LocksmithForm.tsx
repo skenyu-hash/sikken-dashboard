@@ -107,7 +107,7 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
   return (
     <>
       {/* ① 新規対応セクション */}
-      <SectionShell title={labels.section_sales} subtitle="入力 6項目 (販管費は記録のみ) + 自動計算 (売上比 / 粗利)">
+      <SectionShell title={labels.section_sales} subtitle="入力 6項目 (販管費は記録のみ) + 自動計算 (売上比 / 粗利)" group="rev" count={11} defaultOpen>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           <NumberField field="outsourced_sales_revenue" label={labels.total_revenue} unit="円"
             value={state.outsourced_sales_revenue} onChange={(v) => setField("outsourced_sales_revenue", v)}
@@ -142,7 +142,7 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
       </SectionShell>
 
       {/* ② 入電セクション */}
-      <SectionShell title="② 入電" subtitle="入力 2項目 + 自動計算 (総入電件数 / 入電単価)">
+      <SectionShell title="② 入電" subtitle="入力 2項目 + 自動計算 (総入電件数 / 入電単価)" group="acq" count={4}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           <LocalNumberField label="車LP+メール" unit="件" value={callLpMail}
             onChange={(v) => { setCallLpMail(v); syncCallCount(v, callInhouse); }} />
@@ -160,7 +160,7 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
       </SectionShell>
 
       {/* ③ 獲得セクション (PR #51 で 4 内訳を DB 保存化) */}
-      <SectionShell title="③ 獲得" subtitle="入力 5項目 + 自動計算 (総獲得件数 / 獲得単価 / 成約率)">
+      <SectionShell title="③ 獲得" subtitle="入力 5項目 + 自動計算 (総獲得件数 / 獲得単価 / 成約率)" group="acq" count={8}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           <NumberField field="locksmith_car_lp_email_count" label="車LP+メール" unit="件"
             value={state.locksmith_car_lp_email_count}
@@ -212,7 +212,7 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
       </SectionShell>
 
       {/* ④ HELP セクション */}
-      <SectionShell title="④ HELP" subtitle="入力 1項目 + 自動計算 (HELP 客単価 / HELP 率)">
+      <SectionShell title="④ HELP" subtitle="入力 1項目 + 自動計算 (HELP 客単価 / HELP 率)" group="help" count={3}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           <NumberField field="help_revenue" label={labels.help_revenue} unit="円"
             value={state.help_revenue} onChange={(v) => setField("help_revenue", v)}

@@ -21,12 +21,15 @@ type Props = {
   calc: AutoCalcResult;
   /** 電気業態のみ true: 最下部に 分電盤件数 (switchboard_count) 入力欄を表示 */
   showSwitchboardCount?: boolean;
+  /** PR #61 c5: アコーディオン初期開閉 */
+  defaultOpen?: boolean;
 };
 
-export default function SectionConstruction({ state, setField, validateField, errors, labels, calc, showSwitchboardCount }: Props) {
+export default function SectionConstruction({ state, setField, validateField, errors, labels, calc, showSwitchboardCount, defaultOpen }: Props) {
   const subtitle = showSwitchboardCount ? "入力 5項目 + 自動計算 2項目" : "入力 4項目 + 自動計算 2項目";
+  const count = showSwitchboardCount ? 7 : 6;
   return (
-    <SectionShell title={labels.section_construction} subtitle={subtitle} group="cnt">
+    <SectionShell title={labels.section_construction} subtitle={subtitle} group="cnt" count={count} defaultOpen={defaultOpen}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         <NumberField field="outsourced_construction_count" label={labels.outsourced_construction_count} unit="件"
           value={state.outsourced_construction_count} onChange={(v) => setField("outsourced_construction_count", v)}

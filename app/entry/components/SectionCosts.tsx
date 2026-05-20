@@ -12,11 +12,13 @@ type Props = {
   validateField: (field: InputFieldKey, value: InputValue, state: EntryFormState) => boolean;
   errors: ValidationErrors;
   labels: FieldLabels;
+  /** PR #61 c5: アコーディオン初期開閉 */
+  defaultOpen?: boolean;
 };
 
-export default function SectionCosts({ state, setField, validateField, errors, labels }: Props) {
+export default function SectionCosts({ state, setField, validateField, errors, labels, defaultOpen }: Props) {
   return (
-    <SectionShell title={labels.section_costs} subtitle="入力 4項目" group="cost">
+    <SectionShell title={labels.section_costs} subtitle="入力 4項目" group="cost" count={4} defaultOpen={defaultOpen}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         <NumberField field="total_labor_cost" label={labels.total_labor_cost} unit="円"
           value={state.total_labor_cost} onChange={(v) => setField("total_labor_cost", v)}
