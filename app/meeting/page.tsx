@@ -276,7 +276,7 @@ function MeetingPageInner() {
         {activeBusiness === "water" && (
           <>
             <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14, gridAutoRows: "min-content" }}>
-              <SectionTable title="売上・粗利・件数">
+              <SectionTable title="売上・粗利・件数" group="rev" count={6} defaultOpen>
                 <MetricRow label="全体売上" actual={displaySummary.totalRevenue} target={targets.targetSales} {...meetingPeriodProps} format={fmtYen} />
                 <MetricRow label="全体粗利" actual={displaySummary.totalProfit} target={targets.targetProfit} {...meetingPeriodProps} format={fmtYen} />
                 <MetricRow label="粗利率" actual={grossRate} target={targetGrossRate} {...meetingPeriodProps} format={fmtPct} isRate />
@@ -285,7 +285,7 @@ function MeetingPageInner() {
                 <MetricRow label="対応件数" actual={displaySummary.totalCount} target={targets.targetCount} {...meetingPeriodProps} format={fmtCount} />
               </SectionTable>
 
-              <SectionTable title="広告・効率指標">
+              <SectionTable title="広告・効率指標" group="acq" count={6} defaultOpen={false}>
                 <MetricRow label="広告費" actual={displaySummary.totalAdCost} target={targets.targetAdCost} {...meetingPeriodProps} format={fmtYen} invertGap />
                 <MetricRow label="広告費率" actual={adRate} target={targets.targetAdRate} {...meetingPeriodProps} format={fmtPct} isRate invertGap />
                 <MetricRow label="入電件数" actual={callCount} target={targets.targetCallCount} {...meetingPeriodProps} format={fmtCount} />
@@ -296,7 +296,7 @@ function MeetingPageInner() {
             </div>
 
             <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <SectionTable title="HELP部門">
+              <SectionTable title="HELP部門" group="help" count={4} defaultOpen={false}>
                 <MetricRow label="HELP売上" actual={displaySummary.help.revenue} target={targets.targetHelpSales} {...meetingPeriodProps} format={fmtYen} />
                 <MetricRow label="HELP件数" actual={displaySummary.help.count} target={targets.targetHelpCount} {...meetingPeriodProps} format={fmtCount} />
                 <MetricRow label="HELP客単価" actual={displaySummary.help.unitPrice} target={targets.targetHelpUnitPrice} {...meetingPeriodProps} format={fmtYen} isRate />

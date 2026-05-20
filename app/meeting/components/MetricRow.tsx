@@ -15,8 +15,19 @@
 //
 // invertGap=true は「低いほど良い」コスト系メトリクスの評価軸反転
 // (例: 広告費は target を超えると "超過" 赤、target 以下なら "節約" 緑)
+//
+// PR #74: /meeting mobile v9 化。
+//   - SectionTable に group / count / defaultOpen prop 追加
+//   - PC は常時展開 (一覧性優先、会議中の頻繁参照画面)
+//   - Mobile はアコーディオン (第 1 のみ初期 open)
+//   - DOM 振り分け: PC は <table> (hide-mobile)、Mobile は <MobileMetricCard> 群 (show-mobile)
+//   - 各 Section の <MetricRow> 呼び出しは無変更 (SectionTable 内で cloneElement / props 取り出し)
+//   - calc 関数群 (calcLanding/calcAchievement/calcGap/calcDaily) は MetricRow と同じものを
+//     MobileMetricCard 内でも流用 (集計ロジック不変原則)
 
-import React from "react";
+import React, { useState } from "react";
+import { getGroupBorderColor, type GroupType } from "../../components/dashboard/metric-groups";
+import { GroupPill } from "../../components/ui";
 
 // ===== calc 補助関数 (export して MeetingSection からも使用可) =====
 
@@ -49,8 +60,7 @@ export type MeetingPeriodProps = {
   daysInMonth: number;    // 当該月の日数
 };
 
-// ===== MetricRow =====
-
+/** MetricRow / MobileMetricCard 共通の props 形状 */
 type MetricRowProps = MeetingPeriodProps & {
   label: string;
   actual: number;
@@ -59,6 +69,8 @@ type MetricRowProps = MeetingPeriodProps & {
   isRate?: boolean;        // %値・客単価などの率系。着地予測しない
   invertGap?: boolean;     // コスト系。値が低いほど良い (達成評価軸を反転)
 };
+
+// ===== MetricRow (PC table 用、既存挙動完全維持) =====
 
 export function MetricRow({
   label, actual, target, isEndPeriod, daysElapsed, daysInMonth,
@@ -134,20 +146,160 @@ export function MetricRow({
   );
 }
 
+// ===== MobileMetricCard (PR #74 新設、mockup mob-meeting-card pattern) =====
+
+type MobileMetricCardProps = MetricRowProps & {
+  /** SectionTable から伝播。border-left の色決定に使用 */
+  group?: GroupType;
+};
+
+function MobileMetricCard({
+  label, actual, target, isEndPeriod, daysElapsed, daysInMonth,
+  format, isRate = false, invertGap = false, group,
+}: MobileMetricCardProps) {
+  // calc 関数群は MetricRow と完全同一 (gapPositive 判定含む、集計ロジック不変)
+  const landing = isRate ? actual : calcLanding(actual, daysElapsed, daysInMonth);
+  const compareVal = isEndPeriod ? actual : landing;
+  const gap = calcGap(compareVal, target);
+  const daily = calcDaily(target, daysInMonth);
+  const gapPositive = invertGap ? (gap !== null && gap <= 0) : (gap !== null && gap >= 0);
+
+  const borderColor = group ? getGroupBorderColor(group) : "#9ca3af";
+
+  return (
+    <div style={{
+      background: "#fafafa", borderRadius: 8, padding: 12,
+      borderLeft: `3px solid ${borderColor}`,
+      fontVariantNumeric: "tabular-nums",
+    }}>
+      {/* row1: label + gap-tag (余裕/不足) */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{label}</span>
+        {gap !== null && target > 0 && (
+          <span style={{
+            display: "inline-block", padding: "1px 6px", fontSize: 9, fontWeight: 500,
+            borderRadius: 3, lineHeight: 1.3,
+            background: gapPositive ? "#d1fae5" : "#fee2e2",
+            color: gapPositive ? "#065f46" : "#991b1b",
+          }}>{gapPositive ? "余裕" : "不足"}</span>
+        )}
+      </div>
+
+      {/* row2: actual (大きく) */}
+      <div style={{ fontSize: 18, fontWeight: 500, marginBottom: 8, color: "#111" }}>
+        {format(actual)}
+      </div>
+
+      {/* row3: 3-column grid (着地予測 / 目標差 / 1日の目安) */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8,
+        paddingTop: 8, borderTop: "0.5px solid rgba(0,0,0,0.05)",
+      }}>
+        <div>
+          <span style={{ fontSize: 9, color: "#9ca3af", display: "block" }}>着地予測</span>
+          <span style={{ fontSize: 12, color: "#059669", fontWeight: 500 }}>
+            {isEndPeriod || isRate ? "—" : format(landing)}
+          </span>
+        </div>
+        <div>
+          <span style={{ fontSize: 9, color: "#9ca3af", display: "block" }}>目標差</span>
+          {gap !== null ? (
+            <span style={{
+              fontSize: 12, fontWeight: 500,
+              color: gapPositive ? "#065f46" : "#991b1b",
+            }}>{gap >= 0 ? "+" : "−"}{format(Math.abs(gap))}</span>
+          ) : <span style={{ fontSize: 12, color: "#9ca3af" }}>—</span>}
+        </div>
+        <div>
+          <span style={{ fontSize: 9, color: "#9ca3af", display: "block" }}>1日の目安</span>
+          {daily > 0 && !isRate ? (
+            <span style={{ fontSize: 12, color: "#6b7280" }}>{format(daily)}</span>
+          ) : <span style={{ fontSize: 12, color: "#9ca3af" }}>—</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ===== SectionTable =====
 
-export function SectionTable({ title, children }: { title: string; children: React.ReactNode }) {
+export function SectionTable({
+  title, group, count, defaultOpen, children,
+}: {
+  title: string;
+  children: React.ReactNode;
+  /** PR #74: v9 グループ色 (rev/cnt/acq/cost/help)。省略時は従来の灰縁 */
+  group?: GroupType;
+  /** PR #74: pill 右隣に「N 項目」表示 (mobile アコーディオン用)。省略時は非表示 */
+  count?: number;
+  /** PR #74: mobile アコーディオン初期開閉。省略時は常に開 (PC 既存挙動互換) */
+  defaultOpen?: boolean;
+}) {
+  // defaultOpen 未指定 = 従来通り常に展開 (PC 既存挙動維持、アコーディオン化なし)
+  // 指定時のみ mobile アコーディオン化 (PC は常時展開、mobile は toggle)
+  const isAccordion = defaultOpen !== undefined;
+  const [isOpen, setIsOpen] = useState<boolean>(defaultOpen ?? true);
+
   return (
     <div style={{
       background: "#fff", borderRadius: 10,
       border: "1px solid #d1fae5", overflow: "hidden",
+      ...(group && { borderLeft: `3px solid ${getGroupBorderColor(group)}` }),
     }}>
-      <div style={{
-        background: "#ecfdf5", padding: "8px 14px", borderBottom: "1px solid #d1fae5",
-        fontSize: 11, fontWeight: 700, color: "#065f46",
-        textTransform: "uppercase", letterSpacing: "0.07em",
-      }}>{title}</div>
-      <div style={{ overflowX: "auto" }}>
+      {/* ヘッダ: アコーディオンモード時は <button>、それ以外は <div> */}
+      {isAccordion ? (
+        <button
+          type="button"
+          onClick={() => setIsOpen((o) => !o)}
+          aria-expanded={isOpen}
+          style={{
+            width: "100%", background: "#ecfdf5", padding: "8px 14px",
+            borderTop: "none", borderRight: "none", borderLeft: "none",
+            borderBottom: "1px solid #d1fae5",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            cursor: "pointer", font: "inherit", textAlign: "left",
+          }}
+        >
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {group ? (
+              <GroupPill type={group}>{title}</GroupPill>
+            ) : (
+              <span style={{
+                fontSize: 11, fontWeight: 700, color: "#065f46",
+                textTransform: "uppercase", letterSpacing: "0.07em",
+              }}>{title}</span>
+            )}
+            {count !== undefined && (
+              <span style={{ fontSize: 10, color: "#9ca3af", fontVariantNumeric: "tabular-nums" }}>
+                {count} 項目
+              </span>
+            )}
+          </div>
+          {/* chevron は mobile のみ表示 (PC は常時展開なので不要) */}
+          <span className="show-mobile" style={{ display: "none", fontSize: 12, color: "#6b7280" }} aria-hidden>
+            {isOpen ? "▲" : "▼"}
+          </span>
+        </button>
+      ) : (
+        <div style={{
+          background: "#ecfdf5", padding: "8px 14px", borderBottom: "1px solid #d1fae5",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {group ? (
+              <GroupPill type={group}>{title}</GroupPill>
+            ) : (
+              <span style={{
+                fontSize: 11, fontWeight: 700, color: "#065f46",
+                textTransform: "uppercase", letterSpacing: "0.07em",
+              }}>{title}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* PC: 常時 render (isOpen に関係なく表示、会議中の一覧性優先) */}
+      <div className="hide-mobile" style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", minWidth: 520 }}>
           <colgroup>
             <col style={{ width: "18%" }} />
@@ -172,6 +324,18 @@ export function SectionTable({ title, children }: { title: string; children: Rea
           <tbody>{children}</tbody>
         </table>
       </div>
+
+      {/* Mobile: isOpen のときのみ MobileMetricCard 群を描画 */}
+      {isOpen && (
+        <div className="show-mobile" style={{ display: "none", flexDirection: "column", padding: 12, gap: 6 }}>
+          {React.Children.map(children, (child) => {
+            if (!React.isValidElement(child)) return child;
+            // MetricRow に渡された props を取り出し MobileMetricCard に渡す
+            const props = child.props as MetricRowProps;
+            return <MobileMetricCard {...props} group={group} />;
+          })}
+        </div>
+      )}
     </div>
   );
 }

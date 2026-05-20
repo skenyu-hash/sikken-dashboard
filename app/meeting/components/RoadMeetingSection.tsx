@@ -63,7 +63,7 @@ export default function RoadMeetingSection({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <SectionTable title="① 新規対応・コスト・粗利">
+      <SectionTable title="① 新規対応・コスト・粗利" group="rev" count={7} defaultOpen>
         <MetricRow label="売上"       actual={sales}              target={targets.targetSales}   {...mp} format={fmtYen} />
         <MetricRow label="保険売上"   actual={insuranceRevenue}   target={0}                      {...mp} format={fmtYen} />
         <MetricRow label="無保険売上" actual={nonInsuranceRevenue} target={0}                     {...mp} format={fmtYen} />
@@ -73,7 +73,7 @@ export default function RoadMeetingSection({
         <MetricRow label="粗利"       actual={profit}             target={targets.targetProfit}  {...mp} format={fmtYen} />
       </SectionTable>
 
-      <SectionTable title="② 入電 7 内訳 + 集計">
+      <SectionTable title="② 入電 7 内訳 + 集計" group="acq" count={9} defaultOpen={false}>
         <MetricRow label="広告 入電"       actual={callAd}       target={0} {...mp} format={fmtCount} />
         <MetricRow label="リピート 入電"   actual={callRepeat}   target={0} {...mp} format={fmtCount} />
         <MetricRow label="紹介 入電"       actual={callReferral} target={0} {...mp} format={fmtCount} />
@@ -85,7 +85,7 @@ export default function RoadMeetingSection({
         <MetricRow label="入電単価"        actual={callUnitPrice} target={0}                       {...mp} format={fmtYen} isRate />
       </SectionTable>
 
-      <SectionTable title="③ 獲得 7 チャネル + 集計">
+      <SectionTable title="③ 獲得 7 チャネル + 集計" group="acq" count={10} defaultOpen={false}>
         <MetricRow label="広告 獲得"       actual={acqAd}            target={0} {...mp} format={fmtCount} />
         <MetricRow label="リピート 獲得"   actual={acqRepeat}        target={0} {...mp} format={fmtCount} />
         <MetricRow label="紹介 獲得"       actual={acqReferral}      target={0} {...mp} format={fmtCount} />

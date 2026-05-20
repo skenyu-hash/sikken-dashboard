@@ -81,7 +81,7 @@ export default function ElectricMeetingSection({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <SectionTable title="① 新規対応・コスト・粗利">
+      <SectionTable title="① 新規対応・コスト・粗利" group="rev" count={7} defaultOpen>
         <MetricRow label="売上"        actual={sales}         target={targets.targetSales}  {...mp} format={fmtYen} />
         <MetricRow label="職人費"      actual={laborCost}     target={0}                     {...mp} format={fmtYen} invertGap />
         <MetricRow label="材料費"      actual={materialCost}  target={0}                     {...mp} format={fmtYen} invertGap />
@@ -91,7 +91,7 @@ export default function ElectricMeetingSection({
         <MetricRow label="粗利"        actual={profit}        target={targets.targetProfit} {...mp} format={fmtYen} />
       </SectionTable>
 
-      <SectionTable title="② 広告・効率指標">
+      <SectionTable title="② 広告・効率指標" group="acq" count={8} defaultOpen={false}>
         <MetricRow label="広告費率"   actual={adRate}        target={targets.targetAdRate}        {...mp} format={fmtPct} isRate invertGap />
         <MetricRow label="入電件数"   actual={callCount}     target={targets.targetCallCount}     {...mp} format={fmtCount} />
         <MetricRow label="入電単価"   actual={callUnitPrice} target={0}                            {...mp} format={fmtYen} isRate />
@@ -102,7 +102,7 @@ export default function ElectricMeetingSection({
         <MetricRow label="対応件数"   actual={totalCount}    target={targets.targetCount}         {...mp} format={fmtCount} />
       </SectionTable>
 
-      <SectionTable title="③ 施工">
+      <SectionTable title="③ 施工" group="cnt" count={6} defaultOpen={false}>
         <MetricRow label="外注工事件数"  actual={outsourcedConstructionCount} target={0}                                  {...mp} format={fmtCount} />
         <MetricRow label="自社工事件数"  actual={internalConstructionCount}   target={0}                                  {...mp} format={fmtCount} />
         <MetricRow label="総工事件数"    actual={totalConstruction}            target={0}                                  {...mp} format={fmtCount} />
@@ -111,14 +111,14 @@ export default function ElectricMeetingSection({
         <MetricRow label="自社工事利益"  actual={internalConstructionProfit}   target={0}                                  {...mp} format={fmtYen} />
       </SectionTable>
 
-      <SectionTable title="④ HELP 部門">
+      <SectionTable title="④ HELP 部門" group="help" count={4} defaultOpen={false}>
         <MetricRow label="HELP 売上"   actual={helpRevenue}   target={targets.targetHelpSales}     {...mp} format={fmtYen} />
         <MetricRow label="HELP 件数"   actual={helpCount}     target={targets.targetHelpCount}     {...mp} format={fmtCount} />
         <MetricRow label="HELP 客単価" actual={helpUnitPrice} target={targets.targetHelpUnitPrice} {...mp} format={fmtYen} isRate />
         <MetricRow label="HELP 率"     actual={helpRate}      target={targets.targetHelpRate}      {...mp} format={fmtPct} isRate />
       </SectionTable>
 
-      <SectionTable title="⑤ 電気専用">
+      <SectionTable title="⑤ 電気専用" group="cnt" count={1} defaultOpen={false}>
         <MetricRow label="分電盤件数" actual={switchboardCount} target={targets.targetSwitchboardCount} {...mp} format={fmtCount} />
       </SectionTable>
 

@@ -64,7 +64,7 @@ export default function LocksmithMeetingSection({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <SectionTable title="① 新規対応・コスト・粗利">
+      <SectionTable title="① 新規対応・コスト・粗利" group="rev" count={6} defaultOpen>
         <MetricRow label="売上"     actual={sales}             target={targets.targetSales}    {...mp} format={fmtYen} />
         <MetricRow label="工事費"   actual={constructionCost}  target={0}                       {...mp} format={fmtYen} invertGap />
         <MetricRow label="材料費"   actual={materialCost}      target={0}                       {...mp} format={fmtYen} invertGap />
@@ -73,12 +73,12 @@ export default function LocksmithMeetingSection({
         <MetricRow label="粗利"     actual={profit}            target={targets.targetProfit}    {...mp} format={fmtYen} />
       </SectionTable>
 
-      <SectionTable title="② 入電">
+      <SectionTable title="② 入電" group="acq" count={2} defaultOpen={false}>
         <MetricRow label="総入電件数" actual={callCount}      target={targets.targetCallCount} {...mp} format={fmtCount} />
         <MetricRow label="入電単価"   actual={callUnitPrice}  target={0}                        {...mp} format={fmtYen} isRate />
       </SectionTable>
 
-      <SectionTable title="③ 獲得 5 内訳 + 集計">
+      <SectionTable title="③ 獲得 5 内訳 + 集計" group="acq" count={8} defaultOpen={false}>
         <MetricRow label="車LP+メール"   actual={acqLpMail}        target={0} {...mp} format={fmtCount} />
         <MetricRow label="インハウス"    actual={acqInhouse}       target={0} {...mp} format={fmtCount} />
         <MetricRow label="リピート(紹介)" actual={acqRepeat}       target={0} {...mp} format={fmtCount} />
@@ -89,7 +89,7 @@ export default function LocksmithMeetingSection({
         <MetricRow label="成約率"        actual={convRate}         target={targets.targetConversionRate} {...mp} format={fmtPct} isRate />
       </SectionTable>
 
-      <SectionTable title="④ HELP 部門">
+      <SectionTable title="④ HELP 部門" group="help" count={4} defaultOpen={false}>
         <MetricRow label="HELP 売上"   actual={helpRevenue}    target={targets.targetHelpSales}     {...mp} format={fmtYen} />
         <MetricRow label="HELP 件数"   actual={helpCount}      target={targets.targetHelpCount}     {...mp} format={fmtCount} />
         <MetricRow label="HELP 客単価" actual={helpUnitPrice}  target={targets.targetHelpUnitPrice} {...mp} format={fmtYen} isRate />
