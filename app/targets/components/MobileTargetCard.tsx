@@ -1,12 +1,12 @@
 "use client";
 // PR #76: /targets mobile v9 — mob-target-card pattern。
+// PR #76c: 達成率 badge を row1 右側に追加 (actualValue prop + calcAchievement)。
 //
 // mockup sikken_other_mobile_mockups_1.html line 664-678 の HTML を React 化。
 //
 // 構造:
 //   - border-left: v9 group 色 (rev/cnt/acq/cost/help) 3px
-//   - row1: label (左) + 達成率 badge slot (右、空、本 PR では未実装)
-//     * 達成率 badge は #76c で /api/monthly-summary fetch + getBadgeColor 経由で追加予定
+//   - row1: label (左) + 達成率 badge (右、actual / target × 100、Q3=a simple ratio)
 //   - row2: 2-col grid
 //     * 左: 現在の目標 (readonly、formatted "¥84,000,000")
 //     * 右: 新しい目標 (input、raw "84000000")
@@ -16,11 +16,19 @@
 //   - 編集時、useTargetsState 経由で state が即更新 → 両者同時更新
 //   - 形式の違い (formatted vs raw input) で「現在の表示」「これから保存される値」を
 //     視覚的に区別。useDebounceSave で背景保存中も UI 上は連動
+//
+// PR #76c 達成率 badge 設計判断:
+//   Q2=a: rate 系 derived metric (広告費率 / 工事取得率 / HELP率 / 面談率) も
+//     対象に含め、全 17 metric に achievement badge を出す。
+//   Q3=a: cost 系 (CPA / 広告費 / 広告費率) も simple ratio (actual/target*100)。
+//     /dashboard, /meeting と同じく invert なし。cross-page 統一は別 PR で検討。
+//   Q4: targetHelpUnitPrice は monthly_summaries.help_unit_price 列で直接マッピング可。
 
 import type { GroupType } from "../../components/ui";
+import { MetricBadge, getBadgeColor } from "../../components/ui/metric-badge";
 import { getGroupBorderColor } from "../../components/dashboard/metric-groups";
 import type { Targets } from "../../lib/calculations";
-import { formatByUnit, type MetricDef } from "./TargetsMatrix";
+import { formatByUnit, type MetricDef, type MetricUnit } from "./TargetsMatrix";
 
 type Props = {
   metric: MetricDef;
@@ -29,10 +37,25 @@ type Props = {
   group: GroupType;
   canEdit: boolean;
   setCell: (areaId: string, key: keyof Targets, raw: string) => void;
+  /** PR #76c: monthly_summaries から取得した実績値 (target と同じ概念単位、
+   *  ただし yen_man の target は ×10000 して比較する)。null = 実績未取得 / 不明。 */
+  actualValue: number | null;
 };
 
-export default function MobileTargetCard({ metric, value, areaId, group, canEdit, setCell }: Props) {
+// PR #76c: 達成率算出。target が 0 以下 / 実績 null は null を返し badge gray に。
+//   yen_man の target は DB が万円で保存するため、actual (円) と比較するときは
+//   target × 10000 をベースにする。yen_raw / count / percent はそのまま比較。
+//   Q3=a: cost (CPA / 広告費率) も simple ratio (invert なし) — /dashboard, /meeting と整合。
+function calcAchievement(unit: MetricUnit, target: number, actual: number | null): number | null {
+  if (actual == null || target <= 0) return null;
+  const targetInActualUnit = (unit === "yen_man" || unit === "yen") ? target * 10000 : target;
+  if (targetInActualUnit <= 0) return null;
+  return (actual / targetInActualUnit) * 100;
+}
+
+export default function MobileTargetCard({ metric, value, areaId, group, canEdit, setCell, actualValue }: Props) {
   const borderColor = getGroupBorderColor(group);
+  const achievement = calcAchievement(metric.unit, value, actualValue);
   return (
     <div style={{
       background: "#fafafa", borderRadius: 8, padding: "10px 12px",
@@ -46,7 +69,10 @@ export default function MobileTargetCard({ metric, value, areaId, group, canEdit
         <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
           {metric.label}
         </span>
-        {/* 達成率 badge は #76c で追加 (/api/monthly-summary fetch + 達成率算出 + MetricBadge) */}
+        {/* PR #76c: 達成率 badge — actualValue 未取得 / target 0 は gray "—" */}
+        <MetricBadge color={getBadgeColor(achievement)} minWidth={false}>
+          {achievement === null ? "—" : `${achievement.toFixed(1)}%`}
+        </MetricBadge>
       </div>
 
       {/* row2: 2-col grid (現在の目標 readonly + 新しい目標 input) */}

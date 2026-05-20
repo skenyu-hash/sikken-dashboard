@@ -22,11 +22,52 @@ import { useState } from "react";
 import TargetsMatrix, { getMetricsForCategory } from "./TargetsMatrix";
 import MobileTargetCard from "./MobileTargetCard";
 import { useTargetsState } from "../lib/useTargetsState";
+import { useMonthlySummary } from "../lib/useMonthlySummary";
 import type { SaveStatus } from "./../lib/useDebounceSave";
 import type { BusinessCategory } from "../../lib/businesses";
 import { emptyTargets, type Targets } from "../../lib/calculations";
 import { GroupPill, type GroupType } from "../../components/ui";
 import { getGroupBorderColor } from "../../components/dashboard/metric-groups";
+
+// PR #76c: monthly_summaries 行から metric key に対応する実績値を取り出す。
+//   - 直接 column マッピング (target_sales → total_revenue 等)
+//   - derived rate は raw 値から再計算 (helpRate / meetingRate)
+//   - 該当 column なし or summary 自体が null は null を返し badge gray にする
+const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
+function getActualForMetric(
+  metricKey: string,
+  summary: Record<string, unknown> | null,
+): number | null {
+  if (!summary) return null;
+  switch (metricKey) {
+    case "targetSales":            return numOf(summary.total_revenue);
+    case "targetProfit":           return numOf(summary.total_profit);
+    case "targetCount":            return numOf(summary.acquisition_count);
+    case "targetUnitPrice":        return numOf(summary.unit_price);
+    case "targetAdCost":           return numOf(summary.ad_cost);
+    case "targetAdRate":           return numOf(summary.ad_rate);
+    case "targetCallCount":        return numOf(summary.call_count);
+    case "targetCpa":              return numOf(summary.cpa);
+    case "targetConstructionRate": return numOf(summary.construction_rate);
+    case "targetConversionRate":   return numOf(summary.conv_rate);
+    case "targetHelpSales":        return numOf(summary.help_revenue);
+    case "targetHelpCount":        return numOf(summary.help_count);
+    case "targetHelpUnitPrice":    return numOf(summary.help_unit_price);
+    case "targetHelpRate": {
+      const rev = numOf(summary.total_revenue);
+      const help = numOf(summary.help_revenue);
+      return rev > 0 ? (help / rev) * 100 : null;
+    }
+    case "targetMeetingCount":     return numOf(summary.detective_meeting_count);
+    case "targetMeetingRate": {
+      const acq = numOf(summary.acquisition_count);
+      const mtg = numOf(summary.detective_meeting_count);
+      return acq > 0 ? (mtg / acq) * 100 : null;
+    }
+    case "targetSwitchboardCount": return numOf(summary.switchboard_count);
+    default: return null;
+  }
+}
 
 type Area = { id: string; name: string };
 
@@ -51,6 +92,14 @@ export default function TargetsSections({ areas, category, year, month, canEdit,
   const singleArea = areas[0];
   const at: Targets = singleArea ? (areaTargets[singleArea.id] ?? emptyTargets()) : emptyTargets();
 
+  // PR #76c: monthly_summaries fetch — singleArea / year / month / category 単位。
+  //   mobile MobileTargetCard で達成率 badge を出すための raw 実績値ソース。
+  //   PC matrix 側は影響なし (actualValue を渡す相手がいないため)。
+  const { data: actualSummary } = useMonthlySummary({
+    areaId: singleArea?.id,
+    year, month, category,
+  });
+
   if (loading) {
     return (
       <div style={{ padding: 24, color: "#9ca3af", fontSize: 12, textAlign: "center" }}>
@@ -60,6 +109,8 @@ export default function TargetsSections({ areas, category, year, month, canEdit,
   }
 
   // mobile cards 共通 render helper (1 metric → 1 MobileTargetCard)
+  //   PR #76c: actualValue = monthly_summaries 行から metric key で引き当て。
+  //   summary 未取得 (loading / 行なし) は null → badge gray "—"。
   const renderMobileCards = (metrics: typeof sales, group: GroupType) =>
     singleArea ? metrics.map((m) => (
       <MobileTargetCard
@@ -67,6 +118,7 @@ export default function TargetsSections({ areas, category, year, month, canEdit,
         value={Number(at[m.key as keyof Targets] ?? 0)}
         areaId={singleArea.id} group={group}
         canEdit={canEdit} setCell={setCell}
+        actualValue={getActualForMetric(m.key as string, actualSummary)}
       />
     )) : null;
 
