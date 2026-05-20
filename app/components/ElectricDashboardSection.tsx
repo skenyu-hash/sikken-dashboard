@@ -103,7 +103,7 @@ export default function ElectricDashboardSection({ monthlySummary, targets }: Pr
   return (
     <section style={{ marginBottom: 16 }}>
       <SectionLabel>電気業態 — フォーム連動 KPI 一覧 (分電盤件数含む)</SectionLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, gridAutoRows: "min-content" }}>
         {/* ① 新規対応・コスト */}
         <Card title="① 新規対応・コスト・粗利" group="rev">
           <Row label="売上"        actual={fmtYen(sales)}        target={fmtYen(targetSales)}     achievement={achv(sales, targetSales)} />
@@ -146,14 +146,16 @@ export default function ElectricDashboardSection({ monthlySummary, targets }: Pr
           <Row label="HELP 率"     actual={fmtPct(helpRate)}      target={fmtPct(targetHelpRate)}      achievement={achv(helpRate, targetHelpRate)} sub="= HELP売上 ÷ 売上 × 100" />
         </Card>
 
-        {/* ⑤ 電気専用 (PR #54) */}
-        <Card title="⑤ 電気専用" group="cnt">
-          <Row label="分電盤件数"
-            actual={fmtCount(switchboardCount)}
-            target={fmtCount(targetSwitchboardCount)}
-            achievement={achv(switchboardCount, targetSwitchboardCount)}
-            highlight />
-        </Card>
+        {/* ⑤ 電気専用 (PR #54) — PR #82: 5 sections (odd) → 最終を full-width 化 */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Card title="⑤ 電気専用" group="cnt">
+            <Row label="分電盤件数"
+              actual={fmtCount(switchboardCount)}
+              target={fmtCount(targetSwitchboardCount)}
+              achievement={achv(switchboardCount, targetSwitchboardCount)}
+              highlight />
+          </Card>
+        </div>
       </div>
     </section>
   );
