@@ -13,18 +13,24 @@ export const fmtYen = (v: number): string => {
 export const fmtCount = (v: number): string => `${Math.round(v).toLocaleString("ja-JP")}件`;
 export const fmtPct = (v: number): string => `${(Math.round(v * 10) / 10).toFixed(1)}%`;
 
+// PR #61 c4: 自動計算行を灰系に振り、入力 (白) との視覚差別化を明確化。
+//   - bg #f0fdf4 (薄緑) → #f9fafb (mockup .mic-input.auto 準拠の薄灰)
+//   - border dashed #d1fae5 → #e5e7eb (薄灰 dashed)
+//   - 値の色 #059669 (深緑) → #6b7280 (中灰、可読性確保のため #9ca3af より濃く)
+//   - font-size 22 / font-weight 700 は維持 (存在感確保、縮小は c5 で再検討)
+//   - DOM 構造・props インターフェース不変 (c5 のアコーディオン化と衝突回避)
 export function AutoRow({ label, value, formula }: { label: string; value: string; formula: string }) {
   return (
     <div style={{
       marginTop: 10, padding: "8px 12px",
-      background: "#f0fdf4", borderRadius: 6, border: "1px dashed #d1fae5",
+      background: "#f9fafb", borderRadius: 6, border: "1px dashed #e5e7eb",
       display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
     }}>
       <div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46" }}>{label}</span>
-        <span style={{ fontSize: 10, color: "#6b7280", marginLeft: 8 }}>(自動計算 {formula})</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#6b7280" }}>{label}</span>
+        <span style={{ fontSize: 10, color: "#9ca3af", marginLeft: 8 }}>(自動計算 {formula})</span>
       </div>
-      <span style={{ fontSize: 14, fontWeight: 800, color: "#059669" }}>{value}</span>
+      <span style={{ fontSize: 14, fontWeight: 800, color: "#6b7280" }}>{value}</span>
     </div>
   );
 }
