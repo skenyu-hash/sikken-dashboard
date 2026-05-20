@@ -264,8 +264,9 @@ export default function TargetsPage() {
               ※ 会社別ビューは参照のみ。編集は「事業別」モードに切替えてください。
             </div>
           )}
-          {/* 保存ステータス */}
-          <SaveIndicator status={displayStatus} flash={displayFlash} />
+          {/* PR c76e: 保存ステータス — colored bg badge で visibility 向上
+              (旧 SaveIndicator は緑 header 上で白半透明テキスト = 不可視寄りだった) */}
+          <AutoSaveBadge status={displayStatus} />
         </div>
 
         {/* タイトル + 月ナビ */}
@@ -387,25 +388,33 @@ function utilBtn(disabled: boolean): React.CSSProperties {
   };
 }
 
-function SaveIndicator({ status, flash }: { status: SaveStatus; flash: boolean }) {
-  if (status === "idle" && !flash) {
-    return <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>—</span>;
-  }
-  const dotStyle: React.CSSProperties = {
-    display: "inline-block", width: 8, height: 8, borderRadius: "50%",
-    background: status === "saving" ? "#fbbf24" : status === "error" ? "#ef4444" : "#10b981",
-    boxShadow: flash ? "0 0 0 4px rgba(16,185,129,0.3)" : "none",
-    transition: "box-shadow 0.4s ease",
+// PR c76e: /entry の AutoSaveBadge と同一スタイル/ラベルを /targets でも使用。
+//   旧 SaveIndicator (緑 header 上の白半透明テキスト) は visibility が低く、
+//   本番検証で「保存ボタンが見当たらない」とのフィードバックが出たため、
+//   colored bg badge に置換して状態が一目で分かるようにする。
+//   状態遷移:
+//     idle    : "—"             (transparent / 薄灰)
+//     loading : "読み込み中..."  (light yellow / dark amber) — 初回 fetch 中
+//     saving  : "保存中..."     (light blue / dark blue)    — POST 進行中
+//     saved   : "✓ 自動保存済"  (light green / dark green)  — POST 成功 2500ms 表示
+//     error   : "⚠ 保存失敗"     (light red / dark red)     — POST 失敗 (留まる)
+function AutoSaveBadge({ status }: { status: SaveStatus }) {
+  const config: Record<SaveStatus, { label: string; bg: string; color: string }> = {
+    idle:    { label: "—",            bg: "transparent", color: "rgba(255,255,255,0.55)" },
+    loading: { label: "読み込み中...", bg: "#fef3c7",    color: "#854d0e" },
+    saving:  { label: "保存中...",    bg: "#dbeafe",    color: "#1e40af" },
+    saved:   { label: "✓ 自動保存済",  bg: "#d1fae5",    color: "#065f46" },
+    error:   { label: "⚠ 保存失敗",    bg: "#fee2e2",    color: "#991b1b" },
   };
-  const label =
-    status === "saving" ? "保存中..."
-    : status === "error" ? "保存失敗"
-    : flash ? "保存済み ✓"
-    : "保存済み";
+  const c = config[status];
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "#fff", fontWeight: 600 }}>
-      <span style={dotStyle} />
-      <span>{label}</span>
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "3px 8px", fontSize: 11, borderRadius: 4,
+      background: c.bg, color: c.color,
+      fontWeight: 500, minHeight: 22, whiteSpace: "nowrap",
+    }}>
+      {c.label}
     </span>
   );
 }

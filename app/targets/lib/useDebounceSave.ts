@@ -13,7 +13,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type SaveStatus = "idle" | "saving" | "saved" | "error";
+// PR c76e: "loading" 追加 (/entry AutoSaveStatus と整合)。
+//   useTargetsState の初回 fetch 中に broadcast し、badge "読み込み中..." 表示。
+export type SaveStatus = "idle" | "saving" | "saved" | "error" | "loading";
 
 /**
  * debounced callback。最後の呼び出しから delay ms 経過後に fn を1回だけ実行。
@@ -66,7 +68,16 @@ export function useSaveStatus(): {
     };
   }, []);
 
-  const markSaving = useCallback(() => setStatus("saving"), []);
+  // PR c76e: markSaving / markError でも pending な saved→idle timer を clear。
+  //   saved 表示が 800→2500ms に伸びたことで、次回入力時に古い timer が発火して
+  //   "saving" を "idle" に上書きする race を防ぐ。
+  const markSaving = useCallback(() => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    setFlash(false);
+    setStatus("saving");
+  }, []);
+  // PR c76e: saved 表示時間 800ms → 2500ms (/entry useDebouncedAutoSave と統一)。
+  //   ユーザーが「保存された」ことを確実に視認できる時間を確保する。
   const markSaved = useCallback(() => {
     setStatus("saved");
     setFlash(true);
@@ -74,9 +85,13 @@ export function useSaveStatus(): {
     flashTimer.current = setTimeout(() => {
       setFlash(false);
       setStatus("idle");
-    }, 800);
+    }, 2500);
   }, []);
-  const markError = useCallback(() => setStatus("error"), []);
+  const markError = useCallback(() => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    setFlash(false);
+    setStatus("error");
+  }, []);
 
   return { status, flash, markSaving, markSaved, markError };
 }
