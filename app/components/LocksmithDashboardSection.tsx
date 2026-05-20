@@ -92,7 +92,7 @@ export default function LocksmithDashboardSection({ monthlySummary, targets }: P
   return (
     <section style={{ marginBottom: 16 }}>
       <SectionLabel>鍵業態 — フォーム連動 KPI 一覧</SectionLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, gridAutoRows: "min-content" }}>
         {/* ① 新規対応 */}
         <Card title="① 新規対応 (売上・コスト・粗利)" group="rev">
           <Row label="売上"   actual={fmtYen(sales)}            target={fmtYen(targetSales)}    achievement={achv(sales, targetSales)} />

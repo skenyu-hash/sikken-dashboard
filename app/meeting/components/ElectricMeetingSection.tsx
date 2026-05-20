@@ -80,7 +80,7 @@ export default function ElectricMeetingSection({
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, gridAutoRows: "min-content" }}>
       <SectionTable title="① 新規対応・コスト・粗利" group="rev" count={7} defaultOpen>
         <MetricRow label="売上"        actual={sales}         target={targets.targetSales}  {...mp} format={fmtYen} />
         <MetricRow label="職人費"      actual={laborCost}     target={0}                     {...mp} format={fmtYen} invertGap />

@@ -87,7 +87,7 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
   return (
     <section style={{ marginBottom: 16 }}>
       <SectionLabel>ロード業態 — フォーム連動 KPI 一覧</SectionLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, gridAutoRows: "min-content" }}>
         {/* ① 新規対応 */}
         <Card title="① 新規対応 (売上・コスト・粗利)" group="rev">
           <Row label="売上"   actual={fmtYen(sales)}     target={fmtYen(targetSales)}   achievement={achv(sales, targetSales)} />
@@ -112,20 +112,22 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
           <Row label="入電単価"   actual={fmtYen(callUnitPrice)}    target="—" sub="= 広告費 ÷ 総入電件数" />
         </Card>
 
-        {/* ③ 獲得 (PR #52 で 7 内訳 DB 化) */}
-        <Card title="③ 獲得 (7 内訳)" group="acq">
-          <Row label="広告 獲得"       actual={fmtCount(acqAd)}        target="—" />
-          <Row label="リピート 獲得"   actual={fmtCount(acqRepeat)}    target="—" />
-          <Row label="紹介 獲得"       actual={fmtCount(acqReferral)}  target="—" />
-          <Row label="再訪問 獲得"     actual={fmtCount(acqRevisit)}   target="—" />
-          <Row label="ウェルネスト 獲得" actual={fmtCount(acqWellnest)} target="—" />
-          <Row label="SEO 獲得"        actual={fmtCount(acqSeo)}       target="—" />
-          <Row label="保険会社 獲得"   actual={fmtCount(acqInsurance)} target="—" />
-          <Row label="総獲得件数" actual={fmtCount(acquisitionCount)} target={fmtCount(targetCount)} achievement={achv(acquisitionCount, targetCount)} highlight />
-          <Row label="客単価"      actual={fmtYen(Math.round(safeDiv(sales, acquisitionCount)))} target={fmtYen(targetUnitPrice)} sub="= 売上 ÷ 総獲得件数" />
-          <Row label="CPA"         actual={fmtYen(cpa)}                target={fmtYen(targetCpa)}     achievement={achv(cpa, targetCpa, true)} sub="= 広告費 ÷ 総獲得件数" />
-          <Row label="成約率"      actual={fmtPct(convRate)}            target={fmtPct(targetConvRate)} achievement={achv(convRate, targetConvRate)} sub="= 総獲得件数 ÷ 総入電件数 × 100" />
-        </Card>
+        {/* ③ 獲得 (PR #52 で 7 内訳 DB 化) — PR #82: 3 sections (odd) → 最終を full-width 化 */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Card title="③ 獲得 (7 内訳)" group="acq">
+            <Row label="広告 獲得"       actual={fmtCount(acqAd)}        target="—" />
+            <Row label="リピート 獲得"   actual={fmtCount(acqRepeat)}    target="—" />
+            <Row label="紹介 獲得"       actual={fmtCount(acqReferral)}  target="—" />
+            <Row label="再訪問 獲得"     actual={fmtCount(acqRevisit)}   target="—" />
+            <Row label="ウェルネスト 獲得" actual={fmtCount(acqWellnest)} target="—" />
+            <Row label="SEO 獲得"        actual={fmtCount(acqSeo)}       target="—" />
+            <Row label="保険会社 獲得"   actual={fmtCount(acqInsurance)} target="—" />
+            <Row label="総獲得件数" actual={fmtCount(acquisitionCount)} target={fmtCount(targetCount)} achievement={achv(acquisitionCount, targetCount)} highlight />
+            <Row label="客単価"      actual={fmtYen(Math.round(safeDiv(sales, acquisitionCount)))} target={fmtYen(targetUnitPrice)} sub="= 売上 ÷ 総獲得件数" />
+            <Row label="CPA"         actual={fmtYen(cpa)}                target={fmtYen(targetCpa)}     achievement={achv(cpa, targetCpa, true)} sub="= 広告費 ÷ 総獲得件数" />
+            <Row label="成約率"      actual={fmtPct(convRate)}            target={fmtPct(targetConvRate)} achievement={achv(convRate, targetConvRate)} sub="= 総獲得件数 ÷ 総入電件数 × 100" />
+          </Card>
+        </div>
       </div>
     </section>
   );

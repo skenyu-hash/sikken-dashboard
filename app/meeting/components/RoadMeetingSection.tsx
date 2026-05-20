@@ -62,7 +62,7 @@ export default function RoadMeetingSection({
   const sellingAdminCost = numOf(monthlySummary?.road_selling_admin_cost);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, gridAutoRows: "min-content" }}>
       <SectionTable title="① 新規対応・コスト・粗利" group="rev" count={7} defaultOpen>
         <MetricRow label="売上"       actual={sales}              target={targets.targetSales}   {...mp} format={fmtYen} />
         <MetricRow label="保険売上"   actual={insuranceRevenue}   target={0}                      {...mp} format={fmtYen} />
@@ -85,6 +85,8 @@ export default function RoadMeetingSection({
         <MetricRow label="入電単価"        actual={callUnitPrice} target={0}                       {...mp} format={fmtYen} isRate />
       </SectionTable>
 
+      {/* PR #82: 3 sections (odd) → 最終を full-width 化 */}
+      <div style={{ gridColumn: "1 / -1" }}>
       <SectionTable title="③ 獲得 7 チャネル + 集計" group="acq" count={10} defaultOpen={false}>
         <MetricRow label="広告 獲得"       actual={acqAd}            target={0} {...mp} format={fmtCount} />
         <MetricRow label="リピート 獲得"   actual={acqRepeat}        target={0} {...mp} format={fmtCount} />
@@ -97,6 +99,7 @@ export default function RoadMeetingSection({
         <MetricRow label="CPA"             actual={cpa}              target={targets.targetCpa}      {...mp} format={fmtYen} isRate invertGap />
         <MetricRow label="成約率"          actual={convRate}         target={targets.targetConversionRate} {...mp} format={fmtPct} isRate />
       </SectionTable>
+      </div>
     </div>
   );
 }

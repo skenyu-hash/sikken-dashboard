@@ -103,7 +103,7 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
   return (
     <section style={{ marginBottom: 16 }}>
       <SectionLabel>探偵業態 — フォーム連動 KPI 一覧 (面談ファネル含む)</SectionLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, gridAutoRows: "min-content" }}>
         {/* ① 新規対応 */}
         <Card title="① 新規対応 (売上・コスト・営業利益)" group="rev">
           <Row label="売上"   actual={fmtYen(sales)}    target={fmtYen(targetSales)}   achievement={achv(sales, targetSales)} />
