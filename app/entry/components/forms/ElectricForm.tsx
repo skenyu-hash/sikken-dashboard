@@ -34,7 +34,7 @@ type Props = {
 export default function ElectricForm({ state, setField, validateField, errors, labels, calc }: Props) {
   return (
     <>
-      <SectionSales state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
+      <SectionSales state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} defaultOpen />
       <SectionCosts state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} />
       <SectionAcquisition state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
       <SectionConstruction state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} showSwitchboardCount />

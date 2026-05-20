@@ -42,7 +42,7 @@ type Props = {
 
 export default function AutoCalcDisplay({ calc, labels }: Props) {
   return (
-    <SectionShell title={labels.section_auto} subtitle="自動計算 2項目（仕上げの粗利指標）" group="rev">
+    <SectionShell title={labels.section_auto} subtitle="自動計算 2項目（仕上げの粗利指標）" group="rev" count={2}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         <SummaryCard label={labels.profit} value={fmtYen(calc.profit)} variant={calc.profit < 0 ? "danger" : "ok"}
           subtitle="売上 − 材料 − 職人 − 広告 − 営業外注 − カード" />
