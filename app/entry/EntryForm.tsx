@@ -10,10 +10,12 @@
 //     read-back verification
 //   - エリア選択: executive/vice のみ手動、他は自エリア固定
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useFormCalculations } from "./hooks/useFormCalculations";
 import { useFormValidation } from "./hooks/useFormValidation";
+import { useDebouncedAutoSave } from "./hooks/useDebouncedAutoSave";
+import EntryCalendar from "./components/EntryCalendar";
 import WaterForm from "./components/forms/WaterForm";
 import ElectricForm from "./components/forms/ElectricForm";
 import LocksmithForm, { computeLocksmithProfit } from "./components/forms/LocksmithForm";
@@ -126,6 +128,12 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
   const [existingAsOfDay, setExistingAsOfDay] = useState<number | null>(null);
 
+  // PR c6: 確定送信ボタンの視覚 feedback state machine
+  //   idle    : "確定送信 →"
+  //   sending : "送信中..."
+  //   done    : "✓ 送信完了" (2 秒後 idle へ)
+  const [submitFeedback, setSubmitFeedback] = useState<"idle" | "sending" | "done">("idle");
+
   const labels = BUSINESS_LABELS[category];
 
   const setField = (k: InputFieldKey, v: InputValue) => {
@@ -137,6 +145,20 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
     setState((s) => ({ ...s, [k]: v }));
     setSaveResult("idle");
   };
+
+  // PR c6: カレンダーから「年/月/日」を一括変更 (3 値とも変わる可能性: 別月セルをタップした時)
+  const handleCalendarChange = (y: number, m: number, d: number) => {
+    setState((s) => ({ ...s, year: y, month: m, day: d }));
+    setSaveResult("idle");
+  };
+
+  // PR c6: has-data days = 編集モードで既に DB に行があれば as_of_day の日のみ ●
+  //   (Q1=A 採用: 月単位 1 行 schema のため、per-day 追跡は schema 変更が必要、
+  //    本 PR では as_of_day の日にだけドット表示)
+  const hasDataDays = useMemo(
+    () => existingAsOfDay !== null ? new Set([existingAsOfDay]) : new Set<number>(),
+    [existingAsOfDay]
+  );
 
   // PR #44: area/year/month/category 変更時に既存データを fetch して展開。
   // day は UNIQUE 制約に含まれないため依存配列から除外 (day 変更で再 fetch しない)。
@@ -281,11 +303,14 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.area_id, state.year, state.month, category]);
 
-  const handleSave = async () => {
+  // PR c6: handleSave を Promise<boolean> 化 (auto-save hook 連動のため)
+  //   - true: 保存成功 / false: validation 失敗 or API エラー
+  //   - useCallback で参照固定 (auto-save の useEffect 依存配列対策)
+  const handleSave = useCallback(async (): Promise<boolean> => {
     if (!validateAll(state)) {
       setSaveResult("error");
       setSaveMsg("入力内容を確認してください");
-      return;
+      return false;
     }
     setSaving(true);
     setSaveResult("idle");
@@ -404,20 +429,36 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
       setSaveResult("success");
       setSaveMsg(`保存しました（${state.year}年${state.month}月 / ${AREA_NAMES[state.area_id] ?? state.area_id} / ${CATEGORY_LABELS[category]}）`);
       clearErrors();
+      return true;
     } catch (e) {
       setSaveResult("error");
       setSaveMsg(`保存失敗: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
     } finally {
       setSaving(false);
     }
+  }, [state, validateAll, clearErrors, calc, category]);
+
+  // PR c6: state 変更 → 500ms debounce → 自動保存
+  //   - isLoadingExisting 中は enabled=false で skip + indicator "読み込み中..."
+  //   - triggerSave: 確定送信ボタンが debounce 待たず即時 save するために利用
+  const { status: autoSaveStatus, triggerSave } = useDebouncedAutoSave({
+    state, enabled: !isLoadingExisting, saveFn: handleSave,
+  });
+
+  // PR c6: 確定送信 — auto-save と同じ saveFn を即時 trigger + 視覚 feedback
+  const handleConfirmSubmit = async () => {
+    setSubmitFeedback("sending");
+    const ok = await triggerSave();
+    if (ok) {
+      setSubmitFeedback("done");
+      setTimeout(() => setSubmitFeedback("idle"), 2500);
+    } else {
+      setSubmitFeedback("idle");
+    }
   };
 
-  const yearOptions = useMemo(() => {
-    const cur = new Date().getFullYear();
-    return [cur - 1, cur, cur + 1];
-  }, []);
-  const monthOptions = useMemo(() => Array.from({ length: 12 }, (_, i) => i + 1), []);
-  const dayOptions = useMemo(() => Array.from({ length: 31 }, (_, i) => i + 1), []);
+  // PR c6: 旧 yearOptions / monthOptions / dayOptions は EntryCalendar に置換のため削除
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f5f2", paddingBottom: 100 }}>
@@ -461,39 +502,41 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
       </div>
 
       <div style={{ padding: 20, maxWidth: 960, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
-        {/* メタ: エリア / 年 / 月 */}
+        {/* PR c6: エリア + カレンダー + auto-save indicator。
+            旧 3 select (年/月/日) を EntryCalendar 1 つに統合。 */}
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #d1fae5", padding: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 12 }}>
-            <Meta label="エリア">
-              {canSelectArea ? (
-                <select value={state.area_id} onChange={(e) => setMeta("area_id", e.target.value)}
-                  style={metaSelect}>
-                  {availableAreas.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              ) : (
-                <div style={{ ...metaSelect, background: "#f9fafb", color: "#6b7280", lineHeight: "36px", paddingLeft: 10 }}>
-                  {AREA_NAMES[state.area_id] ?? state.area_id}（自エリア固定）
-                </div>
-              )}
-            </Meta>
-            <Meta label="年">
-              <select value={state.year} onChange={(e) => setMeta("year", Number(e.target.value))} style={metaSelect}>
-                {yearOptions.map((y) => <option key={y} value={y}>{y}年</option>)}
-              </select>
-            </Meta>
-            <Meta label="月">
-              <select value={state.month} onChange={(e) => setMeta("month", Number(e.target.value))} style={metaSelect}>
-                {monthOptions.map((m) => <option key={m} value={m}>{m}月</option>)}
-              </select>
-            </Meta>
-            <Meta label="日（as_of_day）">
-              <select value={state.day} onChange={(e) => setMeta("day", Number(e.target.value))} style={metaSelect}>
-                {dayOptions.map((d) => <option key={d} value={d}>{d}日</option>)}
-              </select>
-            </Meta>
+          {/* エリア + 自動保存 indicator (mobile mockup 風、横並び) */}
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <Meta label="エリア">
+                {canSelectArea ? (
+                  <select value={state.area_id} onChange={(e) => setMeta("area_id", e.target.value)}
+                    style={metaSelect}>
+                    {availableAreas.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ ...metaSelect, background: "#f9fafb", color: "#6b7280", lineHeight: "36px", paddingLeft: 10 }}>
+                    {AREA_NAMES[state.area_id] ?? state.area_id}（自エリア固定）
+                  </div>
+                )}
+              </Meta>
+            </div>
+            {/* PR c6: 自動保存 indicator (mockup .save-status pattern) */}
+            <AutoSaveBadge status={autoSaveStatus} />
           </div>
+
+          {/* PR c6: カレンダー UI (旧 3 select 年/月/日 を統合) */}
+          <EntryCalendar
+            year={state.year}
+            month={state.month}
+            day={state.day}
+            hasDataDays={hasDataDays}
+            onChange={handleCalendarChange}
+            isLoading={isLoadingExisting}
+          />
+
           {/* PR #44: 編集モード/新規入力モード/読込中のステータスバッジ */}
           <ModeBadge
             isLoading={isLoadingExisting}
@@ -501,8 +544,8 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             currentDay={state.day}
           />
           <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 8, lineHeight: 1.5 }}>
-            ※ 編集中の値は保存前にエリア・年・月を変更すると失われます
-            （日の変更は再読込しないため値は保持されます）。
+            ※ 編集中の値は保存前にエリアを変更すると失われます。
+            日付の変更はカレンダーから行ってください (年/月をまたぐ変更で再読込)。
           </p>
         </div>
 
@@ -532,18 +575,55 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             <span style={{ color: "#991b1b", fontWeight: 700 }}>⚠ {saveMsg}</span>
           )}
         </div>
-        <button type="button" onClick={handleSave} disabled={saving}
-          style={{
-            padding: "10px 28px", fontSize: 13, fontWeight: 800,
-            border: "none", borderRadius: 8,
-            background: saving ? "#9ca3af" : "#1B5E3F", color: "#fff",
-            cursor: saving ? "default" : "pointer",
-            boxShadow: "0 2px 8px rgba(27,94,63,0.25)",
-          }}>
-          {saving ? "保存中..." : "保存"}
-        </button>
+        {/* PR c6: 確定送信ボタン (旧「保存」から rename + 視覚 feedback) */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <button type="button" onClick={handleConfirmSubmit}
+            disabled={saving || submitFeedback === "sending"}
+            style={{
+              padding: "10px 28px", fontSize: 13, fontWeight: 800,
+              border: "none", borderRadius: 8,
+              background: submitFeedback === "done" ? "#059669"
+                : (saving || submitFeedback === "sending") ? "#9ca3af"
+                : "#1B5E3F",
+              color: "#fff",
+              cursor: (saving || submitFeedback === "sending") ? "default" : "pointer",
+              boxShadow: "0 2px 8px rgba(27,94,63,0.25)",
+              transition: "background 0.2s ease",
+              minWidth: 140,
+            }}>
+            {submitFeedback === "done" ? "✓ 送信完了"
+              : submitFeedback === "sending" ? "送信中..."
+              : "確定送信 →"}
+          </button>
+          <span style={{ fontSize: 10, color: "#6b7280" }}>
+            {state.month}月{state.day}日のデータとして保存
+          </span>
+        </div>
       </div>
     </div>
+  );
+}
+
+// PR c6: 自動保存 indicator (mockup .save-status pattern)
+function AutoSaveBadge({ status }: { status: "idle" | "loading" | "saving" | "saved" | "error" }) {
+  // status ごとの表示
+  const config: Record<typeof status, { label: string; bg: string; color: string }> = {
+    idle:    { label: "—",            bg: "transparent",  color: "#9ca3af" },
+    loading: { label: "読み込み中...", bg: "#fef3c7",     color: "#854d0e" },
+    saving:  { label: "保存中...",    bg: "#dbeafe",     color: "#1e40af" },
+    saved:   { label: "✓ 自動保存済",  bg: "#d1fae5",     color: "#065f46" },
+    error:   { label: "⚠ 保存失敗",    bg: "#fee2e2",     color: "#991b1b" },
+  };
+  const c = config[status];
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "3px 8px", fontSize: 11, borderRadius: 4,
+      background: c.bg, color: c.color,
+      fontWeight: 500, minHeight: 22, whiteSpace: "nowrap",
+    }}>
+      {c.label}
+    </span>
   );
 }
 
