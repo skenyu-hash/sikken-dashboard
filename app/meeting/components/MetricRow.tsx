@@ -316,7 +316,7 @@ export function SectionTable({
           </colgroup>
           <thead>
             <tr style={{ background: "#fafafa" }}>
-              {["指標", "実績", "着地予測", "見込み", "目標差", "1日の目安"].map((h, i) => (
+              {["指標", "実績", "着地予測", "達成率", "目標差", "1日の目安"].map((h, i) => (
                 <th key={h} style={{
                   padding: "10px 10px", fontSize: 10, fontWeight: 500, color: "#6b7280",
                   borderBottom: "0.5px solid rgba(0,0,0,0.1)",
