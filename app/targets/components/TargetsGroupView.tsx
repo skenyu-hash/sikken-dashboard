@@ -135,6 +135,20 @@ export default function TargetsGroupView({ year, month, category }: Props) {
   }
 
   return (
+    <>
+      {/* PR #76: Mobile では cross-area matrix が表示不可のため警告メッセージのみ */}
+      <div className="show-mobile" style={{ display: "none", flexDirection: "column" }}>
+        <div style={{
+          background: "#fef3c7", border: "1px solid #fde68a",
+          borderRadius: 8, padding: 12, fontSize: 12, color: "#854d0e", lineHeight: 1.6,
+        }}>
+          💡 グループ全体の目標一覧は PC モードでご確認ください。<br />
+          上部のエリアタブから個別のエリアを選択すると、モバイルでも目標設定できます。
+        </div>
+      </div>
+
+      {/* PC: 既存実装 (無変更) を .hide-mobile でラップ */}
+      <div className="hide-mobile">
     <div>
       {/* トップバナー */}
       <div
@@ -281,6 +295,8 @@ export default function TargetsGroupView({ year, month, category }: Props) {
         </div>
       </div>
     </div>
+      </div>
+    </>
   );
 }
 
