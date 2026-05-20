@@ -21,7 +21,9 @@ import RoadDashboardSection from "./RoadDashboardSection";
 import DetectiveDashboardSection from "./DetectiveDashboardSection";
 import ElectricDashboardSection from "./ElectricDashboardSection";
 import { resolveTotalProfit } from "../lib/profit";
-import { MetricBadge, getBadgeColor, type GroupType } from "./ui";
+// PR c87: formatAchievement (負値 → "未達"、null → "—"、normal → "X.X%") を共通 helper として import。
+//   getBadgeColor の invert オプションと組み合わせて cost-invert + 負値処理を統一する。
+import { MetricBadge, getBadgeColor, formatAchievement, type GroupType } from "./ui";
 import { getGroupBorderColor } from "./dashboard/metric-groups";
 
 // PR #59 c1: 水道 canonical 19 項目 → v9 グループ色マッピング
@@ -1054,17 +1056,8 @@ export default function Dashboard() {
                 momDiff: momAdCost !== null ? `${displaySummary.totalAdCost - prevSummaryCalc.totalAdCost >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalAdCost - prevSummaryCalc.totalAdCost).toLocaleString()}` : null,
               },
             ];
-            // PR #59 c2: invert 考慮の badge 色判定 (広告費等の cost 系)
-            const kpiBadgeColor = (pct: number, invert: boolean): "green" | "yellow" | "red" => {
-              if (invert) {
-                if (pct <= 100) return "green";
-                if (pct <= 120) return "yellow";
-                return "red";
-              }
-              if (pct >= 100) return "green";
-              if (pct >= 80) return "yellow";
-              return "red";
-            };
+            // PR #59 c2 / PR c87: invert 考慮の badge 色判定は共通 getBadgeColor に統合済。
+            //   kpiBadgeColor local 関数は削除、呼び出し側で getBadgeColor(pct, { invert }) を直接使用。
             // PR #59 c2: 絶対値表示 (薄緑色) 共通スタイル
             const numStyle: React.CSSProperties = {
               fontSize: 11, color: "#a7f3d0",
@@ -1095,7 +1088,7 @@ export default function Dashboard() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 4 }}>
                       {kpi.targetRatio !== null && (
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <MetricBadge color={kpiBadgeColor(kpi.targetRatio, false)} minWidth={false}>
+                          <MetricBadge color={getBadgeColor(kpi.targetRatio)} minWidth={false}>
                             目標比 {kpi.targetRatio}%
                           </MetricBadge>
                           {kpi.targetLabel && <span style={numStyle}>{kpi.targetLabel}</span>}
@@ -1103,7 +1096,7 @@ export default function Dashboard() {
                       )}
                       {kpi.landRate !== null ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <MetricBadge color={kpiBadgeColor(kpi.landRate, kpi.landInvert)} minWidth={false}>
+                          <MetricBadge color={getBadgeColor(kpi.landRate, { invert: kpi.landInvert })} minWidth={false}>
                             着地 {kpi.landRate}%
                           </MetricBadge>
                           {kpi.landLabel && <span style={numStyle}>{kpi.landLabel}</span>}
@@ -1463,9 +1456,10 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function MetricsTable({ rows }: { rows: MetricRow[] }) {
   // PR #59 c1: 達成率表示を <MetricBadge> に統一 (旧 local badge() 廃止)
-  const badge = (targetRatio: number | null) => (
-    <MetricBadge color={getBadgeColor(targetRatio)} minWidth={false}>
-      {targetRatio !== null ? `${targetRatio.toFixed(1)}%` : "—"}
+  // PR c87: invert (cost-invert) + 負値処理 (赤字 → "未達") を共通 helper に委譲
+  const badge = (targetRatio: number | null, invert?: boolean) => (
+    <MetricBadge color={getBadgeColor(targetRatio, { invert })} minWidth={false}>
+      {formatAchievement(targetRatio, { invert })}
     </MetricBadge>
   );
 
@@ -1516,7 +1510,7 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
             </td>
             <td style={{ padding: "8px 10px", textAlign: "right" }}>
               {row.targetRatio !== null
-                ? badge(row.targetRatio)
+                ? badge(row.targetRatio, row.invert)
                 : <span style={{ color: "#d1d5db", fontSize: 10 }}>未設定</span>}
             </td>
             {/* PR #59 c3: 月末予測セル 2 段化 (バッジ + landingValue 絶対値併記)。
@@ -1525,8 +1519,9 @@ function MetricsTable({ rows }: { rows: MetricRow[] }) {
             <td style={{ padding: "8px 10px", textAlign: "right" }}>
               {row.landingRate !== null ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                  <MetricBadge color={getBadgeColor(row.landingRate)} minWidth={false}>
-                    {row.landingRate}%
+                  {/* PR c87: invert (cost-invert) を反映、負値時は formatAchievement で "未達" 表示 */}
+                  <MetricBadge color={getBadgeColor(row.landingRate, { invert: row.invert })} minWidth={false}>
+                    {formatAchievement(row.landingRate, { invert: row.invert })}
                   </MetricBadge>
                   {row.landingValue > 0 && (
                     <span style={{ fontSize: 10, color: "#9ca3af", fontVariantNumeric: "tabular-nums" }}>
@@ -1647,16 +1642,17 @@ function MobileMetricRow({ row, borderColor }: { row: MetricRow; borderColor: st
         {row.targetRatio !== null ? (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
             <span style={{ fontSize: 10, color: "#6b7280" }}>達成率</span>
-            <MetricBadge color={getBadgeColor(row.targetRatio)} minWidth={false}>
-              {row.targetRatio.toFixed(1)}%
+            {/* PR c87: cost-invert + 負値処理 ("未達") */}
+            <MetricBadge color={getBadgeColor(row.targetRatio, { invert: row.invert })} minWidth={false}>
+              {formatAchievement(row.targetRatio, { invert: row.invert })}
             </MetricBadge>
           </span>
         ) : null}
         {row.landingRate !== null ? (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
             <span style={{ fontSize: 10, color: "#6b7280" }}>月末予測</span>
-            <MetricBadge color={getBadgeColor(row.landingRate)} minWidth={false}>
-              {row.landingRate}%
+            <MetricBadge color={getBadgeColor(row.landingRate, { invert: row.invert })} minWidth={false}>
+              {formatAchievement(row.landingRate, { invert: row.invert })}
             </MetricBadge>
             {row.landingValue > 0 && (
               <span style={numStyle}>
@@ -1686,11 +1682,13 @@ function DeptTable({ summary, targets, daysElapsed, daysInMonth }: {
   const ratio = daysElapsed > 0 ? daysInMonth / daysElapsed : 0;
 
   // PR #59 c1: DeptTable 達成率バッジも <MetricBadge> に統一
+  // PR c87: 部門別粗利が赤字 (負値) のとき formatAchievement で "未達" 表示 (混乱回避)
+  //   部門の売上 / 粗利は higher_is_better のため invert は渡さない (default false)
   const badge = (targetRatio: number | null) => {
     if (targetRatio === null) return <span style={{ color: "#d1d5db", fontSize: 9 }}>未設定</span>;
     return (
       <MetricBadge color={getBadgeColor(targetRatio)} minWidth={false}>
-        {targetRatio.toFixed(1)}%
+        {formatAchievement(targetRatio)}
       </MetricBadge>
     );
   };

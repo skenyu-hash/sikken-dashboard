@@ -16,6 +16,12 @@
 // invertGap=true は「低いほど良い」コスト系メトリクスの評価軸反転
 // (例: 広告費は target を超えると "超過" 赤、target 以下なら "節約" 緑)
 //
+// PR c87: invertGap を達成率 badge にも適用 (旧 PR では gap 列のみだった)。
+//   従来 PC table の achBg/achColor は invertGap を見ておらず、CPA 110% が
+//   green になる semantic 逆転バグがあった。本 PR で getBadgeColor の invert
+//   オプションに直結させ、formatAchievement で負値時は "未達" 表示。
+//   gap 列のロジック (gapPositive / 余裕・不足) は変更なし — 既存挙動完全保持。
+//
 // PR #74: /meeting mobile v9 化。
 //   - SectionTable に group / count / defaultOpen prop 追加
 //   - PC は常時展開 (一覧性優先、会議中の頻繁参照画面)
@@ -27,7 +33,7 @@
 
 import React, { useState } from "react";
 import { getGroupBorderColor, type GroupType } from "../../components/dashboard/metric-groups";
-import { GroupPill } from "../../components/ui";
+import { GroupPill, getBadgeColor, formatAchievement, type BadgeColor } from "../../components/ui";
 
 // ===== calc 補助関数 (export して MeetingSection からも使用可) =====
 
@@ -50,6 +56,25 @@ export function calcDaily(target: number, dim: number): number {
   if (target <= 0 || dim <= 0) return 0;
   return Math.round(target / dim);
 }
+
+// PR c87: BadgeColor → inline 用 bg / fg 色マップ。
+//   PC table の達成率セルは旧来から inline span (列幅 / sizing 厳密管理) を採用
+//   しているため、共通 <MetricBadge> コンポーネントは使わず、配色だけ
+//   getBadgeColor (共通 helper) と semantic を揃える。
+//   旧コード: 直接 #d1fae5 / #fee2e2 等を 3 段階で書き分けていた (invert 未対応)
+//   新コード: getBadgeColor → BadgeColor → tuple → CSS 色 で 1 ホップ介在
+const ACH_BG_MAP: Record<BadgeColor, string> = {
+  gray:   "#f3f4f6",
+  green:  "#d1fae5",
+  yellow: "#fef9c3",
+  red:    "#fee2e2",
+};
+const ACH_FG_MAP: Record<BadgeColor, string> = {
+  gray:   "#d1d5db",
+  green:  "#065f46",
+  yellow: "#854d0e",
+  red:    "#991b1b",
+};
 
 // ===== 型 =====
 
@@ -82,12 +107,12 @@ export function MetricRow({
   const gap = calcGap(compareVal, target);
   const daily = calcDaily(target, daysInMonth);
 
-  const achBg = achievement === null ? "#f3f4f6"
-    : achievement >= 100 ? "#d1fae5"
-    : achievement >= 80 ? "#fef9c3" : "#fee2e2";
-  const achColor = achievement === null ? "#d1d5db"
-    : achievement >= 100 ? "#065f46"
-    : achievement >= 80 ? "#854d0e" : "#991b1b";
+  // PR c87: getBadgeColor (invert 対応) を共通 helper として使用、ローカル inline 配色から
+  //   BadgeColor → bg/color tuple マップに変更。PC table は <MetricBadge> ではなく既存
+  //   inline style を維持 (sizing / 列幅への影響回避)、色のみ共通 semantic にマップ。
+  const achColor = getBadgeColor(achievement, { invert: invertGap });
+  const achBg = ACH_BG_MAP[achColor];
+  const achFg = ACH_FG_MAP[achColor];
   const gapPositive = invertGap ? (gap !== null && gap <= 0) : (gap !== null && gap >= 0);
 
   // PR #75: PC v9 装飾整理 — padding 10px 10px、各セル font 軽量化
@@ -111,8 +136,8 @@ export function MetricRow({
           <span style={{
             display: "inline-block", fontSize: 11, fontWeight: 700,
             borderRadius: 4, padding: "2px 8px",
-            background: achBg, color: achColor,
-          }}>{achievement.toFixed(1)}%</span>
+            background: achBg, color: achFg,
+          }}>{formatAchievement(achievement, { invert: invertGap })}</span>
         ) : <span style={{ color: "#d1d5db", fontSize: 11 }}>未設定</span>}
       </td>
       {/* PR #75: 目標差を mockup pattern (gap-inline) に変更

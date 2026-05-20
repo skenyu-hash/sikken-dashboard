@@ -6,5 +6,7 @@
 export { GroupPill, GROUP_LABELS, GROUP_METRICS, getGroupBorderColor } from "./group-pill";
 export type { GroupType, GroupPillProps } from "./group-pill";
 
-export { MetricBadge, getBadgeColor } from "./metric-badge";
-export type { BadgeColor, MetricBadgeProps } from "./metric-badge";
+// PR c87: formatAchievement + AchievementDirection / BadgeOptions を re-export。
+//   getBadgeColor / formatAchievement は invert 引数で cost-invert + 負値処理を統合。
+export { MetricBadge, getBadgeColor, formatAchievement } from "./metric-badge";
+export type { BadgeColor, MetricBadgeProps, AchievementDirection, BadgeOptions } from "./metric-badge";

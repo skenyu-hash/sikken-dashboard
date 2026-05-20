@@ -189,6 +189,11 @@ export type MetricRow = {
   lineColor: string;
   landingValue: number;
   landingRate: number | null;
+  /** PR c87: cost-invert flag (低いほど良い metric: 広告費 / 職人費 / 材料費 /
+   *  入電単価 / CPA / 営業外注費 等)。Dashboard.tsx 側で getBadgeColor /
+   *  formatAchievement に渡し、target 超過時 red badge を表示する。
+   *  statusLevelFromPct(_, true) と semantic を揃える。 */
+  invert?: boolean;
 };
 
 export function buildMetricRows(
@@ -361,6 +366,7 @@ export function buildMetricRows(
         salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalAdCost / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: tr, status: statusStr(pct), statusLevel: statusLevelFromPct(pct, true), lineColor: "#d97706",
         landingValue: calcLanding(summary.totalAdCost), landingRate: calcLandingRate(summary.totalAdCost, targets.targetAdCost),
+        invert: true, // PR c87: cost — target 超過は red
       };
     })(),
     (() => {
@@ -371,6 +377,7 @@ export function buildMetricRows(
         salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalLaborCost / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr, true), lineColor: "#d97706",
         landingValue: calcLanding(summary.totalLaborCost), landingRate: null,
+        invert: true, // PR c87: cost
       };
     })(),
     (() => {
@@ -381,6 +388,7 @@ export function buildMetricRows(
         salesRatio: summary.totalRevenue > 0 ? `${Math.round(summary.totalMaterialCost / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr, true), lineColor: "#d97706",
         landingValue: calcLanding(summary.totalMaterialCost), landingRate: null,
+        invert: true, // PR c87: cost
       };
     })(),
     (() => {
@@ -389,6 +397,7 @@ export function buildMetricRows(
         salesRatio: summary.totalRevenue > 0 ? `${Math.round(salesOutsourcingCost / summary.totalRevenue * 1000) / 10}%` : null,
         targetRatio: null, status: "—", statusLevel: "none" as const, lineColor: "#d97706",
         landingValue: calcLanding(salesOutsourcingCost), landingRate: null,
+        invert: true, // PR c87: cost (target=null で badge 非表示だが将来 target 設定時の保険)
       };
     })(),
     (() => {
@@ -406,6 +415,7 @@ export function buildMetricRows(
         name: "入電単価", value: `¥${callUnitPrice.toLocaleString()}`, salesRatio: null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr, true), lineColor: "#3b82f6",
         landingValue: 0, landingRate: null,
+        invert: true, // PR c87: cost
       };
     })(),
     (() => {
@@ -426,6 +436,7 @@ export function buildMetricRows(
         name: "獲得単価(CPA)", value: `¥${cpa.toLocaleString()}`, salesRatio: null,
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr, true), lineColor: "#d97706",
         landingValue: 0, landingRate: null,
+        invert: true, // PR c87: cost — CPA 超過は red
       };
     })(),
     (() => {

@@ -25,7 +25,8 @@
 //   Q4: targetHelpUnitPrice は monthly_summaries.help_unit_price 列で直接マッピング可。
 
 import type { GroupType } from "../../components/ui";
-import { MetricBadge, getBadgeColor } from "../../components/ui/metric-badge";
+// PR c87: formatAchievement + invert オプション対応の getBadgeColor を共通 ui module から import。
+import { MetricBadge, getBadgeColor, formatAchievement } from "../../components/ui/metric-badge";
 import { getGroupBorderColor } from "../../components/dashboard/metric-groups";
 import type { Targets } from "../../lib/calculations";
 import { formatByUnit, type MetricDef, type MetricUnit } from "./TargetsMatrix";
@@ -45,7 +46,9 @@ type Props = {
 // PR #76c: 達成率算出。target が 0 以下 / 実績 null は null を返し badge gray に。
 //   yen_man の target は DB が万円で保存するため、actual (円) と比較するときは
 //   target × 10000 をベースにする。yen_raw / count / percent はそのまま比較。
-//   Q3=a: cost (CPA / 広告費率) も simple ratio (invert なし) — /dashboard, /meeting と整合。
+// PR c87: simple ratio は維持しつつ、metric.direction === "lower_is_better" の場合
+//   getBadgeColor の invert オプションで cost-invert に切替。calcAchievement 自体は
+//   生の比率を返し、色判定だけが direction を見る (semantic separation)。
 function calcAchievement(unit: MetricUnit, target: number, actual: number | null): number | null {
   if (actual == null || target <= 0) return null;
   const targetInActualUnit = (unit === "yen_man" || unit === "yen") ? target * 10000 : target;
@@ -56,6 +59,8 @@ function calcAchievement(unit: MetricUnit, target: number, actual: number | null
 export default function MobileTargetCard({ metric, value, areaId, group, canEdit, setCell, actualValue }: Props) {
   const borderColor = getGroupBorderColor(group);
   const achievement = calcAchievement(metric.unit, value, actualValue);
+  // PR c87: cost 系 metric (広告費 / 広告費率 / CPA) は invert で評価軸反転
+  const invert = metric.direction === "lower_is_better";
   return (
     <div style={{
       background: "#fafafa", borderRadius: 8, padding: "10px 12px",
@@ -69,9 +74,11 @@ export default function MobileTargetCard({ metric, value, areaId, group, canEdit
         <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
           {metric.label}
         </span>
-        {/* PR #76c: 達成率 badge — actualValue 未取得 / target 0 は gray "—" */}
-        <MetricBadge color={getBadgeColor(achievement)} minWidth={false}>
-          {achievement === null ? "—" : `${achievement.toFixed(1)}%`}
+        {/* PR #76c: 達成率 badge — actualValue 未取得 / target 0 は gray "—"
+            PR c87: cost-invert (metric.direction === "lower_is_better") を反映、
+                    赤字 (achievement < 0) は formatAchievement で "未達" 表示 */}
+        <MetricBadge color={getBadgeColor(achievement, { invert })} minWidth={false}>
+          {formatAchievement(achievement, { invert })}
         </MetricBadge>
       </div>
 

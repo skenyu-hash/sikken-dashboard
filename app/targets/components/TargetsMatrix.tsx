@@ -52,10 +52,19 @@ type MetricKey =
 // 後方互換: "yen" は yen_man のエイリアス。
 type MetricUnit = "yen_man" | "yen_raw" | "count" | "percent" | "yen";
 
+// PR c87: 達成率評価の方向性。
+//   "lower_is_better": cost 系 (広告費 / 広告費率 / CPA / 入電単価)
+//                       — target 以下なら良 (節約)、超過するほど悪。badge invert 対応。
+//   省略 (undefined)  : higher_is_better (デフォルト) — 売上 / 件数 / 単価 / rate 系等。
+//   工事取得率 (targetConstructionRate) は higher_is_better のため direction なし。
+type MetricDirection = "lower_is_better";
+
 type MetricDef = {
   key: MetricKey;
   label: string;
   unit: MetricUnit;
+  /** PR c87: 達成率方向性 — 省略時は higher_is_better */
+  direction?: MetricDirection;
 };
 
 // セクション 1: 売上・粗利・件数
@@ -67,11 +76,13 @@ const SALES_METRICS: MetricDef[] = [
 ];
 
 // セクション 2: 広告・効率指標
+// PR c87: cost 系 4 metric に direction: "lower_is_better" を付与。
+//   工事取得率 / 成約率 / 入電件数 は higher_is_better のため direction なし。
 const ADS_METRICS: MetricDef[] = [
-  { key: "targetAdCost",           label: "広告費目標",     unit: "yen_man" },
-  { key: "targetAdRate",           label: "広告費率目標",   unit: "percent" },
+  { key: "targetAdCost",           label: "広告費目標",     unit: "yen_man", direction: "lower_is_better" },
+  { key: "targetAdRate",           label: "広告費率目標",   unit: "percent", direction: "lower_is_better" },
   { key: "targetCallCount",        label: "入電件数目標",   unit: "count" },
-  { key: "targetCpa",              label: "CPA目標",        unit: "yen_raw" },
+  { key: "targetCpa",              label: "CPA目標",        unit: "yen_raw", direction: "lower_is_better" },
   { key: "targetConstructionRate", label: "工事取得率目標", unit: "percent" },
   { key: "targetConversionRate",   label: "成約率目標",     unit: "percent" },
 ];
