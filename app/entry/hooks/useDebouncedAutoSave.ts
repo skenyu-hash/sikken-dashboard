@@ -11,12 +11,13 @@
 //   - "loading" : enabled=false (fetch 中) → カレンダー操作も skip
 //   - "saving"  : debounce 発火後、saveFn 実行中
 //   - "saved"   : saveFn 成功直後 (一定時間後に idle に戻す)
-//   - "error"   : saveFn 失敗
+//   - "error"   : saveFn 失敗 (API エラーのみ、validation 失敗は "skip" 扱い)
 //
 // 使い方:
-//   const { status, triggerSave } = useDebouncedAutoSave({ state, enabled, saveFn });
+//   const { status, triggerSave, markClean } = useDebouncedAutoSave({ state, enabled, saveFn });
 //   - state 変更ごとに自動的に debounce → saveFn
 //   - triggerSave() で即時保存 (確定送信ボタンが利用、debounce 待たず flush)
+//   - markClean(nextState) で baseline を明示捕捉 (fetch 内 setState 内で使う)
 //
 // PR c6.1 hotfix: baseline 機構 (fetch ロードでの誤発火防止)
 //   旧実装は state 変更だけで debounce → save する設計で、fetch でロードされた
@@ -32,18 +33,36 @@
 //
 //   shallowEqual は EntryFormState のフラット構造 (number | string) に最適化
 //   した自作版を使用 (lodash 等の外部 deps 追加なし)。
+//
+// PR c6.2 hotfix: c6.1 で残った 2 つの問題を修正
+//   Problem A: 初期 mount で POST が 2 回発火する (根本原因は仮説ベース、複数要因
+//     候補あり: useRef 初期捕捉のズレ / effect 順 race / 月遷移など)。
+//     → markClean(nextState) callback を新設し、fetchExisting 内の setState
+//       updater で baseline を同期的に捕捉する belt+suspenders 方式。
+//   Problem B: validation 失敗で "保存失敗" badge が表示される。
+//     → saveFn 戻り値を boolean から SaveOutcome 文字列 union に変更。
+//       "success" → status="saved"、"error" → status="error"、"skip" → status は idle に戻す
+//       (validation 失敗は API エラーと区別)。
 
 import { useEffect, useRef, useState, useCallback } from "react";
 
 export type AutoSaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
+
+/** PR c6.2: saveFn の戻り値型。 boolean overload を解消し validation skip と
+ *  API error を明示的に区別する。 */
+export type SaveOutcome = "success" | "skip" | "error";
 
 type Options<T> = {
   /** 監視する state (変更時に debounce → saveFn) */
   state: T;
   /** auto-save 許可フラグ (fetch 中などは false → skip) */
   enabled: boolean;
-  /** 実際の保存処理。成功なら true、失敗なら false を resolve */
-  saveFn: () => Promise<boolean>;
+  /** 実際の保存処理。
+   *  - "success": 保存成功
+   *  - "skip"   : validation 失敗等で save 試行をスキップ (badge は変えない)
+   *  - "error"  : API エラー等で save 試行は実行されたが失敗 (badge → "保存失敗")
+   */
+  saveFn: () => Promise<SaveOutcome>;
   /** debounce ms (default 500) */
   debounceMs?: number;
   /** "saved" 表示時間 ms (default 2500) */
@@ -121,15 +140,18 @@ export function useDebouncedAutoSave<T>({
     debounceTimer.current = setTimeout(async () => {
       setStatus("saving");
       try {
-        const ok = await saveFn();
-        if (ok) {
+        const result = await saveFn();
+        if (result === "success") {
           // PR c6.1: save 成功で baseline 更新 (次回入力で再発火可能に)
           baselineRef.current = stateRef.current;
           setStatus("saved");
           if (savedTimer.current) clearTimeout(savedTimer.current);
           savedTimer.current = setTimeout(() => setStatus("idle"), savedDisplayMs);
-        } else {
+        } else if (result === "error") {
           setStatus("error");
+        } else {
+          // PR c6.2: "skip" (validation 失敗等) は status を idle に戻すだけ
+          setStatus("idle");
         }
       } catch {
         setStatus("error");
@@ -144,26 +166,36 @@ export function useDebouncedAutoSave<T>({
   }, [state, enabled, debounceMs, savedDisplayMs]);
 
   // 即時保存 (確定送信ボタン用、debounce 待たず flush)
-  const triggerSave = useCallback(async () => {
+  const triggerSave = useCallback(async (): Promise<SaveOutcome> => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     setStatus("saving");
     try {
-      const ok = await saveFn();
-      if (ok) {
+      const result = await saveFn();
+      if (result === "success") {
         // PR c6.1: 確定送信成功でも baseline 更新
         baselineRef.current = stateRef.current;
         setStatus("saved");
         if (savedTimer.current) clearTimeout(savedTimer.current);
         savedTimer.current = setTimeout(() => setStatus("idle"), savedDisplayMs);
-      } else {
+      } else if (result === "error") {
         setStatus("error");
+      } else {
+        setStatus("idle");
       }
-      return ok;
+      return result;
     } catch {
       setStatus("error");
-      return false;
+      return "error";
     }
   }, [saveFn, savedDisplayMs]);
+
+  // PR c6.2: 外部から baseline を明示的に捕捉する callback。
+  //   主に fetchExisting 内の setState updater で使用し、fetch ロード直後の state を
+  //   baseline と同期させて誤発火を防ぐ (belt+suspenders、[enabled] toggle と併用)。
+  //   idempotent — 同じ state で何度呼んでも安全 (StrictMode 含む)。
+  const markClean = useCallback((cleanState: T) => {
+    baselineRef.current = cleanState;
+  }, []);
 
   // unmount cleanup
   useEffect(() => {
@@ -173,5 +205,5 @@ export function useDebouncedAutoSave<T>({
     };
   }, []);
 
-  return { status, triggerSave };
+  return { status, triggerSave, markClean };
 }

@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useFormCalculations } from "./hooks/useFormCalculations";
 import { useFormValidation } from "./hooks/useFormValidation";
-import { useDebouncedAutoSave } from "./hooks/useDebouncedAutoSave";
+import { useDebouncedAutoSave, type SaveOutcome } from "./hooks/useDebouncedAutoSave";
 import EntryCalendar from "./components/EntryCalendar";
 import WaterForm from "./components/forms/WaterForm";
 import ElectricForm from "./components/forms/ElectricForm";
@@ -182,7 +182,10 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         const summary = json.summary as Record<string, unknown> | null;
         if (summary) {
           // 既存データあり → 入力 20 フィールド展開、メタ (area/year/month/day/category) は維持
-          setState((s) => ({
+          // PR c6.2: setState updater 内で markClean を呼び baseline を同期捕捉
+          //   (auto-save の誤発火を防ぐ belt+suspenders)
+          setState((s) => {
+            const next: EntryFormState = {
             ...s,
             outsourced_sales_revenue: numOrEmpty(summary.outsourced_sales_revenue),
             internal_staff_revenue: numOrEmpty(summary.internal_staff_revenue),
@@ -247,12 +250,17 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             road_insurance_revenue: numOrEmpty(summary.road_insurance_revenue),
             road_non_insurance_revenue: numOrEmpty(summary.road_non_insurance_revenue),
             road_selling_admin_cost: numOrEmpty(summary.road_selling_admin_cost),
-          }));
+            };
+            markClean(next); // PR c6.2: baseline 同期捕捉 (誤発火防止)
+            return next;
+          });
           const aod = Number(summary.as_of_day);
           setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
         } else {
           // 既存データなし → 入力フィールドをクリア (メタは維持)
-          setState((s) => ({
+          // PR c6.2: setState updater 内で markClean を呼び baseline 同期捕捉
+          setState((s) => {
+            const next: EntryFormState = {
             ...s,
             outsourced_sales_revenue: "", internal_staff_revenue: "",
             outsourced_response_count: "", internal_staff_response_count: "",
@@ -281,7 +289,10 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             road_seo_call_count: "", road_insurance_call_count: "",
             road_insurance_revenue: "", road_non_insurance_revenue: "",
             road_selling_admin_cost: "",
-          }));
+            };
+            markClean(next); // PR c6.2: baseline 同期捕捉 (誤発火防止)
+            return next;
+          });
           setExistingAsOfDay(null);
         }
         clearErrors();
@@ -303,14 +314,17 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.area_id, state.year, state.month, category]);
 
-  // PR c6: handleSave を Promise<boolean> 化 (auto-save hook 連動のため)
-  //   - true: 保存成功 / false: validation 失敗 or API エラー
-  //   - useCallback で参照固定 (auto-save の useEffect 依存配列対策)
-  const handleSave = useCallback(async (): Promise<boolean> => {
+  // PR c6: handleSave を Promise<SaveOutcome> 化 (auto-save hook 連動のため)
+  // PR c6.2: 戻り値を boolean → "success"/"skip"/"error" の string union に変更。
+  //   - "success": API 保存成功
+  //   - "skip"   : validation 失敗で save 試行をスキップ (badge は "保存失敗" を出さない)
+  //   - "error"  : save 試行は実行したが API 失敗 (badge → "⚠ 保存失敗")
+  //   useCallback で参照固定 (auto-save の useEffect 依存配列対策)
+  const handleSave = useCallback(async (): Promise<SaveOutcome> => {
     if (!validateAll(state)) {
       setSaveResult("error");
       setSaveMsg("入力内容を確認してください");
-      return false;
+      return "skip";
     }
     setSaving(true);
     setSaveResult("idle");
@@ -429,11 +443,11 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
       setSaveResult("success");
       setSaveMsg(`保存しました（${state.year}年${state.month}月 / ${AREA_NAMES[state.area_id] ?? state.area_id} / ${CATEGORY_LABELS[category]}）`);
       clearErrors();
-      return true;
+      return "success";
     } catch (e) {
       setSaveResult("error");
       setSaveMsg(`保存失敗: ${e instanceof Error ? e.message : String(e)}`);
-      return false;
+      return "error";
     } finally {
       setSaving(false);
     }
@@ -442,15 +456,17 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
   // PR c6: state 変更 → 500ms debounce → 自動保存
   //   - isLoadingExisting 中は enabled=false で skip + indicator "読み込み中..."
   //   - triggerSave: 確定送信ボタンが debounce 待たず即時 save するために利用
-  const { status: autoSaveStatus, triggerSave } = useDebouncedAutoSave({
+  // PR c6.2: hook が markClean を公開 (fetchExisting で baseline 同期捕捉に使う)
+  const { status: autoSaveStatus, triggerSave, markClean } = useDebouncedAutoSave({
     state, enabled: !isLoadingExisting, saveFn: handleSave,
   });
 
   // PR c6: 確定送信 — auto-save と同じ saveFn を即時 trigger + 視覚 feedback
+  // PR c6.2: triggerSave 戻り値が SaveOutcome に変更、"success" 時のみ done feedback
   const handleConfirmSubmit = async () => {
     setSubmitFeedback("sending");
-    const ok = await triggerSave();
-    if (ok) {
+    const result = await triggerSave();
+    if (result === "success") {
       setSubmitFeedback("done");
       setTimeout(() => setSubmitFeedback("idle"), 2500);
     } else {
