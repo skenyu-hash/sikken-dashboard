@@ -74,14 +74,14 @@ export default function DetectiveMeetingSection({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <SectionTable title="① 新規対応・コスト・営業利益">
+      <SectionTable title="① 新規対応・コスト・営業利益" group="rev" count={4} defaultOpen>
         <MetricRow label="売上"           actual={sales}            target={targets.targetSales}  {...mp} format={fmtYen} />
         <MetricRow label="広告費 (探偵LP)" actual={adCost}          target={targets.targetAdCost} {...mp} format={fmtYen} invertGap />
         <MetricRow label="販管費"         actual={sellingAdminCost} target={0}                     {...mp} format={fmtYen} invertGap />
         <MetricRow label="営業利益"       actual={profit}           target={targets.targetProfit} {...mp} format={fmtYen} />
       </SectionTable>
 
-      <SectionTable title="② 入電">
+      <SectionTable title="② 入電" group="acq" count={6} defaultOpen={false}>
         <MetricRow label="電のみ 入電"     actual={phoneOnlyCount} target={0}                       {...mp} format={fmtCount} />
         <MetricRow label="メールのみ 入電" actual={mailOnlyCount}  target={0}                       {...mp} format={fmtCount} />
         <MetricRow label="LINEのみ 入電"   actual={lineOnlyCount}  target={0}                       {...mp} format={fmtCount} />
@@ -90,7 +90,7 @@ export default function DetectiveMeetingSection({
         <MetricRow label="入電単価"        actual={callUnitPrice}  target={0}                       {...mp} format={fmtYen} isRate />
       </SectionTable>
 
-      <SectionTable title="③ 獲得">
+      <SectionTable title="③ 獲得" group="acq" count={8} defaultOpen={false}>
         <MetricRow label="電話 × 浮気"     actual={acqPhoneUwaki}    target={0}                   {...mp} format={fmtCount} />
         <MetricRow label="電話 × その他"   actual={acqPhoneOther}    target={0}                   {...mp} format={fmtCount} />
         <MetricRow label="メール × 浮気"   actual={acqMailUwaki}     target={0}                   {...mp} format={fmtCount} />
@@ -101,7 +101,7 @@ export default function DetectiveMeetingSection({
         <MetricRow label="CPA"                       actual={cpa}              target={targets.targetCpa}   {...mp} format={fmtYen} isRate invertGap />
       </SectionTable>
 
-      <SectionTable title="④ 面談プロセス (探偵専用ファネル)">
+      <SectionTable title="④ 面談プロセス (探偵専用ファネル)" group="acq" count={7} defaultOpen={false}>
         <MetricRow label="アポ獲得率"           actual={appointmentRate} target={targets.targetConversionRate} {...mp} format={fmtPct} isRate />
         <MetricRow label="面談事前キャンセル数" actual={cancelCount}     target={0}                              {...mp} format={fmtCount} invertGap />
         <MetricRow label="キャンセル率"         actual={cancelRate}      target={0}                              {...mp} format={fmtPct} isRate invertGap />
