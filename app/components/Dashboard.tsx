@@ -1088,7 +1088,12 @@ export default function Dashboard() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 4 }}>
                       {kpi.targetRatio !== null && (
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <MetricBadge color={getBadgeColor(kpi.targetRatio)} minWidth={false}>
+                          {/* PR c88: 目標比 badge にも cost-invert を適用。c87 では誤って
+                              hard-coded `false` (旧 kpiBadgeColor(_, false)) のロジックを
+                              そのまま invert 引数なしで残してしまったため、広告費 KPI hero で
+                              目標比 1.4% → red (本来 green) の semantic 逆転が発生していた。
+                              着地 (line 下) と同じ kpi.landInvert を使用して整合性確保。 */}
+                          <MetricBadge color={getBadgeColor(kpi.targetRatio, { invert: kpi.landInvert })} minWidth={false}>
                             目標比 {kpi.targetRatio}%
                           </MetricBadge>
                           {kpi.targetLabel && <span style={numStyle}>{kpi.targetLabel}</span>}

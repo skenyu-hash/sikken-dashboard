@@ -20,7 +20,7 @@
 //     経由しないため、要画面リロード (既存挙動を維持、Phase 2 で改善検討)。
 //   - useDebouncedCallback は 500ms。連打時は最後の値のみ保存される。
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { emptyTargets, type Targets } from "../../lib/calculations";
 import { useDebouncedCallback, useSaveStatus, type SaveStatus } from "./useDebounceSave";
 
@@ -56,16 +56,25 @@ export function useTargetsState({ areas, category, year, month, onSaveStatusChan
   const [flashCells, setFlashCells] = useState<Set<string>>(new Set());
   const { status, flash, markSaving, markSaved, markError } = useSaveStatus();
 
+  // PR c88: callback ref で onSaveStatusChange の identity を effect 依存配列から
+  //   分離。page.tsx 側で useCallback による安定化済だが、将来安定化が壊された場合の
+  //   defensive (c6.2 markClean + [enabled] と同じ belt+suspenders 設計)。
+  //   render 毎に最新 callback を ref に格納し、effect は ref 経由で呼び出す。
+  const onSaveStatusChangeRef = useRef(onSaveStatusChange);
+  onSaveStatusChangeRef.current = onSaveStatusChange;
+
   // PR c76e: 初回 fetch 中は status="loading" を broadcast し badge "読み込み中..." 表示。
   //   loading 完了後は通常の save status (idle/saving/saved/error) に切替。
   //   loading 状態への stuck を防ぐため依存配列に loading を含める。
+  // PR c88: 依存配列から onSaveStatusChange を除外 (ref 経由で参照)。これにより
+  //   callback identity 変動による re-render → fetch loop の連鎖を完全に遮断。
   useEffect(() => {
     if (loading) {
-      onSaveStatusChange?.("loading", false);
+      onSaveStatusChangeRef.current?.("loading", false);
     } else {
-      onSaveStatusChange?.(status, flash);
+      onSaveStatusChangeRef.current?.(status, flash);
     }
-  }, [loading, status, flash, onSaveStatusChange]);
+  }, [loading, status, flash]);
 
   // 全エリアの targets を並列取得
   useEffect(() => {

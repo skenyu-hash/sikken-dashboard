@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { emptyTargets, type Targets } from "../lib/calculations";
 import { useRole } from "../components/RoleProvider";
 import { hasPageAccess } from "../lib/permissions";
@@ -65,6 +65,26 @@ export default function TargetsPage() {
   const [bubbledFlash, setBubbledFlash] = useState(false);
   const displayStatus: SaveStatus = bubbledStatus !== "idle" ? bubbledStatus : matrixStatus;
   const displayFlash = bubbledFlash || matrixFlash;
+
+  // PR c88: useTargetsState の broadcast effect が onSaveStatusChange を依存配列に
+  //   含むため、毎 render fresh arrow を渡すと effect 再発火 → setBubbledStatus
+  //   → re-render → fresh callback → effect 再発火 の loop に陥る可能性。
+  //   useCallback で identity を安定化して loop を防止。
+  const handleBubbledSaveStatus = useCallback((s: SaveStatus, f: boolean) => {
+    setBubbledStatus(s);
+    setBubbledFlash(f);
+  }, []);
+
+  // PR c88: 単一エリアモード用に businessAreas.filter(...) を useMemo で安定化。
+  //   旧コードは JSX 内 inline filter で毎 render 新配列 → useTargetsState の
+  //   fetch effect [areas, ...] が再発火 → setLoading(true) → 完了 → re-render →
+  //   再発火 の無限 fetch loop が発生 (本番で 210+ requests / "読み込み中..."
+  //   スタックの root cause)。activeAreaTab === GROUP_TAB_ID の時は使われないが、
+  //   render コストは無視可。
+  const sectionsAreas = useMemo(
+    () => businessAreas.filter((a) => a.id === activeAreaTab),
+    [businessAreas, activeAreaTab]
+  );
 
   // 「前月の値をコピー」: confirm → /api/targets-bulk から前月取得 → 全エリア upsert
   const [copyingPrev, setCopyingPrev] = useState(false);
@@ -330,15 +350,12 @@ export default function TargetsPage() {
         )}
         {viewMode === "business" && activeAreaTab !== GROUP_TAB_ID && (
           <TargetsSections
-            areas={businessAreas.filter((a) => a.id === activeAreaTab)}
+            areas={sectionsAreas}
             category={activeBusiness}
             year={year}
             month={month}
             canEdit={canEdit}
-            onSaveStatusChange={(s: SaveStatus, f: boolean) => {
-              setBubbledStatus(s);
-              setBubbledFlash(f);
-            }}
+            onSaveStatusChange={handleBubbledSaveStatus}
           />
         )}
         {viewMode === "company" && (
