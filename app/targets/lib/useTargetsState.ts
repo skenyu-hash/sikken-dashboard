@@ -56,9 +56,16 @@ export function useTargetsState({ areas, category, year, month, onSaveStatusChan
   const [flashCells, setFlashCells] = useState<Set<string>>(new Set());
   const { status, flash, markSaving, markSaved, markError } = useSaveStatus();
 
+  // PR c76e: 初回 fetch 中は status="loading" を broadcast し badge "読み込み中..." 表示。
+  //   loading 完了後は通常の save status (idle/saving/saved/error) に切替。
+  //   loading 状態への stuck を防ぐため依存配列に loading を含める。
   useEffect(() => {
-    onSaveStatusChange?.(status, flash);
-  }, [status, flash, onSaveStatusChange]);
+    if (loading) {
+      onSaveStatusChange?.("loading", false);
+    } else {
+      onSaveStatusChange?.(status, flash);
+    }
+  }, [loading, status, flash, onSaveStatusChange]);
 
   // 全エリアの targets を並列取得
   useEffect(() => {
