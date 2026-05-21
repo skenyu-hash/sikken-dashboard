@@ -6,9 +6,19 @@
 //   - 入力 20 + auto 11 = 31 フィールド (仕様書通り)
 //   - 自動計算は useFormCalculations で useMemo (リアクティブ)
 //   - バリデーションは onBlur + 保存時 (useFormValidation)
-//   - 保存は POST /api/import-monthly + 500ms 後 GET /api/monthly-summary で
-//     read-back verification
-//   - エリア選択: executive/vice のみ手動、他は自エリア固定
+//
+// PR c90-2: データモデル変更 — 累積置換から日次差分へ。
+//   - 保存は POST /api/entries (日次差分入力) → /api/entries route が c90-1 の
+//     aggregateMonthlySummary を後段で呼び出し、monthly_summaries を再集計
+//   - 旧経路 (/api/import-monthly) は /import ページ専用に縮退
+//   - 既存データの load は /api/entries で当該月の全行を取得し、選択 day の
+//     entry を find/prefill (該当 day に entry 無ければフォーム空欄)
+//   - カレンダー ● マーカーは全 entry_date を反映 (旧: as_of_day 単一)
+//   - mode badge: 当該 day に entry あり → "修正モード" yellow、なし → "新規入力" green
+//   - フォーム下部に CumulativePreview を mount (月初〜選択日累積を /api/monthly-summary で表示)
+//
+// auto-save は PR c89-p1 で OFF 維持 (useDebouncedAutoSave.AUTOSAVE_DISABLED_C89_P1=true)。
+// c90-2 でも絶対に変更しない (致命的データ破壊事故の再発防止)。
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -16,13 +26,15 @@ import { useFormCalculations } from "./hooks/useFormCalculations";
 import { useFormValidation } from "./hooks/useFormValidation";
 import { useDebouncedAutoSave, type SaveOutcome } from "./hooks/useDebouncedAutoSave";
 import EntryCalendar from "./components/EntryCalendar";
+import CumulativePreview from "./components/CumulativePreview";
 import WaterForm from "./components/forms/WaterForm";
 import ElectricForm from "./components/forms/ElectricForm";
-import LocksmithForm, { computeLocksmithProfit } from "./components/forms/LocksmithForm";
+import LocksmithForm from "./components/forms/LocksmithForm";
 import RoadForm from "./components/forms/RoadForm";
 import DetectiveForm from "./components/forms/DetectiveForm";
 import { BUSINESS_LABELS, type BusinessCategory, type FieldLabels } from "../lib/business-labels";
 import { BUSINESSES } from "../lib/businesses";
+import type { DailyEntry } from "../lib/calculations";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "./types";
 
 type Props = {
@@ -128,6 +140,16 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
   const [existingAsOfDay, setExistingAsOfDay] = useState<number | null>(null);
 
+  // PR c90-2: 当月 entries 全件キャッシュ ("YYYY-MM-DD" → DailyEntry)。
+  //   load effect (Q1=a 分離設計): Effect A が month 変化で entries[] を fetch して
+  //   この Map にキャッシュ、Effect B が state.day 変化時にここから find して prefill する。
+  //   カレンダー ● マーカー (hasDataDays) もこの Map から導出 (旧: existingAsOfDay 単一)。
+  const [entriesByDate, setEntriesByDate] = useState<Map<string, DailyEntry>>(() => new Map());
+
+  // PR c90-2: CumulativePreview が再 fetch するための trigger。
+  //   確定送信成功時に ++ することで aggregation 後の最新 monthly_summaries を再表示。
+  const [cumulativeRefetchCount, setCumulativeRefetchCount] = useState(0);
+
   // PR c6: 確定送信ボタンの視覚 feedback state machine
   //   idle    : "確定送信 →"
   //   sending : "送信中..."
@@ -152,20 +174,51 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
     setSaveResult("idle");
   };
 
-  // PR c6: has-data days = 編集モードで既に DB に行があれば as_of_day の日のみ ●
-  //   (Q1=A 採用: 月単位 1 行 schema のため、per-day 追跡は schema 変更が必要、
-  //    本 PR では as_of_day の日にだけドット表示)
-  const hasDataDays = useMemo(
-    () => existingAsOfDay !== null ? new Set([existingAsOfDay]) : new Set<number>(),
-    [existingAsOfDay]
-  );
+  // PR c90-2: カレンダー ● マーカーを entries 全行から導出。
+  //   旧 (PR c6): existingAsOfDay 単一値から Set([asOfDay]) 生成 (1 ヶ月に最大 1 ドット)
+  //   新       : entriesByDate Map の key (YYYY-MM-DD) から月内全 day を抽出
+  //   c90 で entries が日次差分の真実のソースになったため、保存されている全日付に
+  //   ドットを表示するのが正しい。
+  const hasDataDays = useMemo(() => {
+    const days = new Set<number>();
+    for (const dateStr of entriesByDate.keys()) {
+      // "2026-05-15" → 15
+      const parts = dateStr.split("-");
+      if (parts.length === 3) {
+        const d = Number(parts[2]);
+        if (Number.isInteger(d) && d >= 1 && d <= 31) days.add(d);
+      }
+    }
+    return days;
+  }, [entriesByDate]);
 
-  // PR #44: area/year/month/category 変更時に既存データを fetch して展開。
-  // day は UNIQUE 制約に含まれないため依存配列から除外 (day 変更で再 fetch しない)。
-  // race condition 対策: cancelled フラグで高速タブ切替時の上書きを防止。
+  // PR c90-2: 当該 day に既存 entry が DB にあるか (mode badge の判定基準、Q2=a)。
+  //   true → "修正モード" yellow、false → "新規入力モード" green。
+  //   過去/当日/未来の区別ではなく entry 存在で判定 (今日の entry を再編集する場合も
+  //   修正モードになる、論理的に明快)。
+  const currentDateStr = useMemo(() => {
+    const m = String(state.month).padStart(2, "0");
+    const d = String(state.day).padStart(2, "0");
+    return `${state.year}-${m}-${d}`;
+  }, [state.year, state.month, state.day]);
+  const hasExistingEntryForCurrentDay = entriesByDate.has(currentDateStr);
+
+  // existingAsOfDay は legacy compat 用に保持 (mode banner で「最終更新は X 日」表示用)
+  // c90-2 では entriesByDate から MAX(day) で再計算する代替表示も検討余地ありだが、
+  // 当面は monthly_summaries.as_of_day を fetch して同様の意味で扱う。
+  void existingAsOfDay; // 旧 ModeBadge へ受け渡し用 (削除しない)
+
+  // PR c90-2 Effect A (Q1=a 分離設計): area/year/month/category 変化で当月の
+  //   entries 全件を fetch し、entriesByDate Map にキャッシュする。
+  //   Effect B が state.day に応じて Map から該当 entry を find/prefill する。
+  //   旧 (PR #44): /api/monthly-summary fetch → 月次累積を全フィールドに展開
+  //              (累積置換モデル前提、c89-p1 で破壊事故を引き起こした構造)
+  //   新       : /api/entries fetch → 日次差分の配列を取得、day 変化で個別 prefill
+  //   day を依存配列に含めない設計は維持 (1 ヶ月分の entries を 1 度だけ load する)。
+  //   存在 day のサブセットはカレンダー ● で可視化、mode badge も entry 存在で判定。
   useEffect(() => {
     let cancelled = false;
-    async function fetchExisting() {
+    async function fetchMonthEntries() {
       setIsLoadingExisting(true);
       try {
         const params = new URLSearchParams({
@@ -174,152 +227,173 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           month: String(state.month),
           category,
         });
-        const res = await fetch(`/api/monthly-summary?${params}`);
+        const res = await fetch(`/api/entries?${params}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
+        const json = await res.json() as { entries?: DailyEntry[] };
         if (cancelled) return;
 
-        const summary = json.summary as Record<string, unknown> | null;
-        if (summary) {
-          // 既存データあり → 入力 20 フィールド展開、メタ (area/year/month/day/category) は維持
-          // PR c6.2: setState updater 内で markClean を呼び baseline を同期捕捉
-          //   (auto-save の誤発火を防ぐ belt+suspenders)
-          setState((s) => {
-            const next: EntryFormState = {
-            ...s,
-            outsourced_sales_revenue: numOrEmpty(summary.outsourced_sales_revenue),
-            internal_staff_revenue: numOrEmpty(summary.internal_staff_revenue),
-            outsourced_response_count: numOrEmpty(summary.outsourced_response_count),
-            internal_staff_response_count: numOrEmpty(summary.internal_staff_response_count),
-            repeat_count: numOrEmpty(summary.repeat_count),
-            revisit_count: numOrEmpty(summary.revisit_count),
-            review_count: numOrEmpty(summary.review_count),
-            total_labor_cost: numOrEmpty(summary.total_labor_cost),
-            material_cost: numOrEmpty(summary.material_cost),
-            sales_outsourcing_cost: numOrEmpty(summary.sales_outsourcing_cost),
-            card_processing_fee: numOrEmpty(summary.card_processing_fee),
-            ad_cost: numOrEmpty(summary.ad_cost),
-            call_count: numOrEmpty(summary.call_count),
-            acquisition_count: numOrEmpty(summary.acquisition_count),
-            outsourced_construction_count: numOrEmpty(summary.outsourced_construction_count),
-            internal_construction_count: numOrEmpty(summary.internal_construction_count),
-            outsourced_construction_cost: numOrEmpty(summary.outsourced_construction_cost),
-            internal_construction_profit: numOrEmpty(summary.internal_construction_profit),
-            help_count: numOrEmpty(summary.help_count),
-            help_revenue: numOrEmpty(summary.help_revenue),
-            switchboard_count: numOrEmpty(summary.switchboard_count),
-            // PR #51: 鍵業態専用 6 列
-            locksmith_car_lp_email_count: numOrEmpty(summary.locksmith_car_lp_email_count),
-            locksmith_inhouse_count: numOrEmpty(summary.locksmith_inhouse_count),
-            locksmith_repeat_count: numOrEmpty(summary.locksmith_repeat_count),
-            locksmith_revisit_count: numOrEmpty(summary.locksmith_revisit_count),
-            locksmith_construction_cost: numOrEmpty(summary.locksmith_construction_cost),
-            locksmith_commission_fee: numOrEmpty(summary.locksmith_commission_fee),
-            // PR #52: ロード業態専用 獲得 7 内訳
-            road_ad_count: numOrEmpty(summary.road_ad_count),
-            road_repeat_count: numOrEmpty(summary.road_repeat_count),
-            road_referral_count: numOrEmpty(summary.road_referral_count),
-            road_revisit_count: numOrEmpty(summary.road_revisit_count),
-            road_wellnest_count: numOrEmpty(summary.road_wellnest_count),
-            road_seo_count: numOrEmpty(summary.road_seo_count),
-            road_insurance_count: numOrEmpty(summary.road_insurance_count),
-            // PR #53: 探偵業態専用 面談ファネル
-            detective_meeting_count: numOrEmpty(summary.detective_meeting_count),
-            detective_cancel_count: numOrEmpty(summary.detective_cancel_count),
-            // PR #57: 探偵業態 入電 4 内訳
-            detective_phone_only_call_count: numOrEmpty(summary.detective_phone_only_call_count),
-            detective_mail_only_call_count: numOrEmpty(summary.detective_mail_only_call_count),
-            detective_line_only_call_count: numOrEmpty(summary.detective_line_only_call_count),
-            detective_wrong_call_count: numOrEmpty(summary.detective_wrong_call_count),
-            // PR #58b: 探偵業態 獲得 6 内訳 + 販管費
-            detective_phone_uwaki_acquisition_count: numOrEmpty(summary.detective_phone_uwaki_acquisition_count),
-            detective_phone_other_acquisition_count: numOrEmpty(summary.detective_phone_other_acquisition_count),
-            detective_mail_uwaki_acquisition_count: numOrEmpty(summary.detective_mail_uwaki_acquisition_count),
-            detective_mail_other_acquisition_count: numOrEmpty(summary.detective_mail_other_acquisition_count),
-            detective_line_uwaki_acquisition_count: numOrEmpty(summary.detective_line_uwaki_acquisition_count),
-            detective_line_other_acquisition_count: numOrEmpty(summary.detective_line_other_acquisition_count),
-            detective_selling_admin_cost: numOrEmpty(summary.detective_selling_admin_cost),
-            // PR #58c: ロード業態 入電 7 内訳 + 保険売上 2 分割 + 販管費
-            road_ad_call_count: numOrEmpty(summary.road_ad_call_count),
-            road_repeat_call_count: numOrEmpty(summary.road_repeat_call_count),
-            road_referral_call_count: numOrEmpty(summary.road_referral_call_count),
-            road_revisit_call_count: numOrEmpty(summary.road_revisit_call_count),
-            road_wellnest_call_count: numOrEmpty(summary.road_wellnest_call_count),
-            road_seo_call_count: numOrEmpty(summary.road_seo_call_count),
-            road_insurance_call_count: numOrEmpty(summary.road_insurance_call_count),
-            road_insurance_revenue: numOrEmpty(summary.road_insurance_revenue),
-            road_non_insurance_revenue: numOrEmpty(summary.road_non_insurance_revenue),
-            road_selling_admin_cost: numOrEmpty(summary.road_selling_admin_cost),
-            };
-            markClean(next); // PR c6.2: baseline 同期捕捉 (誤発火防止)
-            return next;
-          });
-          const aod = Number(summary.as_of_day);
-          setExistingAsOfDay(Number.isInteger(aod) ? aod : null);
-        } else {
-          // 既存データなし → 入力フィールドをクリア (メタは維持)
-          // PR c6.2: setState updater 内で markClean を呼び baseline 同期捕捉
-          setState((s) => {
-            const next: EntryFormState = {
-            ...s,
-            outsourced_sales_revenue: "", internal_staff_revenue: "",
-            outsourced_response_count: "", internal_staff_response_count: "",
-            repeat_count: "", revisit_count: "", review_count: "",
-            total_labor_cost: "", material_cost: "", sales_outsourcing_cost: "", card_processing_fee: "",
-            ad_cost: "", call_count: "", acquisition_count: "",
-            outsourced_construction_count: "", internal_construction_count: "",
-            outsourced_construction_cost: "", internal_construction_profit: "",
-            help_count: "", help_revenue: "",
-            switchboard_count: "",
-            locksmith_car_lp_email_count: "", locksmith_inhouse_count: "",
-            locksmith_repeat_count: "", locksmith_revisit_count: "",
-            locksmith_construction_cost: "", locksmith_commission_fee: "",
-            road_ad_count: "", road_repeat_count: "", road_referral_count: "",
-            road_revisit_count: "", road_wellnest_count: "",
-            road_seo_count: "", road_insurance_count: "",
-            detective_meeting_count: "", detective_cancel_count: "",
-            detective_phone_only_call_count: "", detective_mail_only_call_count: "",
-            detective_line_only_call_count: "", detective_wrong_call_count: "",
-            detective_phone_uwaki_acquisition_count: "", detective_phone_other_acquisition_count: "",
-            detective_mail_uwaki_acquisition_count: "",  detective_mail_other_acquisition_count: "",
-            detective_line_uwaki_acquisition_count: "",  detective_line_other_acquisition_count: "",
-            detective_selling_admin_cost: "",
-            road_ad_call_count: "", road_repeat_call_count: "", road_referral_call_count: "",
-            road_revisit_call_count: "", road_wellnest_call_count: "",
-            road_seo_call_count: "", road_insurance_call_count: "",
-            road_insurance_revenue: "", road_non_insurance_revenue: "",
-            road_selling_admin_cost: "",
-            };
-            markClean(next); // PR c6.2: baseline 同期捕捉 (誤発火防止)
-            return next;
-          });
-          setExistingAsOfDay(null);
+        const entries = Array.isArray(json.entries) ? json.entries : [];
+        const map = new Map<string, DailyEntry>();
+        for (const e of entries) {
+          if (e && typeof e.date === "string") map.set(e.date, e);
         }
+        setEntriesByDate(map);
+
+        // existingAsOfDay は最終 entry_date を表示用に流用 (mode banner の参考表示)
+        const maxDay = entries.reduce<number | null>((acc, e) => {
+          const d = Number(e.date?.slice(8, 10));
+          if (!Number.isInteger(d)) return acc;
+          return acc === null || d > acc ? d : acc;
+        }, null);
+        setExistingAsOfDay(maxDay);
+
         clearErrors();
       } catch (e) {
-        // ネットワークエラー時はサイレントに新規入力モード扱い
         if (!cancelled) {
+          setEntriesByDate(new Map());
           setExistingAsOfDay(null);
         }
-        console.error("/entry 既存データ読込エラー:", e);
+        console.error("/entry 当月 entries 取得エラー:", e);
       } finally {
         if (!cancelled) setIsLoadingExisting(false);
       }
     }
-    fetchExisting();
-    return () => {
-      cancelled = true;
-    };
-    // 注意: state.day は意図的に依存配列に含めない (DB 上 UNIQUE に含まれないため)
+    fetchMonthEntries();
+    return () => { cancelled = true; };
+    // 注意: state.day は意図的に依存配列に含めない (Effect B が day を扱う)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.area_id, state.year, state.month, category]);
 
-  // PR c6: handleSave を Promise<SaveOutcome> 化 (auto-save hook 連動のため)
-  // PR c6.2: 戻り値を boolean → "success"/"skip"/"error" の string union に変更。
-  //   - "success": API 保存成功
-  //   - "skip"   : validation 失敗で save 試行をスキップ (badge は "保存失敗" を出さない)
-  //   - "error"  : save 試行は実行したが API 失敗 (badge → "⚠ 保存失敗")
-  //   useCallback で参照固定 (auto-save の useEffect 依存配列対策)
+  // PR c90-2 Effect B: state.day 変化 (または entriesByDate 更新) で該当 entry を
+  //   find して全フィールド prefill。該当 day に entry なし → 全フィールド空欄。
+  //   markClean(next) で auto-save baseline 同期 (c89-p1 で auto-save は OFF だが
+  //   将来再活性化時のため belt+suspenders として保持)。
+  useEffect(() => {
+    const entry = entriesByDate.get(currentDateStr);
+    if (entry) {
+      // 該当 day に既存 entry あり → 値をプレロード (修正モード)
+      setState((s) => {
+        const next: EntryFormState = {
+          ...s,
+          outsourced_sales_revenue: numOrEmpty(entry.outsourced_sales_revenue),
+          internal_staff_revenue: numOrEmpty(entry.internal_staff_revenue),
+          outsourced_response_count: numOrEmpty(entry.outsourced_response_count),
+          internal_staff_response_count: numOrEmpty(entry.internal_staff_response_count),
+          repeat_count: numOrEmpty(entry.repeat_count),
+          revisit_count: numOrEmpty(entry.revisit_count),
+          review_count: numOrEmpty(entry.review_count),
+          total_labor_cost: numOrEmpty(entry.total_labor_cost),
+          material_cost: numOrEmpty(entry.material_cost),
+          sales_outsourcing_cost: numOrEmpty(entry.sales_outsourcing_cost),
+          card_processing_fee: numOrEmpty(entry.card_processing_fee),
+          ad_cost: numOrEmpty(entry.ad_cost),
+          call_count: numOrEmpty(entry.call_count),
+          acquisition_count: numOrEmpty(entry.acquisition_count),
+          outsourced_construction_count: numOrEmpty(entry.outsourced_construction_count),
+          internal_construction_count: numOrEmpty(entry.internal_construction_count),
+          outsourced_construction_cost: numOrEmpty(entry.outsourced_construction_cost),
+          internal_construction_profit: numOrEmpty(entry.internal_construction_profit),
+          help_count: numOrEmpty(entry.help_count),
+          help_revenue: numOrEmpty(entry.help_revenue),
+          switchboard_count: numOrEmpty(entry.switchboard_count),
+          locksmith_car_lp_email_count: numOrEmpty(entry.locksmith_car_lp_email_count),
+          locksmith_inhouse_count: numOrEmpty(entry.locksmith_inhouse_count),
+          locksmith_repeat_count: numOrEmpty(entry.locksmith_repeat_count),
+          locksmith_revisit_count: numOrEmpty(entry.locksmith_revisit_count),
+          locksmith_construction_cost: numOrEmpty(entry.locksmith_construction_cost),
+          locksmith_commission_fee: numOrEmpty(entry.locksmith_commission_fee),
+          road_ad_count: numOrEmpty(entry.road_ad_count),
+          road_repeat_count: numOrEmpty(entry.road_repeat_count),
+          road_referral_count: numOrEmpty(entry.road_referral_count),
+          road_revisit_count: numOrEmpty(entry.road_revisit_count),
+          road_wellnest_count: numOrEmpty(entry.road_wellnest_count),
+          road_seo_count: numOrEmpty(entry.road_seo_count),
+          road_insurance_count: numOrEmpty(entry.road_insurance_count),
+          detective_meeting_count: numOrEmpty(entry.detective_meeting_count),
+          detective_cancel_count: numOrEmpty(entry.detective_cancel_count),
+          detective_phone_only_call_count: numOrEmpty(entry.detective_phone_only_call_count),
+          detective_mail_only_call_count: numOrEmpty(entry.detective_mail_only_call_count),
+          detective_line_only_call_count: numOrEmpty(entry.detective_line_only_call_count),
+          detective_wrong_call_count: numOrEmpty(entry.detective_wrong_call_count),
+          detective_phone_uwaki_acquisition_count: numOrEmpty(entry.detective_phone_uwaki_acquisition_count),
+          detective_phone_other_acquisition_count: numOrEmpty(entry.detective_phone_other_acquisition_count),
+          detective_mail_uwaki_acquisition_count: numOrEmpty(entry.detective_mail_uwaki_acquisition_count),
+          detective_mail_other_acquisition_count: numOrEmpty(entry.detective_mail_other_acquisition_count),
+          detective_line_uwaki_acquisition_count: numOrEmpty(entry.detective_line_uwaki_acquisition_count),
+          detective_line_other_acquisition_count: numOrEmpty(entry.detective_line_other_acquisition_count),
+          detective_selling_admin_cost: numOrEmpty(entry.detective_selling_admin_cost),
+          road_ad_call_count: numOrEmpty(entry.road_ad_call_count),
+          road_repeat_call_count: numOrEmpty(entry.road_repeat_call_count),
+          road_referral_call_count: numOrEmpty(entry.road_referral_call_count),
+          road_revisit_call_count: numOrEmpty(entry.road_revisit_call_count),
+          road_wellnest_call_count: numOrEmpty(entry.road_wellnest_call_count),
+          road_seo_call_count: numOrEmpty(entry.road_seo_call_count),
+          road_insurance_call_count: numOrEmpty(entry.road_insurance_call_count),
+          road_insurance_revenue: numOrEmpty(entry.road_insurance_revenue),
+          road_non_insurance_revenue: numOrEmpty(entry.road_non_insurance_revenue),
+          road_selling_admin_cost: numOrEmpty(entry.road_selling_admin_cost),
+        };
+        markClean(next); // baseline 同期 (c89-p1 で auto-save OFF だが将来防御)
+        return next;
+      });
+    } else {
+      // 該当 day に entry なし → 全入力フィールド空欄 (新規入力モード)
+      setState((s) => {
+        const next: EntryFormState = {
+          ...s,
+          outsourced_sales_revenue: "", internal_staff_revenue: "",
+          outsourced_response_count: "", internal_staff_response_count: "",
+          repeat_count: "", revisit_count: "", review_count: "",
+          total_labor_cost: "", material_cost: "", sales_outsourcing_cost: "", card_processing_fee: "",
+          ad_cost: "", call_count: "", acquisition_count: "",
+          outsourced_construction_count: "", internal_construction_count: "",
+          outsourced_construction_cost: "", internal_construction_profit: "",
+          help_count: "", help_revenue: "",
+          switchboard_count: "",
+          locksmith_car_lp_email_count: "", locksmith_inhouse_count: "",
+          locksmith_repeat_count: "", locksmith_revisit_count: "",
+          locksmith_construction_cost: "", locksmith_commission_fee: "",
+          road_ad_count: "", road_repeat_count: "", road_referral_count: "",
+          road_revisit_count: "", road_wellnest_count: "",
+          road_seo_count: "", road_insurance_count: "",
+          detective_meeting_count: "", detective_cancel_count: "",
+          detective_phone_only_call_count: "", detective_mail_only_call_count: "",
+          detective_line_only_call_count: "", detective_wrong_call_count: "",
+          detective_phone_uwaki_acquisition_count: "", detective_phone_other_acquisition_count: "",
+          detective_mail_uwaki_acquisition_count: "",  detective_mail_other_acquisition_count: "",
+          detective_line_uwaki_acquisition_count: "",  detective_line_other_acquisition_count: "",
+          detective_selling_admin_cost: "",
+          road_ad_call_count: "", road_repeat_call_count: "", road_referral_call_count: "",
+          road_revisit_call_count: "", road_wellnest_call_count: "",
+          road_seo_call_count: "", road_insurance_call_count: "",
+          road_insurance_revenue: "", road_non_insurance_revenue: "",
+          road_selling_admin_cost: "",
+        };
+        markClean(next);
+        return next;
+      });
+    }
+    clearErrors();
+    // markClean / clearErrors は useCallback で安定 (依存に含めない)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDateStr, entriesByDate]);
+
+  // PR c6 / PR c90-2: handleSave を Promise<SaveOutcome> 化 (auto-save hook 連動 + 確定送信ボタン共通)。
+  //   戻り値: "success" / "skip" (validation 失敗) / "error" (API 失敗)
+  //
+  // PR c90-2 仕様変更:
+  //   - POST 先を /api/import-monthly (累積置換) → /api/entries (日次差分) に切替
+  //   - payload は DailyEntry shape: state.year-state.month-state.day を date として、
+  //     入力 50+ フィールドを optional numeric として格納
+  //   - /api/entries route 後段で c90-1 の aggregateMonthlySummary が呼ばれて
+  //     monthly_summaries が再集計される (副作用)
+  //   - 確定送信成功後、cumulativeRefetchCount を ++ して CumulativePreview を更新
+  //   - read-back verify は monthly_summaries を読み、aggregation 完了を確認
+  //
+  // auto-save は AUTOSAVE_DISABLED_C89_P1=true で OFF (絶対変更しない)。
+  // 確定送信ボタンのみが本関数を triggerSave 経由で呼ぶ。
+  //
+  // useCallback で参照固定 (useDebouncedAutoSave の effect 依存配列対策、c89-p1 後も保持)。
   const handleSave = useCallback(async (): Promise<SaveOutcome> => {
     if (!validateAll(state)) {
       setSaveResult("error");
@@ -331,14 +405,22 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
     setSaveMsg(null);
 
     try {
-      // POST: pick エイリアスは PR #38 で吸収。as_of_day は今日の日。
-      // as_of_day はユーザーが選んだ「日」を採用 (既存 as_of_day 運用と統合)
-      const asOfDay = state.day;
-      const row: Record<string, string | number> = {
-        area_id: state.area_id,
-        year: state.year,
-        month: state.month,
-        // 入力値
+      // PR c90-2: DailyEntry shape を構築。date は state.year-month-day を ISO 形式に整形。
+      //   全 50+ 入力フィールドを numOrZero 経由で number 化、空文字や NaN は 0 扱い。
+      //   業態によらず全フィールドを送信 (他業態未使用は state="" → 0 で保存)。
+      //   旧 import-monthly では total_revenue 等の auto 計算結果も送信していたが、
+      //   c90 では aggregation 関数が SUM + 派生計算するため不要 (送ると無視される)。
+      const m = String(state.month).padStart(2, "0");
+      const d = String(state.day).padStart(2, "0");
+      const dateStr = `${state.year}-${m}-${d}`;
+      const entry: DailyEntry = {
+        date: dateStr,
+        // 旧 DailyEntry 必須フィールド (互換性、c90 aggregation では参照されない):
+        totalCount: 0, constructionCount: 0,
+        selfRevenue: 0, selfProfit: 0, selfCount: 0,
+        newRevenue: 0, newMaterial: 0, newLabor: 0, newCount: 0,
+        addRevenue: 0, addMaterial: 0, addLabor: 0, addCount: 0,
+        // PR c90-2: 日次差分入力フィールド (aggregation の SUM 対象、AGGREGATION_MAPPING.md 準拠)
         outsourced_sales_revenue: numOrZero(state.outsourced_sales_revenue),
         internal_staff_revenue: numOrZero(state.internal_staff_revenue),
         outsourced_response_count: numOrZero(state.outsourced_response_count),
@@ -360,14 +442,12 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         help_count: numOrZero(state.help_count),
         help_revenue: numOrZero(state.help_revenue),
         switchboard_count: numOrZero(state.switchboard_count),
-        // PR #51: 鍵業態専用 6 列 (他業態は state="" → 0 で保存)
         locksmith_car_lp_email_count: numOrZero(state.locksmith_car_lp_email_count),
         locksmith_inhouse_count: numOrZero(state.locksmith_inhouse_count),
         locksmith_repeat_count: numOrZero(state.locksmith_repeat_count),
         locksmith_revisit_count: numOrZero(state.locksmith_revisit_count),
         locksmith_construction_cost: numOrZero(state.locksmith_construction_cost),
         locksmith_commission_fee: numOrZero(state.locksmith_commission_fee),
-        // PR #52: ロード業態専用 獲得 7 内訳 (他業態は state="" → 0 で保存)
         road_ad_count: numOrZero(state.road_ad_count),
         road_repeat_count: numOrZero(state.road_repeat_count),
         road_referral_count: numOrZero(state.road_referral_count),
@@ -375,15 +455,12 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         road_wellnest_count: numOrZero(state.road_wellnest_count),
         road_seo_count: numOrZero(state.road_seo_count),
         road_insurance_count: numOrZero(state.road_insurance_count),
-        // PR #53: 探偵業態専用 面談ファネル (他業態は state="" → 0 で保存)
         detective_meeting_count: numOrZero(state.detective_meeting_count),
         detective_cancel_count: numOrZero(state.detective_cancel_count),
-        // PR #57: 探偵業態 入電 4 内訳 (他業態は state="" → 0 で保存)
         detective_phone_only_call_count: numOrZero(state.detective_phone_only_call_count),
         detective_mail_only_call_count: numOrZero(state.detective_mail_only_call_count),
         detective_line_only_call_count: numOrZero(state.detective_line_only_call_count),
         detective_wrong_call_count: numOrZero(state.detective_wrong_call_count),
-        // PR #58b: 探偵業態 獲得 6 内訳 + 販管費 (他業態は state="" → 0 で保存)
         detective_phone_uwaki_acquisition_count: numOrZero(state.detective_phone_uwaki_acquisition_count),
         detective_phone_other_acquisition_count: numOrZero(state.detective_phone_other_acquisition_count),
         detective_mail_uwaki_acquisition_count: numOrZero(state.detective_mail_uwaki_acquisition_count),
@@ -391,7 +468,6 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         detective_line_uwaki_acquisition_count: numOrZero(state.detective_line_uwaki_acquisition_count),
         detective_line_other_acquisition_count: numOrZero(state.detective_line_other_acquisition_count),
         detective_selling_admin_cost: numOrZero(state.detective_selling_admin_cost),
-        // PR #58c: ロード業態 入電 7 内訳 + 保険売上 2 分割 + 販管費 (他業態は state="" → 0 で保存)
         road_ad_call_count: numOrZero(state.road_ad_call_count),
         road_repeat_call_count: numOrZero(state.road_repeat_call_count),
         road_referral_call_count: numOrZero(state.road_referral_call_count),
@@ -402,43 +478,46 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         road_insurance_revenue: numOrZero(state.road_insurance_revenue),
         road_non_insurance_revenue: numOrZero(state.road_non_insurance_revenue),
         road_selling_admin_cost: numOrZero(state.road_selling_admin_cost),
-        // auto 計算結果のうち、既存 DB 列に対応するものを送信
-        // (新規 DB 列なしの total_construction_count / actual_construction_cost / profit は送らない)
-        total_revenue: Math.round(calc.total_revenue),
-        total_count: Math.round(calc.total_response_count),
-        unit_price: Math.round(calc.unit_price),
-        call_unit_price: Math.round(calc.call_unit_price),
-        cpa: Math.round(calc.cpa),
-        conv_rate: Math.round(calc.conv_rate * 10) / 10,
-        help_unit_price: Math.round(calc.help_unit_price),
-        // PR #51 (論点 1 案 A): 鍵業態は工事費・手数料が新カラムにあるため calc.total_profit
-        // (total_labor_cost / sales_outsourcing_cost 参照) では正しく算出されない。
-        // category-aware に locksmith 専用式で計算。
-        total_profit: category === "locksmith"
-          ? Math.round(computeLocksmithProfit(state))
-          : Math.round(calc.total_profit),
       };
 
-      const res = await fetch("/api/import-monthly", {
+      // calc / computeLocksmithProfit は c90-2 では送信不要 (aggregation 関数が再計算)。
+      // /entry UI 上の表示には引き続き calc を使用するので意図的に void で参照保持。
+      void calc;
+
+      const res = await fetch("/api/entries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, as_of_day: asOfDay, rows: [row] }),
+        body: JSON.stringify({ areaId: state.area_id, entry, category }),
       });
 
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        const errMsg = (j.errors && j.errors[0]?.error) ?? j.error ?? `HTTP ${res.status}`;
+        const errMsg = j?.error ?? `HTTP ${res.status}`;
         throw new Error(errMsg);
       }
 
-      // read-back verification
-      await new Promise((r) => setTimeout(r, 500));
+      // PR c90-2: /api/entries が aggregation を後段で呼ぶため verify は monthly-summary を読む。
+      //   aggregation 完了 (同期) で monthly_summaries に最新値が反映されている想定。
+      //   念のため 300ms sleep でデータ整合性 buffer を確保 (旧 500ms から短縮、同期呼出のため)。
+      await new Promise((r) => setTimeout(r, 300));
       const verifyRes = await fetch(
         `/api/monthly-summary?area=${state.area_id}&year=${state.year}&month=${state.month}&category=${category}`
       );
       if (!verifyRes.ok) throw new Error("保存後の検証取得に失敗");
       const verifyJson = await verifyRes.json();
       if (!verifyJson?.summary) throw new Error("保存後に DB 行が見つかりません");
+
+      // PR c90-2: entriesByDate に該当 entry を即時 merge (UI 反映の即応性)。
+      //   Effect A の re-fetch を待たずに、save 直後に「修正モード badge / カレンダー ●」が
+      //   即座に更新される。次回 area/year/month/category 変化時に再 fetch で整合性確保。
+      setEntriesByDate((prev) => {
+        const next = new Map(prev);
+        next.set(dateStr, entry);
+        return next;
+      });
+
+      // CumulativePreview を refetch trigger
+      setCumulativeRefetchCount((n) => n + 1);
 
       setSaveResult("success");
       setSaveMsg(`保存しました（${state.year}年${state.month}月 / ${AREA_NAMES[state.area_id] ?? state.area_id} / ${CATEGORY_LABELS[category]}）`);
@@ -553,15 +632,21 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             isLoading={isLoadingExisting}
           />
 
-          {/* PR #44: 編集モード/新規入力モード/読込中のステータスバッジ */}
+          {/* PR c90-2: 日次差分モデル対応の mode badge。
+              - isLoading 中: 読込中 banner
+              - 当該日に entry あり: "修正モード" yellow (過去日 / 既保存当日の再編集)
+              - entry なし: "新規入力モード" green (まだ保存していない日) */}
           <ModeBadge
             isLoading={isLoadingExisting}
-            existingAsOfDay={existingAsOfDay}
-            currentDay={state.day}
+            hasExistingEntry={hasExistingEntryForCurrentDay}
+            year={state.year}
+            month={state.month}
+            day={state.day}
           />
           <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 8, lineHeight: 1.5 }}>
-            ※ 編集中の値は保存前にエリアを変更すると失われます。
-            日付の変更はカレンダーから行ってください (年/月をまたぐ変更で再読込)。
+            ※ 「その日の差分」を入力してください (例: 5/2 なら 5/2 一日分の数字)。
+            月初〜選択日までの累積はダッシュボードで自動計算されます。
+            日付の変更はカレンダーから行ってください。
           </p>
         </div>
 
@@ -572,6 +657,17 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         {renderBusinessForm(category, {
           state, setField, validateField, errors, labels, calc,
         })}
+
+        {/* PR c90-2 (Q4=a): フォーム下部、確定送信ボタン直上に累積プレビュー。
+            「これを保存すると月初〜選択日までの累積はこうなる」を直前に確認可能。
+            refetchTrigger は確定送信成功時に setCumulativeRefetchCount で ++ される。 */}
+        <CumulativePreview
+          areaId={state.area_id}
+          category={category}
+          year={state.year}
+          month={state.month}
+          refetchTrigger={cumulativeRefetchCount}
+        />
       </div>
 
       {/* 固定保存バー */}
@@ -655,12 +751,15 @@ function numOrEmpty(v: unknown): InputValue {
   return Number.isFinite(n) ? n : "";
 }
 
-// PR #44: 編集モード/新規入力モード/読込中のステータス表示。
-// monthly_summaries は month 単位 1 行運用 (PR #28 設計) のため、day 違いでも
-// 同じレコードを編集することになる。as_of_day の変化は注意喚起テキストで明示。
+// PR c90-2: 日次差分入力モデルの mode badge (Q2=a)。
+//   旧 (PR #44): 月次 1 行運用前提、as_of_day 差分を警告表示
+//   新       : entries に当該 day の行あり → "修正モード" yellow
+//             entries に当該 day の行なし → "新規入力モード" green
+//   判定は entry 存在で行う (今日の既存 entry を再編集する場合も修正モード)。
+//   論理的に明快で、過去/当日の区別とは独立。
 function ModeBadge({
-  isLoading, existingAsOfDay, currentDay,
-}: { isLoading: boolean; existingAsOfDay: number | null; currentDay: number }) {
+  isLoading, hasExistingEntry, year, month, day,
+}: { isLoading: boolean; hasExistingEntry: boolean; year: number; month: number; day: number }) {
   if (isLoading) {
     return (
       <div style={{
@@ -668,12 +767,11 @@ function ModeBadge({
         background: "#eff6ff", borderLeft: "4px solid #3b82f6", fontSize: 12,
       }}>
         <span style={{ fontSize: 14, marginRight: 6 }}>📡</span>
-        <span style={{ color: "#1e40af", fontWeight: 600 }}>既存データを読み込み中...</span>
+        <span style={{ color: "#1e40af", fontWeight: 600 }}>当月の日次データを読み込み中...</span>
       </div>
     );
   }
-  if (existingAsOfDay !== null) {
-    const willOverwrite = existingAsOfDay !== currentDay;
+  if (hasExistingEntry) {
     return (
       <div style={{
         marginTop: 12, padding: "10px 14px", borderRadius: 6,
@@ -683,16 +781,11 @@ function ModeBadge({
           <span style={{ fontSize: 16 }}>✏️</span>
           <div style={{ flex: 1 }}>
             <div style={{ color: "#78350f", fontWeight: 700, marginBottom: 2 }}>
-              編集モード
+              修正モード
             </div>
             <div style={{ color: "#92400e", lineHeight: 1.6 }}>
-              最終更新: <strong>{existingAsOfDay}日時点</strong>（DB の現在値を表示中）
-              {willOverwrite && (
-                <>
-                  <br />
-                  保存すると <strong>as_of_day = {currentDay}日</strong> に更新されます。
-                </>
-              )}
+              <strong>{year}年{month}月{day}日</strong>の日次データを既に保存済みです。
+              値を更新して確定送信すると、月初〜選択日までの累積がダッシュボードで再計算されます。
             </div>
           </div>
         </div>
@@ -711,7 +804,8 @@ function ModeBadge({
             新規入力モード
           </div>
           <div style={{ color: "#047857", lineHeight: 1.6 }}>
-            この月のデータはまだ DB に存在しません。
+            <strong>{year}年{month}月{day}日</strong>の日次データを新規に入力します。
+            「その日の差分」(例: 5/2 なら 5/2 一日分の数字)を入力して確定送信してください。
           </div>
         </div>
       </div>
