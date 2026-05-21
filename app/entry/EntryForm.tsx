@@ -203,6 +203,22 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
   }, [state.year, state.month, state.day]);
   const hasExistingEntryForCurrentDay = entriesByDate.has(currentDateStr);
 
+  // PR c92-2b: 進捗バッジ計算 (Q2=b 採用 — 今日までの経過日数を分母に使用)。
+  //   現在月 (today.year/month == state.year/month) なら today.date を分母 (=「現時点で
+  //   どれだけ catch-up できているか」を示す actionable 指標)。
+  //   過去/未来月選択時は月内総日数を分母にフォールバック (経過日数概念が成立しない)。
+  //   分子 = entriesByDate.size (当月内で entry が DB に保存されている日数)。
+  const progressBadge = useMemo(() => {
+    const today = new Date();
+    const isCurrentMonth =
+      today.getFullYear() === state.year && (today.getMonth() + 1) === state.month;
+    const daysInMonth = new Date(state.year, state.month, 0).getDate();
+    const denominator = isCurrentMonth ? today.getDate() : daysInMonth;
+    const inputted = entriesByDate.size;
+    const percent = denominator > 0 ? Math.round((inputted / denominator) * 100) : 0;
+    return { inputted, denominator, percent, isCurrentMonth };
+  }, [state.year, state.month, entriesByDate]);
+
   // existingAsOfDay は legacy compat 用に保持 (mode banner で「最終更新は X 日」表示用)
   // c90-2 では entriesByDate から MAX(day) で再計算する代替表示も検討余地ありだが、
   // 当面は monthly_summaries.as_of_day を fetch して同様の意味で扱う。
@@ -586,14 +602,42 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             );
           })}
         </div>
-        <div style={{ padding: "14px 24px 18px" }}>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff", margin: 0 }}>
-            月次データ入力 — {CATEGORY_LABELS[category]}
-          </h1>
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
-            仕様書 31 フィールド (入力 20 / 自動計算 11)。
-            入力日（日付）時点までの累積データを入力してください。下部の「保存」ボタンで一括登録します。
-          </p>
+        {/* PR c92-2b: ヘッダー title + pill 3 つ (area / date / progress) を flex row で配置。
+            旧 c90-2 までは累積モデル時代の subtitle が残っていたが c92-2b で日次差分前提に
+            文言更新。Pill は右寄せで area dropdown / 日付表示 / 進捗バッジを 3 連表示。 */}
+        <div style={{ padding: "14px 24px 18px", maxWidth: 1400, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+              <h1 style={{ fontSize: 20, fontWeight: 800, color: "#fff", margin: 0 }}>
+                月次データ入力 — {CATEGORY_LABELS[category]}
+                {state.area_id && (
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.85)", marginLeft: 8 }}>
+                    / {AREA_NAMES[state.area_id] ?? state.area_id}エリア
+                  </span>
+                )}
+              </h1>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
+                日次差分を入力 ・ 月初〜選択日の累積はダッシュボードで自動計算
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              {/* area pill: dropdown (canSelectArea=false は disabled 表示、Q3=a) */}
+              <HeaderAreaPill
+                value={state.area_id}
+                canSelect={canSelectArea}
+                availableAreas={availableAreas}
+                onChange={(v) => setMeta("area_id", v)}
+              />
+              {/* date pill: 表示専用 (Calendar はサイドバーで編集) */}
+              <HeaderDatePill year={state.year} month={state.month} day={state.day} />
+              {/* progress pill: N/M日 (X%) */}
+              <HeaderProgressPill
+                inputted={progressBadge.inputted}
+                denominator={progressBadge.denominator}
+                percent={progressBadge.percent}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -614,23 +658,10 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           // sticky の高さが超えた場合用に max-height + overflow
           maxHeight: "calc(100vh - 32px)", overflowY: "auto",
         }}>
-          {/* エリア選択 (c92-2b で header pill に昇格予定、暫定 sidebar 上部) */}
-          <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #d1fae5", padding: 12 }}>
-            <Meta label="エリア">
-              {canSelectArea ? (
-                <select value={state.area_id} onChange={(e) => setMeta("area_id", e.target.value)}
-                  style={metaSelect}>
-                  {availableAreas.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              ) : (
-                <div style={{ ...metaSelect, background: "#f9fafb", color: "#6b7280", lineHeight: "36px", paddingLeft: 10 }}>
-                  {AREA_NAMES[state.area_id] ?? state.area_id}（自エリア固定）
-                </div>
-              )}
-            </Meta>
-          </div>
+          {/* PR c92-2b: エリア選択は header pill に昇格 (HeaderAreaPill)、サイドバー版は削除。
+              state.area_id は EntryForm 側の single source of truth (R1) で維持されており、
+              header pill / sidebar Calendar 共通参照。setMeta による更新で Effect A の
+              entries 再 fetch が trigger される。 */}
 
           {/* PR c6: カレンダー UI (旧 3 select 年/月/日 を統合)。c92-2a で sidebar 移動 */}
           <EntryCalendar
@@ -730,6 +761,86 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
 //   遷移せず、"—" と "読み込み中..." しか出ない死に駒だった。c92-2b で header の
 //   進捗バッジが代替指標として実装される予定。
 
+// PR c92-2b: header に並べる pill 3 つ。共通スタイル: 白半透明 bg + 細白 border。
+//   いずれもグラデーション緑 header 上で視認できる軽量 chip 形状。
+
+const PILL_BASE: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 6,
+  padding: "6px 12px", fontSize: 12, fontWeight: 600,
+  background: "rgba(255,255,255,0.18)", color: "#fff",
+  border: "1px solid rgba(255,255,255,0.35)", borderRadius: 999,
+  whiteSpace: "nowrap", lineHeight: 1.2,
+};
+
+function HeaderAreaPill({
+  value, canSelect, availableAreas, onChange,
+}: {
+  value: string;
+  canSelect: boolean;
+  availableAreas: { id: string; name: string }[];
+  onChange: (v: string) => void;
+}) {
+  if (!canSelect) {
+    // R: 非 executive は disabled で「(自エリア固定)」表示 (Q3=a)
+    const name = availableAreas.find((a) => a.id === value)?.name ?? value;
+    return (
+      <span style={{ ...PILL_BASE, opacity: 0.7 }} title="自エリア固定">
+        📍 {name}（固定）
+      </span>
+    );
+  }
+  return (
+    <label style={{ ...PILL_BASE, cursor: "pointer", padding: "4px 8px 4px 12px" }}>
+      <span>📍</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          background: "transparent", color: "#fff", border: "none",
+          fontSize: 12, fontWeight: 600, outline: "none", cursor: "pointer",
+          paddingRight: 4,
+        }}
+      >
+        {availableAreas.map((a) => (
+          <option key={a.id} value={a.id} style={{ color: "#111", background: "#fff" }}>
+            {a.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+const DOW = ["日", "月", "火", "水", "木", "金", "土"] as const;
+
+function HeaderDatePill({ year, month, day }: { year: number; month: number; day: number }) {
+  // 表示専用: Calendar (サイドバー) で日付編集する想定。
+  // 視覚的に「クリッカブルに見えない」非インタラクティブな display chip。
+  const dow = DOW[new Date(year, month - 1, day).getDay()];
+  return (
+    <span style={PILL_BASE} aria-label={`選択中の日付 ${year}年${month}月${day}日 ${dow}曜日`}>
+      📅 {year}年{month}月{day}日 ({dow})
+    </span>
+  );
+}
+
+function HeaderProgressPill({
+  inputted, denominator, percent,
+}: { inputted: number; denominator: number; percent: number }) {
+  // 進捗 % で色合いを微変化 (高いほど緑色濃度を上げる)
+  const tone = percent >= 80 ? "rgba(255,255,255,0.30)"
+    : percent >= 40 ? "rgba(255,255,255,0.22)"
+    : "rgba(255,255,255,0.14)";
+  return (
+    <span
+      style={{ ...PILL_BASE, background: tone }}
+      title={`今月 ${denominator} 日のうち ${inputted} 日入力済み`}
+    >
+      進捗 {inputted}/{denominator}日 ({percent}%)
+    </span>
+  );
+}
+
 function numOrZero(v: InputValue): number {
   return v === "" ? 0 : v;
 }
@@ -804,16 +915,3 @@ function ModeBadge({
   );
 }
 
-function Meta({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: "block" }}>
-      <span style={{ display: "block", fontSize: 10, color: "#6b7280", marginBottom: 4, fontWeight: 600 }}>{label}</span>
-      {children}
-    </label>
-  );
-}
-
-const metaSelect: React.CSSProperties = {
-  width: "100%", height: 36, padding: "0 10px", fontSize: 13, fontWeight: 600,
-  color: "#111", background: "#fff", border: "1px solid #d1fae5", borderRadius: 6, outline: "none",
-};
