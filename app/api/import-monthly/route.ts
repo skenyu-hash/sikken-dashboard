@@ -1,3 +1,16 @@
+// PR c90-1: 本ルートは「累積置換」モデルの旧来経路 (主に /import ページからの
+//   ファイル取込で使用)。差分入力経路 (/api/entries → aggregateMonthlySummary) とは
+//   完全に分離されており、monthly_summaries 行への書き込みで source='file_import' を
+//   付与して書き込み出所を識別可能にする (R2/R3)。
+//
+//   PR c89-p1 以降、/entry からの直接呼び出しは停止 (auto-save OFF)。c90-2 以降は
+//   /entry が /api/entries 経路に完全移行し、本ルートは /import 専用となる予定。
+//
+// TODO(c91+): /import を entries 経路にリファクタリングして整合性を一元化する案を検討。
+//   現状は /entry (差分) と /import (累積) の 2 経路が同じ monthly_summaries 行に
+//   書き込み得る。運用ルールとして /import 使用前に対象月の /entry データクリアを
+//   推奨する warning UI を c90-2 で /import ページに追加予定。
+
 import { NextRequest, NextResponse } from "next/server";
 import { getSql } from "../../lib/db";
 import { num } from "../../lib/utils/numberCoerce";
@@ -97,7 +110,8 @@ export async function POST(req: NextRequest) {
           road_revisit_call_count, road_wellnest_call_count, road_seo_call_count,
           road_insurance_call_count,
           road_insurance_revenue, road_non_insurance_revenue,
-          road_selling_admin_cost
+          road_selling_admin_cost,
+          source, updated_at
         ) VALUES (
           ${row.area_id}, ${cat}, ${year}, ${month},
           ${num(pick(row, "total_revenue", "revenue"))},
@@ -138,7 +152,8 @@ export async function POST(req: NextRequest) {
           ${num(pick(row, "road_revisit_call_count"))}, ${num(pick(row, "road_wellnest_call_count"))}, ${num(pick(row, "road_seo_call_count"))},
           ${num(pick(row, "road_insurance_call_count"))},
           ${num(pick(row, "road_insurance_revenue"))}, ${num(pick(row, "road_non_insurance_revenue"))},
-          ${num(pick(row, "road_selling_admin_cost"))}
+          ${num(pick(row, "road_selling_admin_cost"))},
+          'file_import', NOW()
         )
         ON CONFLICT (area_id, business_category, year, month) DO UPDATE SET
           total_revenue=EXCLUDED.total_revenue, total_profit=EXCLUDED.total_profit,
@@ -200,7 +215,8 @@ export async function POST(req: NextRequest) {
           road_insurance_call_count=EXCLUDED.road_insurance_call_count,
           road_insurance_revenue=EXCLUDED.road_insurance_revenue,
           road_non_insurance_revenue=EXCLUDED.road_non_insurance_revenue,
-          road_selling_admin_cost=EXCLUDED.road_selling_admin_cost
+          road_selling_admin_cost=EXCLUDED.road_selling_admin_cost,
+          source='file_import', updated_at=NOW()
       `;
       imported++;
     } catch (e) {
