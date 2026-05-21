@@ -278,6 +278,14 @@ export function ensureSchema(): Promise<void> {
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_non_insurance_revenue BIGINT NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS road_selling_admin_cost INTEGER NOT NULL DEFAULT 0`);
 
+      // PR c90-1 (R3): 集計出所の追跡。
+      //   差分入力 (/api/entries → aggregateMonthlySummary) と累積入力 (/api/import-monthly)
+      //   の両経路が同じ月の行に書き込む可能性があるため、最終書き込みの出所を記録する。
+      //   値: 'entries_aggregation' | 'file_import' | 'unknown' (legacy 既存行のデフォルト)
+      //   updated_at は書き込み時刻を保持して 「最後に誰が触ったか」 を追跡可能にする。
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS source VARCHAR(32) NOT NULL DEFAULT 'unknown'`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,

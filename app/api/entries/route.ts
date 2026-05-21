@@ -2,7 +2,17 @@ import { NextResponse } from "next/server";
 import { currentUser, logAudit } from "../../lib/auth";
 import { hasDataAccess } from "../../lib/permissions";
 import { listEntries, upsertEntry } from "../../lib/db";
+import { aggregateMonthlySummary, type BusinessCategory } from "../../lib/monthlyAggregation";
 import type { DailyEntry } from "../../lib/calculations";
+
+// PR c90-1: aggregation の対象業態を限定 (型安全)。
+//   /api/entries の payload.category が想定外文字列の場合は water にフォールバック。
+const VALID_CATEGORIES = ["water", "electric", "locksmith", "road", "detective"] as const;
+function toBusinessCategory(s: string): BusinessCategory {
+  return (VALID_CATEGORIES as readonly string[]).includes(s)
+    ? (s as BusinessCategory)
+    : "water";
+}
 
 export const runtime = "nodejs";
 
@@ -69,6 +79,26 @@ export async function POST(req: Request) {
       areaId: body.areaId, targetDate: body.entry.date,
       before, after: body.entry,
     });
+
+    // PR c90-1 (R2): entries upsert 後、対象月の monthly_summaries を SUM 再集計。
+    //   日次差分入力経路の専用ロジック。累積置換経路 (/api/import-monthly) とは
+    //   別関数 aggregateMonthlySummary で完全分離されている (source='entries_aggregation'
+    //   タグで書き込み出所を識別可能)。
+    //   aggregation 失敗は entry 自体の保存とは独立して扱い、エラー時はログのみ
+    //   (entries.data 保存は成功しているため UI 上はリトライ可能)。
+    const year = Number(body.entry.date.slice(0, 4));
+    const month = Number(body.entry.date.slice(5, 7));
+    try {
+      await aggregateMonthlySummary(body.areaId, toBusinessCategory(cat), year, month);
+    } catch (aggErr) {
+      console.error("[c90-1] monthlyAggregation failed (entry was saved):", aggErr);
+      // entries は保存成功している。aggregation の失敗だけクライアントに通知:
+      return NextResponse.json({
+        ok: true,
+        warning: "entry saved but monthly aggregation failed; dashboard may show stale numbers until next aggregation"
+      });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);

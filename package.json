@@ -10,7 +10,8 @@
     "test:utils": "tsx scripts/test-numberCoerce.ts",
     "test:permissions": "tsx scripts/test-permissions.ts",
     "test:profit": "tsx scripts/test-profit.ts",
-    "test:integration:import-monthly": "tsx scripts/test-import-monthly-integration.ts"
+    "test:integration:import-monthly": "tsx scripts/test-import-monthly-integration.ts",
+    "test:integration:monthly-aggregation": "tsx scripts/test-monthly-aggregation.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.87.0",
