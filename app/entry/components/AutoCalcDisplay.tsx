@@ -19,11 +19,14 @@ export const fmtPct = (v: number): string => `${(Math.round(v * 10) / 10).toFixe
 //   - 値の色 #059669 (深緑) → #6b7280 (中灰、可読性確保のため #9ca3af より濃く)
 //   - font-size 22 / font-weight 700 は維持 (存在感確保、縮小は c5 で再検討)
 //   - DOM 構造・props インターフェース不変 (c5 のアコーディオン化と衝突回避)
+// PR c92-2b (Q5=b): mockup 準拠で 薄シアン #ecfeff に変更。
+//   旧 #f9fafb (薄灰) は入力 (白) と差が小さく自動計算列の識別性が弱かった。
+//   薄シアンで auto 行であることが一目で分かるようにする。border も薄シアン系に揃える。
 export function AutoRow({ label, value, formula }: { label: string; value: string; formula: string }) {
   return (
     <div style={{
       marginTop: 10, padding: "8px 12px",
-      background: "#f9fafb", borderRadius: 6, border: "1px dashed #e5e7eb",
+      background: "#ecfeff", borderRadius: 6, border: "1px dashed #a5f3fc",
       display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
     }}>
       <div>
