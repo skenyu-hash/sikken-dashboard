@@ -286,6 +286,50 @@ export function ensureSchema(): Promise<void> {
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS source VARCHAR(32) NOT NULL DEFAULT 'unknown'`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
 
+      // PR c91 (緊急 hotfix): /api/migrate の手動呼出に依存していた UNIQUE INDEX 作成を
+      //   ensureSchema に取り込み。本 production で UNIQUE INDEX が作成されておらず、
+      //   aggregateMonthlySummary の `ON CONFLICT (area_id, business_category, year, month)`
+      //   が制約 match に失敗 → silent 200 + warning → "DB 行が見つかりません" UI エラー
+      //   に至っていた。
+      //
+      //   旧 3 列 UNIQUE (area_id, year, month) を DROP し、4 列 UNIQUE INDEX (business_category 込) を作成。
+      //   冪等: pg_constraint 存在チェック付き DROP + IF NOT EXISTS の CREATE。
+      //   /api/migrate 経路は本 PR 後も維持 (手動 reset 用、Phase 9.7 で削除予定)。
+      await safe(sql`
+        DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'monthly_summaries_area_id_year_month_key') THEN
+            ALTER TABLE monthly_summaries DROP CONSTRAINT monthly_summaries_area_id_year_month_key;
+          END IF;
+        END $$
+      `);
+      await safe(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS monthly_summaries_area_cat_year_month_key
+          ON monthly_summaries (area_id, business_category, year, month)
+      `);
+      // entries / targets も同様に統合 (PR c91): /api/migrate 依存解消
+      await safe(sql`
+        DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'entries_area_id_entry_date_key') THEN
+            ALTER TABLE entries DROP CONSTRAINT entries_area_id_entry_date_key;
+          END IF;
+        END $$
+      `);
+      await safe(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS entries_area_cat_date_key
+          ON entries (area_id, business_category, entry_date)
+      `);
+      await safe(sql`
+        DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'targets_area_id_year_month_key') THEN
+            ALTER TABLE targets DROP CONSTRAINT targets_area_id_year_month_key;
+          END IF;
+        END $$
+      `);
+      await safe(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS targets_area_cat_year_month_key
+          ON targets (area_id, business_category, year, month)
+      `);
+
       await safe(sql`
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,

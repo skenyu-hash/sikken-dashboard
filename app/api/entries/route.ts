@@ -84,19 +84,25 @@ export async function POST(req: Request) {
     //   日次差分入力経路の専用ロジック。累積置換経路 (/api/import-monthly) とは
     //   別関数 aggregateMonthlySummary で完全分離されている (source='entries_aggregation'
     //   タグで書き込み出所を識別可能)。
-    //   aggregation 失敗は entry 自体の保存とは独立して扱い、エラー時はログのみ
-    //   (entries.data 保存は成功しているため UI 上はリトライ可能)。
+    //
+    // PR c91 (緊急 hotfix): aggregation 失敗時の挙動を変更。
+    //   旧 (c90-1): 200 OK + warning フィールド返却 → client は warning を読まず
+    //              verify step で「DB 行が見つかりません」と誤ったエラーを表示
+    //   新       : 500 + 明示的 error message 返却 → client は実 error を UI 表示可能
+    //   entries は保存成功しているため、message に "entries saved" を含めて
+    //   ユーザーがリトライ判断できるよう情報伝達。
     const year = Number(body.entry.date.slice(0, 4));
     const month = Number(body.entry.date.slice(5, 7));
     try {
       await aggregateMonthlySummary(body.areaId, toBusinessCategory(cat), year, month);
     } catch (aggErr) {
-      console.error("[c90-1] monthlyAggregation failed (entry was saved):", aggErr);
-      // entries は保存成功している。aggregation の失敗だけクライアントに通知:
+      console.error("[c91] monthlyAggregation failed (entry was saved to entries table):", aggErr);
+      const detail = aggErr instanceof Error ? aggErr.message : String(aggErr);
       return NextResponse.json({
-        ok: true,
-        warning: "entry saved but monthly aggregation failed; dashboard may show stale numbers until next aggregation"
-      });
+        error: `entry は保存されましたが月次集計に失敗しました: ${detail}`,
+        entries_saved: true,
+        aggregation_error: detail,
+      }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });

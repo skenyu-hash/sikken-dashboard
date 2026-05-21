@@ -160,6 +160,12 @@ export async function aggregateMonthlySummary(
         END AS d_total_profit
       FROM base b
     )
+    -- PR c91 (root cause fix): 派生計算で divisor=0 のとき NULLIF → NULL → ROUND(NULL) → NULL
+    --   になり、INT NOT NULL / NUMERIC NOT NULL の monthly_summaries 列に NULL を
+    --   挿入しようとして "null value in column ... violates not-null constraint" で失敗
+    --   していた (user 本番再現: outsourced_sales_revenue=1 のみで他 0 のため分母 0)。
+    --   各派生列を COALESCE(..., 0) で wrap し、NULL → 0 に正規化する。
+    --   c91 edge-case test で再発防止検証済。
     INSERT INTO monthly_summaries (
       area_id, business_category, year, month,
       -- 派生 + base
@@ -204,20 +210,21 @@ export async function aggregateMonthlySummary(
       ROUND(d.d_total_revenue)::BIGINT,
       ROUND(d.d_total_profit)::BIGINT,
       ROUND(d.d_total_count)::INT,
-      ROUND(d.d_total_revenue / NULLIF(d.d_total_count, 0))::INT,
+      -- PR c91: divisor=0 で NULL になる派生列を COALESCE(..., 0) で wrap
+      COALESCE(ROUND(d.d_total_revenue / NULLIF(d.d_total_count, 0))::INT, 0),
       ROUND(d.sum_ad_cost)::BIGINT,
-      ROUND(d.sum_ad_cost / NULLIF(d.d_total_revenue, 0) * 100 * 10) / 10,
+      COALESCE(ROUND(d.sum_ad_cost / NULLIF(d.d_total_revenue, 0) * 100 * 10) / 10, 0),
       ROUND(d.sum_acquisition_count)::INT,
-      ROUND(d.sum_ad_cost / NULLIF(d.sum_acquisition_count, 0))::INT,
+      COALESCE(ROUND(d.sum_ad_cost / NULLIF(d.sum_acquisition_count, 0))::INT, 0),
       ROUND(d.sum_call_count)::INT,
-      ROUND(d.sum_ad_cost / NULLIF(d.sum_call_count, 0))::INT,
-      ROUND(d.sum_acquisition_count / NULLIF(d.sum_call_count, 0) * 100 * 10) / 10,
-      ROUND(d.d_total_profit / NULLIF(d.d_total_revenue, 0) * 100 * 10) / 10,
+      COALESCE(ROUND(d.sum_ad_cost / NULLIF(d.sum_call_count, 0))::INT, 0),
+      COALESCE(ROUND(d.sum_acquisition_count / NULLIF(d.sum_call_count, 0) * 100 * 10) / 10, 0),
+      COALESCE(ROUND(d.d_total_profit / NULLIF(d.d_total_revenue, 0) * 100 * 10) / 10, 0),
       ROUND(d.sum_help_revenue)::BIGINT,
       ROUND(d.sum_help_count)::INT,
-      ROUND(d.sum_help_revenue / NULLIF(d.sum_help_count, 0))::INT,
+      COALESCE(ROUND(d.sum_help_revenue / NULLIF(d.sum_help_count, 0))::INT, 0),
       d.max_vehicle_count,
-      d.as_of_day_calc,
+      COALESCE(d.as_of_day_calc, 1),  -- PR c91: entries 0 行のとき MAX(date)=NULL → 1 にフォールバック
       d.sum_outsourced_sales_revenue, d.sum_internal_staff_revenue,
       d.sum_outsourced_response_count, d.sum_internal_staff_response_count,
       d.sum_repeat_count, d.sum_revisit_count, d.sum_review_count,
