@@ -532,11 +532,12 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
     }
   }, [state, validateAll, clearErrors, calc, category]);
 
-  // PR c6: state 変更 → 500ms debounce → 自動保存
-  //   - isLoadingExisting 中は enabled=false で skip + indicator "読み込み中..."
+  // PR c6: state 変更 → debounce → 自動保存 (c89-p1 で OFF 維持中)
   //   - triggerSave: 確定送信ボタンが debounce 待たず即時 save するために利用
   // PR c6.2: hook が markClean を公開 (fetchExisting で baseline 同期捕捉に使う)
-  const { status: autoSaveStatus, triggerSave, markClean } = useDebouncedAutoSave({
+  // PR c92-2a (R4): status は AutoSaveBadge 削除に伴い destructure から除外。
+  //   c89-p1 で auto-save OFF のため saving/saved 遷移なし、表示用途なし。
+  const { triggerSave, markClean } = useDebouncedAutoSave({
     state, enabled: !isLoadingExisting, saveFn: handleSave,
   });
 
@@ -596,33 +597,42 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         </div>
       </div>
 
-      <div style={{ padding: 20, maxWidth: 960, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
-        {/* PR c6: エリア + カレンダー + auto-save indicator。
-            旧 3 select (年/月/日) を EntryCalendar 1 つに統合。 */}
-        <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #d1fae5", padding: 14 }}>
-          {/* エリア + 自動保存 indicator (mobile mockup 風、横並び) */}
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <Meta label="エリア">
-                {canSelectArea ? (
-                  <select value={state.area_id} onChange={(e) => setMeta("area_id", e.target.value)}
-                    style={metaSelect}>
-                    {availableAreas.map((a) => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div style={{ ...metaSelect, background: "#f9fafb", color: "#6b7280", lineHeight: "36px", paddingLeft: 10 }}>
-                    {AREA_NAMES[state.area_id] ?? state.area_id}（自エリア固定）
-                  </div>
-                )}
-              </Meta>
-            </div>
-            {/* PR c6: 自動保存 indicator (mockup .save-status pattern) */}
-            <AutoSaveBadge status={autoSaveStatus} />
+      {/* PR c92-2a: wide-screen 2-column layout (max-width 1400px、左 sidebar 320 + 右 main flex-1)。
+          1024px 未満は globals.css .entry-2col の @media で 1-column に自動切替。
+          旧 (max-width 960、縦並び 1-column) を解体し、Calendar / ModeBadge /
+          CumulativePreview をサイドバーに移動。AutoSaveBadge は c89-p1 で auto-save OFF
+          のため機能せず → R4 に従い完全削除 (確定送信が代替)。 */}
+      <main
+        className="entry-2col"
+        style={{ padding: 20, maxWidth: 1400, margin: "0 auto" }}
+      >
+        {/* ===== 左サイドバー (320px / 1024px 未満は上に積む) ===== */}
+        <aside style={{
+          display: "flex", flexDirection: "column", gap: 12,
+          // sticky で form スクロール中もカレンダー常時表示 (R2)
+          position: "sticky", top: 16,
+          // sticky の高さが超えた場合用に max-height + overflow
+          maxHeight: "calc(100vh - 32px)", overflowY: "auto",
+        }}>
+          {/* エリア選択 (c92-2b で header pill に昇格予定、暫定 sidebar 上部) */}
+          <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #d1fae5", padding: 12 }}>
+            <Meta label="エリア">
+              {canSelectArea ? (
+                <select value={state.area_id} onChange={(e) => setMeta("area_id", e.target.value)}
+                  style={metaSelect}>
+                  {availableAreas.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{ ...metaSelect, background: "#f9fafb", color: "#6b7280", lineHeight: "36px", paddingLeft: 10 }}>
+                  {AREA_NAMES[state.area_id] ?? state.area_id}（自エリア固定）
+                </div>
+              )}
+            </Meta>
           </div>
 
-          {/* PR c6: カレンダー UI (旧 3 select 年/月/日 を統合) */}
+          {/* PR c6: カレンダー UI (旧 3 select 年/月/日 を統合)。c92-2a で sidebar 移動 */}
           <EntryCalendar
             year={state.year}
             month={state.month}
@@ -632,10 +642,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             isLoading={isLoadingExisting}
           />
 
-          {/* PR c90-2: 日次差分モデル対応の mode badge。
-              - isLoading 中: 読込中 banner
-              - 当該日に entry あり: "修正モード" yellow (過去日 / 既保存当日の再編集)
-              - entry なし: "新規入力モード" green (まだ保存していない日) */}
+          {/* PR c90-2: 日次差分モデル対応の mode badge */}
           <ModeBadge
             isLoading={isLoadingExisting}
             hasExistingEntry={hasExistingEntryForCurrentDay}
@@ -643,32 +650,34 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
             month={state.month}
             day={state.day}
           />
-          <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 8, lineHeight: 1.5 }}>
+
+          {/* PR c90-2: 累積プレビュー (c92-2b で 6 指標化予定、c92-2a では現状 4 指標維持) */}
+          <CumulativePreview
+            areaId={state.area_id}
+            category={category}
+            year={state.year}
+            month={state.month}
+            refetchTrigger={cumulativeRefetchCount}
+          />
+
+          <p style={{ fontSize: 10, color: "#9ca3af", lineHeight: 1.5, padding: "0 4px" }}>
             ※ 「その日の差分」を入力してください (例: 5/2 なら 5/2 一日分の数字)。
             月初〜選択日までの累積はダッシュボードで自動計算されます。
             日付の変更はカレンダーから行ってください。
           </p>
+        </aside>
+
+        {/* ===== 右メイン (flex-1 / 1024px 未満は sidebar 下に積む) ===== */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+          {/* PR #48b c3: 業態別フォーム routing 層。
+              現状は全業態 WaterForm にルーティング (動作変更ゼロを担保)。
+              c4 で electric → ElectricForm、locksmith → LocksmithForm に分岐。
+              c5 で road → RoadForm、detective → DetectiveForm に分岐。 */}
+          {renderBusinessForm(category, {
+            state, setField, validateField, errors, labels, calc,
+          })}
         </div>
-
-        {/* PR #48b c3: 業態別フォーム routing 層。
-            現状は全業態 WaterForm にルーティング (動作変更ゼロを担保)。
-            c4 で electric → ElectricForm、locksmith → LocksmithForm に分岐。
-            c5 で road → RoadForm、detective → DetectiveForm に分岐。 */}
-        {renderBusinessForm(category, {
-          state, setField, validateField, errors, labels, calc,
-        })}
-
-        {/* PR c90-2 (Q4=a): フォーム下部、確定送信ボタン直上に累積プレビュー。
-            「これを保存すると月初〜選択日までの累積はこうなる」を直前に確認可能。
-            refetchTrigger は確定送信成功時に setCumulativeRefetchCount で ++ される。 */}
-        <CumulativePreview
-          areaId={state.area_id}
-          category={category}
-          year={state.year}
-          month={state.month}
-          refetchTrigger={cumulativeRefetchCount}
-        />
-      </div>
+      </main>
 
       {/* 固定保存バー */}
       <div style={{
@@ -716,28 +725,10 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
   );
 }
 
-// PR c6: 自動保存 indicator (mockup .save-status pattern)
-function AutoSaveBadge({ status }: { status: "idle" | "loading" | "saving" | "saved" | "error" }) {
-  // status ごとの表示
-  const config: Record<typeof status, { label: string; bg: string; color: string }> = {
-    idle:    { label: "—",            bg: "transparent",  color: "#9ca3af" },
-    loading: { label: "読み込み中...", bg: "#fef3c7",     color: "#854d0e" },
-    saving:  { label: "保存中...",    bg: "#dbeafe",     color: "#1e40af" },
-    saved:   { label: "✓ 自動保存済",  bg: "#d1fae5",     color: "#065f46" },
-    error:   { label: "⚠ 保存失敗",    bg: "#fee2e2",     color: "#991b1b" },
-  };
-  const c = config[status];
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 4,
-      padding: "3px 8px", fontSize: 11, borderRadius: 4,
-      background: c.bg, color: c.color,
-      fontWeight: 500, minHeight: 22, whiteSpace: "nowrap",
-    }}>
-      {c.label}
-    </span>
-  );
-}
+// PR c92-2a (R4): AutoSaveBadge は削除済。
+//   c89-p1 で auto-save OFF (AUTOSAVE_DISABLED_C89_P1=true) のため saving/saved 状態に
+//   遷移せず、"—" と "読み込み中..." しか出ない死に駒だった。c92-2b で header の
+//   進捗バッジが代替指標として実装される予定。
 
 function numOrZero(v: InputValue): number {
   return v === "" ? 0 : v;

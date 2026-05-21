@@ -87,6 +87,24 @@ textarea {
   .show-mobile { display: none !important; }
 }
 
+/* PR c92-2a: /entry wide-screen 2-column layout
+ * - 1024px 以上: 左サイドバー 320px + 右メイン flex-1
+ * - 1024px 未満: 1-column (サイドバー上部、メイン下部の縦並び)
+ * 既存 .hide-mobile / .show-mobile と同じパターンで CSS class 切替。
+ * 1024px breakpoint は タブレット縦/スマホ全般 vs デスクトップ の境界。
+ */
+.entry-2col {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  .entry-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ================================================================
  * PR #60: SIKKEN Design System tokens
  * Tailwind v4 @theme 直書き方式 (案 A) — CSS 変数と Tailwind ユーティリティを同時生成。
