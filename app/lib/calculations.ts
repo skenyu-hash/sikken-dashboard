@@ -32,6 +32,90 @@ export type DailyEntry = {
   materialCost?: number;    // 材料費(全体)
   outsourceCost?: number;   // 営業外注費
   vehicleCount?: number;    // 車両数
+
+  // ===== PR c90-2: /entry 日次差分入力モデルで保存される全フィールド =====
+  // EntryFormState (app/entry/types.ts) と 1:1 対応。すべて optional で旧 DailyEntry
+  // との互換性を保ち、entries.data JSONB に直接格納される。aggregateMonthlySummary
+  // (app/lib/monthlyAggregation.ts) はこれらを (data->>'xxx')::numeric で SUM 集計する。
+  //
+  // フィールドが unset の月 (4 月以前 / 旧データ) は SQL の COALESCE で 0 扱い。
+  // 新列追加時は: types.ts (EntryFormState) → ここ → AGGREGATION_MAPPING.md →
+  //   monthlyAggregation.ts の SQL の 4 箇所を同時更新する必要 (KNOWN_ISSUES §7)。
+
+  // ① 新規対応 (7) — water/electric/locksmith/road/detective 共通
+  outsourced_sales_revenue?: number;
+  internal_staff_revenue?: number;
+  outsourced_response_count?: number;
+  internal_staff_response_count?: number;
+  repeat_count?: number;
+  revisit_count?: number;
+  review_count?: number;
+
+  // ② コスト (4)
+  total_labor_cost?: number;
+  material_cost?: number;
+  sales_outsourcing_cost?: number;
+  card_processing_fee?: number;
+
+  // ③ 広告 (3)
+  ad_cost?: number;
+  call_count?: number;
+  acquisition_count?: number;
+
+  // ④ 施工 (4)
+  outsourced_construction_count?: number;
+  internal_construction_count?: number;
+  outsourced_construction_cost?: number;
+  internal_construction_profit?: number;
+
+  // ⑤ HELP (2)
+  help_count?: number;
+  help_revenue?: number;
+
+  // 電気業態専用 (PR #48b)
+  switchboard_count?: number;
+
+  // 鍵業態専用 (PR #51) — 獲得 4 内訳 + コスト 2
+  locksmith_car_lp_email_count?: number;
+  locksmith_inhouse_count?: number;
+  locksmith_repeat_count?: number;
+  locksmith_revisit_count?: number;
+  locksmith_construction_cost?: number;
+  locksmith_commission_fee?: number;
+
+  // ロード業態専用 (PR #52 + #58c) — 獲得 7 + 入電 7 + 保険売上 2 + 販管費
+  road_ad_count?: number;
+  road_repeat_count?: number;
+  road_referral_count?: number;
+  road_revisit_count?: number;
+  road_wellnest_count?: number;
+  road_seo_count?: number;
+  road_insurance_count?: number;
+  road_ad_call_count?: number;
+  road_repeat_call_count?: number;
+  road_referral_call_count?: number;
+  road_revisit_call_count?: number;
+  road_wellnest_call_count?: number;
+  road_seo_call_count?: number;
+  road_insurance_call_count?: number;
+  road_insurance_revenue?: number;
+  road_non_insurance_revenue?: number;
+  road_selling_admin_cost?: number;
+
+  // 探偵業態専用 (PR #53 + #57 + #58b) — 面談 2 + 入電 4 + 獲得 6 + 販管費
+  detective_meeting_count?: number;
+  detective_cancel_count?: number;
+  detective_phone_only_call_count?: number;
+  detective_mail_only_call_count?: number;
+  detective_line_only_call_count?: number;
+  detective_wrong_call_count?: number;
+  detective_phone_uwaki_acquisition_count?: number;
+  detective_phone_other_acquisition_count?: number;
+  detective_mail_uwaki_acquisition_count?: number;
+  detective_mail_other_acquisition_count?: number;
+  detective_line_uwaki_acquisition_count?: number;
+  detective_line_other_acquisition_count?: number;
+  detective_selling_admin_cost?: number;
 };
 
 export type DepartmentSummary = {
