@@ -26,6 +26,10 @@ export function useFormCalculations(state: EntryFormState): AutoCalcResult {
     const f22 = num(state.outsourced_construction_count);
     const f23 = num(state.internal_construction_count);
     const f24 = num(state.outsourced_construction_cost);
+    // PR c93-1: f25 (自社工事利益) は f31 (合計粗利) では使われなくなったが、
+    //   f26 (実質工事コスト = f24 - f25) でなお必要。entries.data にも引き続き保存され、
+    //   monthlyAggregation で sum_internal_construction_profit として集計される。
+    //   total_profit には加算しない (c93-1 仕様、内製化ボーナス撤去)。
     const f25 = num(state.internal_construction_profit);
     const f27 = num(state.help_count);
     const f28 = num(state.help_revenue);
@@ -47,9 +51,12 @@ export function useFormCalculations(state: EntryFormState): AutoCalcResult {
     // ⑤ HELP (auto 1)
     const f29 = safeDiv(f28, f27); // HELP単価
 
-    // ⑥ 粗利 (auto 2)
+    // ⑥ 粗利 (auto 1) — PR c93-1 で 2 → 1 に縮減
+    //   旧 f31 = f30 + f25 (合計粗利 / 内製化ボーナス加算) は二重計上のため廃止。
+    //   各社統計表で既に自社施工分を粗利に織り込み済 → bonus 加算は実態と乖離していた。
+    //   f25 (internal_construction_profit / 自社工事利益) は入力 / 集計対象として残すが、
+    //   粗利には加算しない (把握用、c93-2 で再設計予定)。
     const f30 = f1 - f12 - f11 - f15 - f13 - f14; // 粗利
-    const f31 = f30 + f25; // 合計粗利 (内製化ボーナス加算)
 
     return {
       total_revenue: f1,
@@ -62,7 +69,6 @@ export function useFormCalculations(state: EntryFormState): AutoCalcResult {
       actual_construction_cost: f26,
       help_unit_price: f29,
       profit: f30,
-      total_profit: f31,
     };
   }, [state]);
 }

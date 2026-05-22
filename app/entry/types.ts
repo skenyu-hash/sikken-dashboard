@@ -152,9 +152,12 @@ export interface AutoCalcResult {
   // ⑤ auto (1)
   help_unit_price: number; // f29 = f28 / f27
 
-  // ⑥ auto (2)
+  // ⑥ auto (1) — PR c93-1 で 2 → 1 に縮減
+  //   旧: profit (f30) + total_profit (f31 = f30 + f25)
+  //   新: profit (f30) のみ。合計粗利 (f31) は内製化ボーナス加算で二重計上だったため廃止。
+  //   monthly_summaries.total_profit カラムは保持し、aggregation で f30 相当を格納する
+  //   (DB スキーマ不変、計算式のみ変更)。
   profit: number; // f30 = f1 - f12 - f11 - f15 - f13 - f14
-  total_profit: number; // f31 = f30 + f25 (DB: total_profit)
 }
 
 /** フィールドごとのバリデーションエラー (undefined はエラーなし) */

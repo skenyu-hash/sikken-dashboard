@@ -59,9 +59,16 @@ export function resolveTotalProfit(summary: SummaryLike | null | undefined): num
       - numOf(summary.ad_cost)
       - numOf(summary.locksmith_commission_fee);
   } else {
-    // water / electric / road / detective: 既存 calc.profit 式と同等
+    // water / electric / road / detective: 既存 calc.profit 式 (f30) と同等
     // (detective は ad_cost のみ非ゼロで他は 0 → revenue - ad と一致)
     // (road は sales_outsourcing_cost = 手数料 で扱う、material/labor は 0)
+    //
+    // PR c93-1 整合性確認: 本式は internal_construction_profit を加算しない f30 ベース。
+    //   c93-1 で aggregation 側から内製化ボーナス加算 (+ sum_internal_construction_profit)
+    //   を撤去した後の monthly_summaries.total_profit と同じ semantics となる
+    //   (= legacy 行 total_profit=0 フォールバック時も新仕様と整合)。
+    //   c93-1 では本関数を touch せず、上記コメントだけ更新。関数名 resolveTotalProfit は
+    //   命名と実体に若干 gap があるが (実体は profit=f30 を返す)、rename は別 PR で検討。
     derived = revenue
       - numOf(summary.total_labor_cost)
       - numOf(summary.material_cost)
