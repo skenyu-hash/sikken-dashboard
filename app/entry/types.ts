@@ -47,9 +47,15 @@ export interface EntryFormState {
   call_count: InputValue; // f16 (= inquiry_count、DB は call_count)
   acquisition_count: InputValue; // f18
 
-  // ④ 施工 (入力 4)
-  outsourced_construction_count: InputValue; // f22
-  internal_construction_count: InputValue; // f23
+  // ④ 施工 (入力 4) — PR c93-2 で UI 入力フィールド構成を再構成
+  //   新規入力: construction_count (対応ベース、10万円以上の工事1件)
+  //   意味変更: internal_construction_count = 会社内製化分のみ (営業マン自施工は除く)
+  //   UI 撤去: outsourced_construction_count は state には残置 (常に ""、後方互換)、
+  //            ただし NumberField としては表示しない。旧 5月既存 entries の値は
+  //            entries.data に保存され続け、aggregation の fallback chain で参照される。
+  construction_count: InputValue; // 新規: 工事件数 (対応ベース)
+  outsourced_construction_count: InputValue; // f22 (UI 撤去、state 残置のみ)
+  internal_construction_count: InputValue; // f23 (意味変更: 会社内製化分)
   outsourced_construction_cost: InputValue; // f24
   internal_construction_profit: InputValue; // f25
 
@@ -145,9 +151,11 @@ export interface AutoCalcResult {
   cpa: number; // f19 = f15 / f18
   conv_rate: number; // f20 = f18 / f16 * 100 (DB: conv_rate、UI: 成約率)
 
-  // ④ auto (2)
-  total_construction_count: number; // f21 = f22 + f23
-  actual_construction_cost: number; // f26 = f24 - f25
+  // ④ auto (1) — PR c93-2 で 2 → 1 縮減
+  //   旧 f21 (総工事件数 = outsourced + internal sum) は対応ベース construction_count に
+  //   置換、auto 不要。旧 f26 (実質工事コスト = outsourced_cost - internal_profit) も廃止。
+  //   新: internal_construction_ratio = 内製化件数 / 工事件数 × 100 (自社工事比率)
+  internal_construction_ratio: number;
 
   // ⑤ auto (1)
   help_unit_price: number; // f29 = f28 / f27

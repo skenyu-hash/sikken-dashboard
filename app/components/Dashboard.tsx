@@ -453,6 +453,7 @@ export default function Dashboard() {
         // companyData は会社別ビュー専用の集計型で職人費等を持たない (将来拡張候補)
         totalLaborCost: 0, totalMaterialCost: 0, totalSalesOutsourcingCost: 0,
         outsourcedConstructionCount: 0, internalConstructionCount: 0,
+        constructionCount: 0, // PR c93-2: companyData 経路は monthly_summaries 直集計でなく未流入、0 初期化
         daysElapsed: dim, daysInMonth: dim,
         grossMargin: companyData.totalRevenue > 0 ? Math.round(companyData.totalProfit / companyData.totalRevenue * 1000) / 10 : 0,
       };
@@ -477,6 +478,8 @@ export default function Dashboard() {
         // PR #46: 工事件数 2 列を全エリア合算
         const outsourcedConstructionCount = summaries.reduce((s, ms) => s + Number(ms.outsourced_construction_count ?? 0), 0);
         const internalConstructionCount = summaries.reduce((s, ms) => s + Number(ms.internal_construction_count ?? 0), 0);
+        // PR c93-2: 対応ベース工事件数を全エリア合算
+        const constructionCount = summaries.reduce((s, ms) => s + Number(ms.construction_count ?? 0), 0);
         return {
           ...summary,
           totalRevenue, totalProfit, totalCount, totalAdCost,
@@ -489,6 +492,7 @@ export default function Dashboard() {
           },
           totalLaborCost, totalMaterialCost, totalSalesOutsourcingCost,
           outsourcedConstructionCount, internalConstructionCount,
+          constructionCount, // PR c93-2: 全エリア合算した対応ベース工事件数
           daysElapsed: dim, daysInMonth: dim,
           grossMargin: totalRevenue > 0 ? Math.round(totalProfit / totalRevenue * 1000) / 10 : 0,
         };
@@ -521,6 +525,7 @@ export default function Dashboard() {
       // PR #46: 工事件数 2 列を流入 (buildMetricRows で合計に再構成)
       outsourcedConstructionCount: Number(monthlySummary.outsourced_construction_count ?? 0),
       internalConstructionCount: Number(monthlySummary.internal_construction_count ?? 0),
+      constructionCount: Number(monthlySummary.construction_count ?? 0), // PR c93-2: 対応ベース工事件数
       daysElapsed: dim,
       daysInMonth: dim,
       grossMargin: Number(monthlySummary.profit_rate ?? 0),
@@ -1156,15 +1161,16 @@ export default function Dashboard() {
         const remain = isCurrentMonth
           ? Math.max(1, displaySummary.daysInMonth - now.getDate())
           : 0;
-        // PR #47: 工事取得率を outsourced+internal の合計ベースで算出
-        // (PR #46 で displaySummary に流入済の 2 フィールドを利用)。
-        // displaySummary.constructionRate は DB の construction_rate 列を読むが
-        // 同列が存在しないため常に 0。下部 MetricRow (PR #46) と算出ロジックを統一。
-        const constructionCountTotal =
-          displaySummary.outsourcedConstructionCount + displaySummary.internalConstructionCount;
+        // PR c93-2: 工事取得率を対応ベース (displaySummary.constructionCount) で算出。
+        //   旧 (PR #47): outsourcedConstructionCount + internalConstructionCount の合算
+        //   = 発注ベースの二重カウントで工事取得率が 100% を超える構造的バグがあった。
+        //   新       : monthly_summaries.construction_count (= 対応 1 件 = 工事 1 件) を直接使用。
+        //   aggregation 側で COALESCE chain により 5月既存 entries (旧フィールドのみ) は
+        //   migration 経由で同列に初期化されるため、過去データも自然に整合する。
+        //   displaySummary.constructionRate は DB legacy column 直読、totalCount=0 時のみ fallback。
         const constructionRateCalc =
           displaySummary.totalCount > 0
-            ? (constructionCountTotal / displaySummary.totalCount) * 100
+            ? (displaySummary.constructionCount / displaySummary.totalCount) * 100
             : displaySummary.constructionRate;
         const cards = [
           { label: "全体売上",

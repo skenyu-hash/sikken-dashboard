@@ -14,7 +14,9 @@
     "test:integration:monthly-aggregation": "tsx scripts/test-monthly-aggregation.ts",
     "test:integration:c91-edge-case": "tsx scripts/test-c91-aggregation-edge-case.ts",
     "test:integration:c93-1-no-bonus": "tsx scripts/test-c93-1-no-bonus.ts",
-    "migrate:c93-1-may2026": "tsx scripts/migrations/c93-1_reaggregate_may2026.ts"
+    "test:integration:c93-2-construction-count": "tsx scripts/test-c93-2-construction-count.ts",
+    "migrate:c93-1-may2026": "tsx scripts/migrations/c93-1_reaggregate_may2026.ts",
+    "migrate:c93-2-may2026": "tsx scripts/migrations/c93-2_init_construction_count_may2026.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.87.0",

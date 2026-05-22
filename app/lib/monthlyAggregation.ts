@@ -81,6 +81,18 @@ export async function aggregateMonthlySummary(
         COALESCE(SUM(COALESCE((data->>'acquisition_count')::numeric, 0)), 0) AS sum_acquisition_count,
         COALESCE(SUM(COALESCE((data->>'outsourced_construction_count')::numeric, 0)), 0) AS sum_outsourced_construction_count,
         COALESCE(SUM(COALESCE((data->>'internal_construction_count')::numeric, 0)), 0) AS sum_internal_construction_count,
+        -- PR c93-2: 工事件数 (対応ベース) は construction_count を優先、欠落時は旧 sum で fallback。
+        --   旧 5月 entries (construction_count キー未保存) → outsourced + internal の合算で初期化。
+        --   c93-2 deploy 後の新規 entries → construction_count 直接使用。
+        --   COALESCE chain: data->>construction_count IS NOT NULL なら値を採用 (0 でも)、
+        --   それ以外で outsourced+internal の sum (両方欠落なら 0)。
+        COALESCE(SUM(
+          COALESCE(
+            (data->>'construction_count')::numeric,
+            COALESCE((data->>'outsourced_construction_count')::numeric, 0)
+              + COALESCE((data->>'internal_construction_count')::numeric, 0)
+          )
+        ), 0) AS sum_construction_count,
         COALESCE(SUM(COALESCE((data->>'outsourced_construction_cost')::numeric, 0)), 0) AS sum_outsourced_construction_cost,
         COALESCE(SUM(COALESCE((data->>'internal_construction_profit')::numeric, 0)), 0) AS sum_internal_construction_profit,
         COALESCE(SUM(COALESCE((data->>'help_count')::numeric, 0)), 0) AS sum_help_count,
@@ -185,6 +197,7 @@ export async function aggregateMonthlySummary(
       total_labor_cost, material_cost, sales_outsourcing_cost, card_processing_fee,
       outsourced_construction_count, internal_construction_count,
       outsourced_construction_cost, internal_construction_profit,
+      construction_count, -- PR c93-2: 対応ベース工事件数
       -- A-2 電気
       switchboard_count,
       -- A-3 鍵
@@ -235,6 +248,7 @@ export async function aggregateMonthlySummary(
       d.sum_total_labor_cost, d.sum_material_cost, d.sum_sales_outsourcing_cost, d.sum_card_processing_fee,
       d.sum_outsourced_construction_count, d.sum_internal_construction_count,
       d.sum_outsourced_construction_cost, d.sum_internal_construction_profit,
+      d.sum_construction_count, -- PR c93-2
       d.sum_switchboard_count,
       d.sum_locksmith_car_lp_email_count, d.sum_locksmith_inhouse_count,
       d.sum_locksmith_repeat_count, d.sum_locksmith_revisit_count,
@@ -287,6 +301,7 @@ export async function aggregateMonthlySummary(
       internal_construction_count = EXCLUDED.internal_construction_count,
       outsourced_construction_cost = EXCLUDED.outsourced_construction_cost,
       internal_construction_profit = EXCLUDED.internal_construction_profit,
+      construction_count = EXCLUDED.construction_count, -- PR c93-2
       switchboard_count = EXCLUDED.switchboard_count,
       locksmith_car_lp_email_count = EXCLUDED.locksmith_car_lp_email_count,
       locksmith_inhouse_count = EXCLUDED.locksmith_inhouse_count,

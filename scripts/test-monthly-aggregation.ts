@@ -120,6 +120,11 @@ const EXPECTED = {
   internal_construction_count: 13,
   outsourced_construction_cost: 675000,
   internal_construction_profit: 360000,
+  // PR c93-2: 対応ベース construction_count の fallback 集計を回帰確認。
+  //   TEST_VALUES に construction_count キーがないため、aggregation の COALESCE chain で
+  //   旧 outsourced + internal sum で fallback 集計される (18 + 13 = 31)。
+  //   将来 TEST_VALUES に construction_count を追加した場合は新形式優先で別値になる。
+  construction_count: 31,
   help_count: 9,
   help_revenue: 900000,
   // 派生
@@ -233,6 +238,8 @@ async function main() {
     check("acquisition_count", Number(ms.acquisition_count), EXPECTED.acquisition_count);
     check("outsourced_construction_count", Number(ms.outsourced_construction_count), EXPECTED.outsourced_construction_count);
     check("internal_construction_count", Number(ms.internal_construction_count), EXPECTED.internal_construction_count);
+    // PR c93-2: construction_count は fallback 経路で outsourced + internal の sum に
+    check("construction_count (fallback = outsourced+internal sum)", Number(ms.construction_count), EXPECTED.construction_count);
     check("outsourced_construction_cost", Number(ms.outsourced_construction_cost), EXPECTED.outsourced_construction_cost);
     check("internal_construction_profit", Number(ms.internal_construction_profit), EXPECTED.internal_construction_profit);
     check("help_count", Number(ms.help_count), EXPECTED.help_count);

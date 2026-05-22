@@ -202,6 +202,14 @@ export function ensureSchema(): Promise<void> {
       // PR #48b: 電気業態向け 分電盤件数 (electric のみ使用、他業態は常に 0)
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS switchboard_count INTEGER NOT NULL DEFAULT 0`);
 
+      // PR c93-2: 工事件数を対応ベース (= 対応1件 = 工事1件、10万円以上) に再定義する
+      //   新カラム。旧 outsourced_construction_count + internal_construction_count は
+      //   発注ベースで二重カウントになっていた構造的バグを解消。
+      //   aggregation 側で COALESCE(construction_count, outsourced+internal) の fallback
+      //   chain により、deploy 後の新規 entries は新カラム、5月既存 entries は旧合算で
+      //   透過的に集計される。旧カラムは後方互換のため保持。
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS construction_count INTEGER NOT NULL DEFAULT 0`);
+
       // PR #51: 鍵業態 Phase B (LocksmithForm の獲得内訳・コストを DB 化)
       //   - 獲得 4 内訳 (車LP+メール / インハウス / リピート / 再訪問)
       //   - コスト 2 項目 (工事費 / 手数料) ※従来 total_labor_cost / sales_outsourcing_cost
