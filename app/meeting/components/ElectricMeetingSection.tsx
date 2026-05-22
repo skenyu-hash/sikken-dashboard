@@ -55,11 +55,14 @@ export default function ElectricMeetingSection({
   const adRate = safeDiv(adCost, sales) * 100;
   const unitPrice = Math.round(safeDiv(sales, totalCount));
 
-  // 施工
-  const outsourcedConstructionCount = numOf(monthlySummary?.outsourced_construction_count);
+  // PR c93-5: 対応ベース化 (ElectricDashboardSection と完全同等、UI 統一)。
+  //   旧 (c93-2 未対応): total = outsourced + internal (発注ベース、二重カウント)
+  //   新: construction_count = 対応 1 件 = 工事 1 件 (10万円以上)
+  //   internalConstructionRatio = 自社工事件数 ÷ 工事件数 × 100 (新規 auto)
+  const constructionCount = numOf(monthlySummary?.construction_count);
   const internalConstructionCount = numOf(monthlySummary?.internal_construction_count);
-  const totalConstruction = outsourcedConstructionCount + internalConstructionCount;
-  const constructionRate = safeDiv(totalConstruction, totalCount) * 100;
+  const constructionRate = safeDiv(constructionCount, totalCount) * 100;
+  const internalConstructionRatio = safeDiv(internalConstructionCount, constructionCount) * 100;
   const outsourcedConstructionCost = numOf(monthlySummary?.outsourced_construction_cost);
   const internalConstructionProfit = numOf(monthlySummary?.internal_construction_profit);
 
@@ -102,10 +105,14 @@ export default function ElectricMeetingSection({
         <MetricRow label="対応件数"   actual={totalCount}    target={targets.targetCount}         {...mp} format={fmtCount} />
       </SectionTable>
 
+      {/* PR c93-5: 対応ベース ③ 施工 セクション (ElectricDashboardSection と完全同等)。
+          旧: 外注工事件数 + 自社工事件数 + 総工事件数 (発注ベース合算、二重カウント問題)
+          新: 工事件数 (対応ベース) + 自社工事件数 + 自社工事比率 (新 auto) + 工事取得率
+              + 外注工事費 + 自社工事利益 */}
       <SectionTable title="③ 施工" group="cnt" count={6} defaultOpen={false}>
-        <MetricRow label="外注工事件数"  actual={outsourcedConstructionCount} target={0}                                  {...mp} format={fmtCount} />
-        <MetricRow label="自社工事件数"  actual={internalConstructionCount}   target={0}                                  {...mp} format={fmtCount} />
-        <MetricRow label="総工事件数"    actual={totalConstruction}            target={0}                                  {...mp} format={fmtCount} />
+        <MetricRow label="工事件数"      actual={constructionCount}            target={0}                                  {...mp} format={fmtCount} />
+        <MetricRow label="自社工事件数"  actual={internalConstructionCount}    target={0}                                  {...mp} format={fmtCount} />
+        <MetricRow label="自社工事比率"  actual={internalConstructionRatio}    target={0}                                  {...mp} format={fmtPct} isRate />
         <MetricRow label="工事取得率"    actual={constructionRate}             target={targets.targetConstructionRate}    {...mp} format={fmtPct} isRate />
         <MetricRow label="外注工事費"    actual={outsourcedConstructionCost}   target={0}                                  {...mp} format={fmtYen} invertGap />
         <MetricRow label="自社工事利益"  actual={internalConstructionProfit}   target={0}                                  {...mp} format={fmtYen} />
