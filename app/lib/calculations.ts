@@ -63,8 +63,12 @@ export type DailyEntry = {
   acquisition_count?: number;
 
   // ④ 施工 (4)
-  outsourced_construction_count?: number;
-  internal_construction_count?: number;
+  // PR c93-2: 工事件数 (対応ベース) — 新規入力フィールド。
+  //   旧 outsourced + internal の発注ベース合算 (二重カウント) を撤去し、対応 1 件 =
+  //   工事 1 件 (10万円以上) に再定義。旧フィールドは後方互換のため保持。
+  construction_count?: number;
+  outsourced_construction_count?: number; // 残置 (UI 撤去、aggregation の fallback で参照)
+  internal_construction_count?: number;   // 意味変更: 会社内製化分のみ (営業マン自施工除外)
   outsourced_construction_cost?: number;
   internal_construction_profit?: number;
 
@@ -149,8 +153,12 @@ export type DashboardSummary = {
   totalLaborCost: number;
   totalMaterialCost: number;
   totalSalesOutsourcingCost: number;  // 営業外注費 (PR #38 sales_outsourcing_cost 由来)
-  outsourcedConstructionCount: number; // 外注工事件数 (PR #38 outsourced_construction_count 由来)
-  internalConstructionCount: number;   // 自社工事件数 (PR #38 internal_construction_count 由来)
+  outsourcedConstructionCount: number; // 外注工事件数 (PR #38 outsourced_construction_count 由来、後方互換)
+  internalConstructionCount: number;   // 自社工事件数 (PR c93-2 で意味変更: 会社内製化分のみ)
+  // PR c93-2: 工事件数 (対応ベース) — monthly_summaries.construction_count 由来。
+  //   旧 outsourced + internal の合算 (発注ベース、各社統計表と不一致で工事取得率 100%
+  //   超え問題) を撤去し、対応 1 件 = 工事 1 件 (10万円以上) で再定義。
+  constructionCount: number;
   grossMargin: number;      // 粗利率(%)
   vehicleCount: number;     // 車両数
 };
@@ -249,10 +257,12 @@ export function calculateDashboard(
     insourceCount, outsourceCount, insourceRate, outsourceRate,
     reviewCount, totalAdCost, totalLaborCost, totalMaterialCost,
     totalSalesOutsourcingCost,
-    // PR #46: 工事件数は monthly_summaries 由来 (Dashboard.tsx で流入)。
-    // entries.data には対応キーが無いため、entries 経由集計は 0 で初期化。
+    // PR #46 / c93-2: 工事件数は monthly_summaries 由来 (Dashboard.tsx で流入)。
+    //   calculateDashboard は entries[] 由来の旧 summary を返すが、Dashboard 側で
+    //   monthly_summaries fetch 後に displaySummary を組み立て直すため、ここは 0 初期化で十分。
     outsourcedConstructionCount: 0,
     internalConstructionCount: 0,
+    constructionCount: 0, // PR c93-2: 対応ベース、Dashboard.tsx で monthly_summaries.construction_count から流入
     grossMargin,
     vehicleCount: entries.length > 0 ? Math.max(...entries.map(e => e.vehicleCount ?? 0), 0) : 0,
   };
@@ -325,15 +335,16 @@ export function buildMetricRows(
   const helpRate = summary.totalCount > 0 ? (summary.help.count / summary.totalCount) * 100 : 0;
   const convRate = overrides?.convRate
     ?? (callCount > 0 ? (acquisitionCount / callCount) * 100 : 0);
-  // PR #46: 工事件数は monthly_summaries.outsourced_construction_count +
-  // internal_construction_count の合計を優先 (DB 値が入っていれば)。
-  // 合計が 0 の場合のフォールバックとして旧ロジック (totalCount × constructionRate%)
-  // を採用 (旧 entries.data ベースの算出経路を温存)。
-  const constructionFromMonthly = summary.outsourcedConstructionCount + summary.internalConstructionCount;
-  const constructionCount = constructionFromMonthly > 0
-    ? constructionFromMonthly
-    : Math.round(summary.totalCount * summary.constructionRate / 100);
-  // 工事取得率も合計値ベースで算出 (totalCount > 0 が前提)
+  // PR c93-2: 工事件数を対応ベース (monthly_summaries.construction_count) authoritative に。
+  //   旧 (PR #46): outsourced + internal の合算を優先 → 発注ベース二重カウント問題で
+  //   工事取得率が 100% 超えるバグ。
+  //   新       : summary.constructionCount を直接使用。Dashboard.tsx で
+  //   monthly_summaries.construction_count から流入済 (aggregation 側で COALESCE chain で
+  //   旧 outsourced+internal を fallback 集計するため、5月既存 entries も同 column に
+  //   migration 経由で初期化される)。
+  //   旧 outsourced/internal フィールド合算は完全非使用 (後方互換のみ)。
+  //   totalCount=0 のときのみ summary.constructionRate (DB legacy) にフォールバック。
+  const constructionCount = summary.constructionCount;
   const constructionRateCalc = summary.totalCount > 0
     ? (constructionCount / summary.totalCount) * 100
     : summary.constructionRate;

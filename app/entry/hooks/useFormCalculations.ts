@@ -23,14 +23,15 @@ export function useFormCalculations(state: EntryFormState): AutoCalcResult {
     const f15 = num(state.ad_cost);
     const f16 = num(state.call_count);
     const f18 = num(state.acquisition_count);
-    const f22 = num(state.outsourced_construction_count);
-    const f23 = num(state.internal_construction_count);
-    const f24 = num(state.outsourced_construction_cost);
-    // PR c93-1: f25 (自社工事利益) は f31 (合計粗利) では使われなくなったが、
-    //   f26 (実質工事コスト = f24 - f25) でなお必要。entries.data にも引き続き保存され、
-    //   monthlyAggregation で sum_internal_construction_profit として集計される。
-    //   total_profit には加算しない (c93-1 仕様、内製化ボーナス撤去)。
-    const f25 = num(state.internal_construction_profit);
+    // PR c93-2: ④ 施工セクションを対応ベースに再構成。
+    //   旧: f21 = f22 + f23 (総工事件数 = outsourced + internal 発注ベース合算)
+    //       f26 = f24 - f25 (実質工事コスト = outsourced_cost - internal_profit)
+    //   新: construction_count (対応ベース 1 入力) + internal_construction_ratio (auto)
+    //   f22 (outsourced_construction_count) は state 残置のみ、useFormCalculations では未使用。
+    //   f24 / f25 は state 残置 (cost / profit 入力フィールドとして UI 継続) だが本関数では
+    //   f26 廃止に伴い未参照、profit.ts / monthlyAggregation で別途集計される。
+    const f_construction_count = num(state.construction_count); // 新規入力 (対応ベース)
+    const f_internal_construction_count = num(state.internal_construction_count); // 意味変更
     const f27 = num(state.help_count);
     const f28 = num(state.help_revenue);
 
@@ -44,9 +45,13 @@ export function useFormCalculations(state: EntryFormState): AutoCalcResult {
     const f19 = safeDiv(f15, f18); // CPA
     const f20 = safeDiv(f18, f16) * 100; // 成約率
 
-    // ④ 施工 (auto 2)
-    const f21 = f22 + f23; // 総工事件数
-    const f26 = f24 - f25; // 実質工事コスト
+    // ④ 施工 (auto 1) — PR c93-2 で 2 → 1 縮減
+    //   旧 f21 (総工事件数) / f26 (実質工事コスト) は対応ベース移行で廃止。
+    //   新 auto: 自社工事比率 = 内製化件数 ÷ 工事件数 × 100。
+    //   分母 0 のとき 0 にフォールバック (NaN / Infinity 防止)。
+    const f_internal_construction_ratio = f_construction_count > 0
+      ? (f_internal_construction_count / f_construction_count) * 100
+      : 0;
 
     // ⑤ HELP (auto 1)
     const f29 = safeDiv(f28, f27); // HELP単価
@@ -65,8 +70,9 @@ export function useFormCalculations(state: EntryFormState): AutoCalcResult {
       call_unit_price: f17,
       cpa: f19,
       conv_rate: f20,
-      total_construction_count: f21,
-      actual_construction_cost: f26,
+      // PR c93-2: 旧 total_construction_count (f21) / actual_construction_cost (f26) は廃止、
+      //   新 internal_construction_ratio (自社工事比率) のみ
+      internal_construction_ratio: f_internal_construction_ratio,
       help_unit_price: f29,
       profit: f30,
     };

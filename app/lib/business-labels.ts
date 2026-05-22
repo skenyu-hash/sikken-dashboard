@@ -51,12 +51,16 @@ export interface FieldLabels {
   conv_rate: string; // auto, = conversion_rate
 
   // ④ 施工 (入力 4 + auto 2) - 業態で語尾が変わる
-  outsourced_construction_count: string;
-  internal_construction_count: string;
-  total_construction_count: string; // auto
+  // PR c93-2: ④ 施工フィールド再構成
+  //   新規: construction_count (対応ベース) + internal_construction_ratio (auto)
+  //   削除: total_construction_count (auto) + actual_construction_cost (auto)
+  //   残置: outsourced_construction_count (UI 撤去、state/ラベルは後方互換で保持)
+  construction_count: string;             // 新規: 工事件数 (対応ベース、10万円以上)
+  outsourced_construction_count: string;  // 残置 (UI 入力撤去、表示なし)
+  internal_construction_count: string;    // 意味変更: 会社内製化分 (営業マン自施工は除外)
+  internal_construction_ratio: string;    // 新規 auto: 自社工事比率
   outsourced_construction_cost: string;
   internal_construction_profit: string;
-  actual_construction_cost: string; // auto
 
   // ⑤ HELP (入力 2 + auto 1)
   help_count: string;
@@ -103,12 +107,13 @@ const WATER_LABELS: FieldLabels = {
   cpa: "獲得単価（CPA）",
   conv_rate: "成約率",
 
-  outsourced_construction_count: "外注工事件数",
-  internal_construction_count: "自社工事件数",
-  total_construction_count: "総工事件数",
+  // PR c93-2: 工事件数を対応ベースに再定義 (旧 outsourced+internal 発注ベース合算は廃止)
+  construction_count: "工事件数",                 // 新規 (対応ベース)
+  outsourced_construction_count: "外注工事件数",  // 残置 (UI 撤去、ラベルは後方互換)
+  internal_construction_count: "自社工事件数",    // 意味変更: 会社内製化分のみ
+  internal_construction_ratio: "自社工事比率",    // 新規 auto
   outsourced_construction_cost: "外注工事費",
   internal_construction_profit: "自社工事利益",
-  actual_construction_cost: "実質工事コスト",
 
   help_count: "HELP件数",
   help_revenue: "HELP売上",

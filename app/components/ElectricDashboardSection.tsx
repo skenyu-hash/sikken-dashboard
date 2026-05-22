@@ -58,14 +58,18 @@ export default function ElectricDashboardSection({ monthlySummary, targets }: Pr
   const convRate = safeDiv(acquisitionCount, callCount) * 100;
   const adRate = safeDiv(adCost, sales) * 100;
 
-  // 施工
-  const outsourcedConstructionCount = numOf(monthlySummary?.outsourced_construction_count);
+  // 施工 — PR c93-2 で対応ベースに再定義
+  //   旧: total = outsourced + internal (発注ベース、二重カウント問題)
+  //   新: construction_count = 対応 1 件 = 工事 1 件 (10万円以上)、authoritative
+  //   旧 outsourced_construction_count は monthly_summaries 列に残置 (UI 表示用には使わず)
+  const constructionCount = numOf(monthlySummary?.construction_count);
   const internalConstructionCount = numOf(monthlySummary?.internal_construction_count);
-  const totalConstruction = outsourcedConstructionCount + internalConstructionCount;
-  const constructionRate = safeDiv(totalConstruction, totalCount) * 100;
+  const constructionRate = safeDiv(constructionCount, totalCount) * 100;
+  // PR c93-2 新: 自社工事比率 = 自社工事件数 ÷ 工事件数 × 100
+  const internalConstructionRatio = safeDiv(internalConstructionCount, constructionCount) * 100;
   const outsourcedConstructionCost = numOf(monthlySummary?.outsourced_construction_cost);
   const internalConstructionProfit = numOf(monthlySummary?.internal_construction_profit);
-  const actualConstructionCost = outsourcedConstructionCost - internalConstructionProfit;
+  // PR c93-2: 実質工事コスト (= 外注工事費 - 自社工事利益) は廃止 (発注ベース時代の指標)
 
   // HELP
   const helpRevenue = numOf(monthlySummary?.help_revenue);
@@ -127,15 +131,19 @@ export default function ElectricDashboardSection({ monthlySummary, targets }: Pr
           <Row label="対応件数"    actual={fmtCount(totalCount)}  target={fmtCount(targetCount)} achievement={achv(totalCount, targetCount)} />
         </Card>
 
-        {/* ③ 施工 */}
+        {/* ③ 施工 — PR c93-2 で対応ベース再構成
+            旧: 外注工事件数 + 自社工事件数 + 総工事件数 (合算) + 工事取得率 (合算ベース)
+                + 外注工事費 + 自社工事利益 + 実質工事コスト (= 外注 - 自社利益)
+            新: 工事件数 (対応ベース) + 自社工事件数 + 自社工事比率 (auto)
+                + 工事取得率 (= 工事件数 ÷ 対応件数) + 外注工事費 + 自社工事利益
+                + 実質工事コスト は廃止 (発注ベース時代の指標) */}
         <Card title="③ 施工" group="cnt">
-          <Row label="外注工事件数"    actual={fmtCount(outsourcedConstructionCount)} target="—" />
-          <Row label="自社工事件数"    actual={fmtCount(internalConstructionCount)}   target="—" />
-          <Row label="総工事件数"      actual={fmtCount(totalConstruction)}            target="—" sub="= 外注 + 自社" />
-          <Row label="工事取得率"      actual={fmtPct(constructionRate)}              target={fmtPct(targetConstructionRate)} achievement={achv(constructionRate, targetConstructionRate)} sub="= 総工事件数 ÷ 対応件数" />
-          <Row label="外注工事費"      actual={fmtYen(outsourcedConstructionCost)}    target="—" />
-          <Row label="自社工事利益"    actual={fmtYen(internalConstructionProfit)}    target="—" />
-          <Row label="実質工事コスト"  actual={fmtYen(actualConstructionCost)}        target="—" sub="= 外注工事費 - 自社工事利益" />
+          <Row label="工事件数"        actual={fmtCount(constructionCount)}         target="—" sub="対応1件 = 工事1件 (10万円以上)" />
+          <Row label="自社工事件数"    actual={fmtCount(internalConstructionCount)} target="—" sub="うち会社内製化分 (営業マン自施工は除く)" />
+          <Row label="自社工事比率"    actual={fmtPct(internalConstructionRatio)}   target="—" sub="= 自社工事件数 ÷ 工事件数 × 100" />
+          <Row label="工事取得率"      actual={fmtPct(constructionRate)}            target={fmtPct(targetConstructionRate)} achievement={achv(constructionRate, targetConstructionRate)} sub="= 工事件数 ÷ 対応件数" />
+          <Row label="外注工事費"      actual={fmtYen(outsourcedConstructionCost)}  target="—" />
+          <Row label="自社工事利益"    actual={fmtYen(internalConstructionProfit)}  target="—" />
         </Card>
 
         {/* ④ HELP */}

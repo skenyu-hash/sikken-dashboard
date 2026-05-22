@@ -93,6 +93,7 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     repeat_count: "", revisit_count: "", review_count: "",
     total_labor_cost: "", material_cost: "", sales_outsourcing_cost: "", card_processing_fee: "",
     ad_cost: "", call_count: "", acquisition_count: "",
+    construction_count: "", // PR c93-2: 新規入力 (対応ベース)
     outsourced_construction_count: "", internal_construction_count: "",
     outsourced_construction_cost: "", internal_construction_profit: "",
     help_count: "", help_revenue: "",
@@ -305,6 +306,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           ad_cost: numOrEmpty(entry.ad_cost),
           call_count: numOrEmpty(entry.call_count),
           acquisition_count: numOrEmpty(entry.acquisition_count),
+          construction_count: numOrEmpty(entry.construction_count), // PR c93-2
           outsourced_construction_count: numOrEmpty(entry.outsourced_construction_count),
           internal_construction_count: numOrEmpty(entry.internal_construction_count),
           outsourced_construction_cost: numOrEmpty(entry.outsourced_construction_cost),
@@ -362,6 +364,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           repeat_count: "", revisit_count: "", review_count: "",
           total_labor_cost: "", material_cost: "", sales_outsourcing_cost: "", card_processing_fee: "",
           ad_cost: "", call_count: "", acquisition_count: "",
+          construction_count: "", // PR c93-2
           outsourced_construction_count: "", internal_construction_count: "",
           outsourced_construction_cost: "", internal_construction_profit: "",
           help_count: "", help_revenue: "",
@@ -451,6 +454,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         ad_cost: numOrZero(state.ad_cost),
         call_count: numOrZero(state.call_count),
         acquisition_count: numOrZero(state.acquisition_count),
+        construction_count: numOrZero(state.construction_count), // PR c93-2 新規入力
         outsourced_construction_count: numOrZero(state.outsourced_construction_count),
         internal_construction_count: numOrZero(state.internal_construction_count),
         outsourced_construction_cost: numOrZero(state.outsourced_construction_cost),
