@@ -88,7 +88,14 @@ export default function RankingPage() {
       const adRate = revenue > 0 ? adCost / revenue * 100 : 0;
       const helpRate = count > 0 ? helpCount / count * 100 : 0;
       const convRate = callCount > 0 ? acquisitionCount / callCount * 100 : 0;
-      const constructionRate = useMonthlySummary ? 0 : summary.constructionRate;
+      // PR c93-5 Bug Fix: 対応ベース工事取得率を monthly_summary 経路でも算出。
+      //   旧: useMonthlySummary のとき 0 にハードコード → 工事取得率ランキングが
+      //   常に全エリア 0% 表示の bug (本番運用は monthly_summary 経路が主)。
+      //   新: construction_count / total_count × 100 で計算 (c93-2 対応ベース整合)。
+      const constructionCount = useMonthlySummary ? Number(ms.construction_count ?? 0) : 0;
+      const constructionRate = useMonthlySummary
+        ? (count > 0 ? (constructionCount / count) * 100 : 0)
+        : summary.constructionRate;
       const values: Record<MetricKey, number> = {
         revenue, profit, profitRate, count, unitPrice,
         constructionRate, adRate, helpRate, convRate,

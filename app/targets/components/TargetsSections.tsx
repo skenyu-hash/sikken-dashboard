@@ -48,7 +48,15 @@ function getActualForMetric(
     case "targetAdRate":           return numOf(summary.ad_rate);
     case "targetCallCount":        return numOf(summary.call_count);
     case "targetCpa":              return numOf(summary.cpa);
-    case "targetConstructionRate": return numOf(summary.construction_rate);
+    case "targetConstructionRate": {
+      // PR c93-5 Bug Fix: 対応ベース工事取得率を直接算出。
+      //   旧: summary.construction_rate 直読 → c93-2 で aggregation が
+      //   この legacy column を更新していないため、達成率 badge が常に 0% 表示の bug。
+      //   新: construction_count / total_count × 100 (c93-2 対応ベース整合)。
+      const total = numOf(summary.total_count);
+      const construction = numOf(summary.construction_count);
+      return total > 0 ? (construction / total) * 100 : null;
+    }
     case "targetConversionRate":   return numOf(summary.conv_rate);
     case "targetHelpSales":        return numOf(summary.help_revenue);
     case "targetHelpCount":        return numOf(summary.help_count);

@@ -163,14 +163,22 @@ function MeetingPageInner() {
     if (!monthlySummary) return periodSummary;
     const ms = monthlySummary;
     const dim = getDaysInMonth(year, month);
+    // PR c93-5 Bug Fix: 対応ベース工事取得率を算出。
+    //   旧: constructionRate を ms.construction_rate 直読 → c93-2 で aggregation が
+    //   この legacy column を更新していないため、常に 0/古い値が表示されていた。
+    //   新: construction_count / total_count × 100 で計算 (c93-2 対応ベースと整合)。
+    const msTotalCount = Number(ms.total_count ?? 0);
+    const msConstructionCount = Number(ms.construction_count ?? 0);
     return {
       ...periodSummary,
       totalRevenue: Number(ms.total_revenue ?? 0),
       totalProfit: resolveTotalProfit(ms),
-      totalCount: Number(ms.total_count ?? 0),
+      totalCount: msTotalCount,
       totalAdCost: Number(ms.ad_cost ?? 0),
       companyUnitPrice: Number(ms.unit_price ?? 0),
-      constructionRate: Number(ms.construction_rate ?? 0),
+      constructionRate: msTotalCount > 0
+        ? (msConstructionCount / msTotalCount) * 100
+        : 0,
       helpRate: 0,
       help: { revenue: Number(ms.help_revenue ?? 0), profit: 0, count: Number(ms.help_count ?? 0),
         unitPrice: Number(ms.help_count) > 0 ? Math.round(Number(ms.help_revenue) / Number(ms.help_count)) : 0 },
