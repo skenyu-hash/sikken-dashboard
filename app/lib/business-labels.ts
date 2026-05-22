@@ -63,9 +63,9 @@ export interface FieldLabels {
   help_revenue: string;
   help_unit_price: string; // auto
 
-  // ⑥ 粗利 (auto 2)
+  // ⑥ 粗利 (auto 1) — PR c93-1 で total_profit (合計粗利) を削除。
+  //   旧仕様の f31 (f30 + 内製化ボーナス) は二重計上のため廃止、profit (f30) のみ。
   profit: string; // auto
-  total_profit: string; // auto, 合計粗利
 
   // PR #48b: 電気業態専用フィールド (ElectricForm でのみ表示)
   switchboard_count: string;
@@ -115,7 +115,7 @@ const WATER_LABELS: FieldLabels = {
   help_unit_price: "HELP単価",
 
   profit: "粗利",
-  total_profit: "合計粗利",
+  // PR c93-1: total_profit ("合計粗利") は削除済
 
   // PR #48b: 電気業態専用 (water でも label 定義は持つ、表示は ElectricForm のみ)
   switchboard_count: "分電盤件数",

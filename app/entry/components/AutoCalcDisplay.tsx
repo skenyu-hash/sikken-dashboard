@@ -44,13 +44,14 @@ type Props = {
 };
 
 export default function AutoCalcDisplay({ calc, labels }: Props) {
+  // PR c93-1: auto 2 → 1 に縮減。合計粗利 (f31) は二重計上で廃止、粗利 (f30) 単独表示。
+  //   1-col grid で SummaryCard の幅は親 (entry main col) 全幅に伸びる。
+  //   max-width 制限を入れず親側 (EntryForm の右メイン flex-1) のレイアウトに委ねる。
   return (
-    <SectionShell title={labels.section_auto} subtitle="自動計算 2項目（仕上げの粗利指標）" group="rev" count={2}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+    <SectionShell title={labels.section_auto} subtitle="自動計算 1項目（粗利）" group="rev" count={1}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
         <SummaryCard label={labels.profit} value={fmtYen(calc.profit)} variant={calc.profit < 0 ? "danger" : "ok"}
           subtitle="売上 − 材料 − 職人 − 広告 − 営業外注 − カード" />
-        <SummaryCard label={labels.total_profit} value={fmtYen(calc.total_profit)} variant={calc.total_profit < 0 ? "danger" : "ok"}
-          subtitle="粗利 + 自社工事利益（内製化ボーナス）" />
       </div>
     </SectionShell>
   );

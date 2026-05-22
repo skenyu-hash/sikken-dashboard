@@ -142,6 +142,11 @@ export async function aggregateMonthlySummary(
         (b.sum_outsourced_sales_revenue + b.sum_internal_staff_revenue) AS d_total_revenue,
         (b.sum_outsourced_response_count + b.sum_internal_staff_response_count) AS d_total_count,
         -- 派生: total_profit (業態別分岐)
+        -- PR c93-1: ELSE 分岐から内製化ボーナス加算 (+ sum_internal_construction_profit) を
+        --   撤去。各社統計で既に自社施工分を粗利に織り込み済 → 二重計上だった。
+        --   monthly_summaries.internal_construction_profit カラムは保持し、SUM 結果も
+        --   引き続き格納 (把握用)。total_profit にだけ加算しない設計に変更。
+        --   locksmith 分岐は元から加算なしのため変更不要。
         CASE
           WHEN ${category} = 'locksmith' THEN
             (b.sum_outsourced_sales_revenue + b.sum_internal_staff_revenue)
@@ -156,7 +161,6 @@ export async function aggregateMonthlySummary(
             - b.sum_ad_cost
             - b.sum_sales_outsourcing_cost
             - b.sum_card_processing_fee
-            + b.sum_internal_construction_profit
         END AS d_total_profit
       FROM base b
     )
