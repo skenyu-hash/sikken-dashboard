@@ -5,7 +5,7 @@ import {
   calculateDashboard, calculateBreakeven, calculateAchievement,
   forecastWeekday, forecastRecent7, getDaysInMonth,
   buildMetricRows, type MetricRow,
-  type DashboardSummary,
+  // PR c93-3: DashboardSummary 型 import は DeptTable 削除に伴い未使用化 → 削除
   DailyEntry, FixedCosts, Targets, emptyTargets, manToYen,
   emptyEntry,
   yen,
@@ -454,6 +454,7 @@ export default function Dashboard() {
         totalLaborCost: 0, totalMaterialCost: 0, totalSalesOutsourcingCost: 0,
         outsourcedConstructionCount: 0, internalConstructionCount: 0,
         constructionCount: 0, // PR c93-2: companyData 経路は monthly_summaries 直集計でなく未流入、0 初期化
+        internalConstructionProfit: 0, // PR c93-3: 同上 companyData 経路では未流入
         daysElapsed: dim, daysInMonth: dim,
         grossMargin: companyData.totalRevenue > 0 ? Math.round(companyData.totalProfit / companyData.totalRevenue * 1000) / 10 : 0,
       };
@@ -480,6 +481,8 @@ export default function Dashboard() {
         const internalConstructionCount = summaries.reduce((s, ms) => s + Number(ms.internal_construction_count ?? 0), 0);
         // PR c93-2: 対応ベース工事件数を全エリア合算
         const constructionCount = summaries.reduce((s, ms) => s + Number(ms.construction_count ?? 0), 0);
+        // PR c93-3: 自社工事利益を全エリア合算 (MetricsTable 独立 row 表示用)
+        const internalConstructionProfit = summaries.reduce((s, ms) => s + Number(ms.internal_construction_profit ?? 0), 0);
         return {
           ...summary,
           totalRevenue, totalProfit, totalCount, totalAdCost,
@@ -493,6 +496,7 @@ export default function Dashboard() {
           totalLaborCost, totalMaterialCost, totalSalesOutsourcingCost,
           outsourcedConstructionCount, internalConstructionCount,
           constructionCount, // PR c93-2: 全エリア合算した対応ベース工事件数
+          internalConstructionProfit, // PR c93-3: 全エリア合算した自社工事利益
           daysElapsed: dim, daysInMonth: dim,
           grossMargin: totalRevenue > 0 ? Math.round(totalProfit / totalRevenue * 1000) / 10 : 0,
         };
@@ -526,6 +530,7 @@ export default function Dashboard() {
       outsourcedConstructionCount: Number(monthlySummary.outsourced_construction_count ?? 0),
       internalConstructionCount: Number(monthlySummary.internal_construction_count ?? 0),
       constructionCount: Number(monthlySummary.construction_count ?? 0), // PR c93-2: 対応ベース工事件数
+      internalConstructionProfit: Number(monthlySummary.internal_construction_profit ?? 0), // PR c93-3: 自社工事利益
       daysElapsed: dim,
       daysInMonth: dim,
       grossMargin: Number(monthlySummary.profit_rate ?? 0),
@@ -1221,13 +1226,15 @@ export default function Dashboard() {
         );
       })()}
 
-      {/* ============ 業態別ダッシュボード / 全17項目 指標一覧 ============ */}
+      {/* ============ 業態別ダッシュボード / 指標一覧 ============ */}
       {/* PR #51: 鍵業態は LocksmithDashboardSection に置換。
           PR #52: ロード業態は RoadDashboardSection に置換。
           PR #53: 探偵業態は DetectiveDashboardSection に置換 (面談ファネル含む)。
           PR #54: 電気業態は ElectricDashboardSection に置換 (分電盤件数含む)。
-          残る水道タブは引き続き「全17項目 指標一覧」を表示
-          (PR #56 以降で必要なら水道専用セクションに置換検討)。 */}
+          残る水道タブは引き続き「指標一覧」(MetricsTable) を表示。
+          PR c93-3: ラベル「全17項目」表記を撤去 (数字なし、将来 row 追加削除で
+            stale にならないよう)。c93-3 時点では 22 row (左 11 + 右 11)、
+            内訳: 旧 19 row + 新 3 row (自社工事件数 / 自社工事利益 / 工事取得率)。 */}
       {!isGroup && activeBusiness === "locksmith" && (
         <LocksmithDashboardSection monthlySummary={monthlySummary} targets={targets} />
       )}
@@ -1242,7 +1249,7 @@ export default function Dashboard() {
       )}
       {!isGroup && activeBusiness !== "locksmith" && activeBusiness !== "road" && activeBusiness !== "detective" && activeBusiness !== "electric" && (
         <section style={{ marginBottom: 16 }}>
-          <SectionLabel>全17項目 指標一覧</SectionLabel>
+          <SectionLabel>指標一覧</SectionLabel>
           {/* PR #59 c4: PC 版 (≥641px) は現状の左右 2 列テーブル維持 */}
           <div className="hide-mobile metrics-grid-2col" style={{
             display: "grid", gridTemplateColumns: "1fr 1fr", background: "#fff",
@@ -1423,16 +1430,14 @@ export default function Dashboard() {
         );
       })()}
 
-      {/* ============ 部門別 実績・月末予測 ============ */}
-      <section style={{ marginBottom: 16 }}>
-        <SectionLabel>部門別 実績・月末予測</SectionLabel>
-        <DeptTable
-          summary={displaySummary}
-          targets={targets}
-          daysElapsed={displaySummary.daysElapsed}
-          daysInMonth={displaySummary.daysInMonth}
-        />
-      </section>
+      {/* PR c93-3: 部門別マトリクス (DeptTable) は完全削除。
+          理由: 旧 DailyEntry の self/new/add 系列フィールドを集計していたが、c90 日次差分
+          モデル以降 entries.data に書き込まれず 3 部門売上が実質 0 表示の死に駒だった。
+          MetricsTable (全 22 項目「指標一覧」) に 3 新 KPI (自社工事件数 / 自社工事利益 /
+          工事取得率) を追加することで、部門別観点も統合表示。
+          dead code (DailyEntry の self/new/add フィールド / DashboardSummary の self/newSales/help /
+          calculations.ts:198-225 集計 loop) は /meeting / mobile-kpi / data-io 等で参照され
+          続けているため、本 PR では touch せず別 PR (c94 候補) でクリーンアップ予定。 */}
 
       {/* 編集不可エリアの表示 */}
       {!canEdit && !isGroup && (
@@ -1684,153 +1689,3 @@ function MobileMetricRow({ row, borderColor }: { row: MetricRow; borderColor: st
   );
 }
 
-function DeptTable({ summary, targets, daysElapsed, daysInMonth }: {
-  summary: DashboardSummary;
-  targets: Targets;
-  daysElapsed: number;
-  daysInMonth: number;
-}) {
-  const ratio = daysElapsed > 0 ? daysInMonth / daysElapsed : 0;
-
-  // PR #59 c1: DeptTable 達成率バッジも <MetricBadge> に統一
-  // PR c87: 部門別粗利が赤字 (負値) のとき formatAchievement で "未達" 表示 (混乱回避)
-  //   部門の売上 / 粗利は higher_is_better のため invert は渡さない (default false)
-  const badge = (targetRatio: number | null) => {
-    if (targetRatio === null) return <span style={{ color: "#d1d5db", fontSize: 9 }}>未設定</span>;
-    return (
-      <MetricBadge color={getBadgeColor(targetRatio)} minWidth={false}>
-        {formatAchievement(targetRatio)}
-      </MetricBadge>
-    );
-  };
-
-  const depts = [
-    {
-      name: "自社施工", color: "#059669",
-      revenue: summary.self.revenue, profit: summary.self.profit,
-      count: summary.self.count, unitPrice: summary.self.unitPrice,
-      targetRevenue: targets.targetSelfSales, targetProfit: targets.targetSelfProfit,
-    },
-    {
-      name: "新規営業", color: "#3b82f6",
-      revenue: summary.newSales.revenue, profit: summary.newSales.profit,
-      count: summary.newSales.count, unitPrice: summary.newSales.unitPrice,
-      targetRevenue: targets.targetNewSales, targetProfit: targets.targetNewProfit,
-    },
-    {
-      name: "HELP", color: "#0891b2",
-      revenue: summary.help.revenue, profit: summary.help.profit,
-      count: summary.help.count, unitPrice: summary.help.unitPrice,
-      targetRevenue: targets.targetHelpSales, targetProfit: targets.targetProfit,
-    },
-  ];
-
-  const total = {
-    revenue: depts.reduce((s, d) => s + d.revenue, 0),
-    profit: depts.reduce((s, d) => s + d.profit, 0),
-    count: depts.reduce((s, d) => s + d.count, 0),
-  };
-
-  const thStyle: React.CSSProperties = {
-    padding: "8px 10px", fontSize: 10, fontWeight: 700,
-    color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
-    borderBottom: "1px solid #d1fae5", textAlign: "right", background: "#ecfdf5",
-    whiteSpace: "nowrap",
-  };
-  const tdStyle: React.CSSProperties = {
-    padding: "9px 10px", fontSize: 12, color: "#374151",
-    borderBottom: "1px solid #f0faf0", textAlign: "right", whiteSpace: "nowrap",
-  };
-
-  return (
-    <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-        <colgroup>
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "7%" }} />
-          <col style={{ width: "6%" }} />
-        </colgroup>
-        <thead>
-          <tr>
-            <th style={{ ...thStyle, textAlign: "left" }}>部門</th>
-            <th style={thStyle}>売上(実績)</th>
-            <th style={thStyle}>目標比</th>
-            <th style={thStyle}>売上(月末予測)</th>
-            <th style={thStyle}>粗利(実績)</th>
-            <th style={thStyle}>目標比</th>
-            <th style={thStyle}>粗利(月末予測)</th>
-            <th style={thStyle}>客単価</th>
-            <th style={thStyle}>件数</th>
-            <th style={thStyle}>粗利率</th>
-          </tr>
-        </thead>
-        <tbody>
-          {depts.map((d) => {
-            const forecastRevenue = Math.round(d.revenue * ratio);
-            const forecastProfit = Math.round(d.profit * ratio);
-            const marginRate = d.revenue > 0 ? (d.profit / d.revenue * 100).toFixed(1) : "0.0";
-            const revRatio = d.targetRevenue > 0 ? Math.round(d.revenue / d.targetRevenue * 1000) / 10 : null;
-            const profitRatio = d.targetProfit > 0 ? Math.round(d.profit / d.targetProfit * 1000) / 10 : null;
-            return (
-              <tr key={d.name}>
-                <td style={{
-                  ...tdStyle, textAlign: "left", fontWeight: 700, color: "#111", fontSize: 13,
-                  borderLeft: `3px solid ${d.color}`, paddingLeft: 10,
-                }}>{d.name}</td>
-                <td style={{ ...tdStyle, fontWeight: 700, color: "#111" }}>¥{d.revenue.toLocaleString()}</td>
-                <td style={tdStyle}>{badge(revRatio)}</td>
-                <td style={{ ...tdStyle, color: "#059669", fontWeight: 700 }}>¥{forecastRevenue.toLocaleString()}</td>
-                <td style={{ ...tdStyle, fontWeight: 700, color: "#111" }}>¥{d.profit.toLocaleString()}</td>
-                <td style={tdStyle}>{badge(profitRatio)}</td>
-                <td style={{ ...tdStyle, color: "#059669", fontWeight: 700 }}>¥{forecastProfit.toLocaleString()}</td>
-                <td style={tdStyle}>¥{d.unitPrice.toLocaleString()}</td>
-                <td style={tdStyle}>{d.count}件</td>
-                <td style={tdStyle}>{marginRate}%</td>
-              </tr>
-            );
-          })}
-          <tr style={{ background: "#f0fdf4" }}>
-            <td style={{
-              ...tdStyle, textAlign: "left", fontWeight: 700, color: "#065f46",
-              borderLeft: "3px solid #059669", paddingLeft: 10, borderBottom: "none",
-            }}>合計</td>
-            <td style={{ ...tdStyle, fontWeight: 700, color: "#065f46", borderBottom: "none" }}>
-              ¥{total.revenue.toLocaleString()}
-            </td>
-            <td style={{ ...tdStyle, borderBottom: "none" }}>
-              {badge(targets.targetSales > 0 ? Math.round(total.revenue / targets.targetSales * 1000) / 10 : null)}
-            </td>
-            <td style={{ ...tdStyle, color: "#059669", fontWeight: 700, borderBottom: "none" }}>
-              ¥{Math.round(total.revenue * ratio).toLocaleString()}
-            </td>
-            <td style={{ ...tdStyle, fontWeight: 700, color: "#065f46", borderBottom: "none" }}>
-              ¥{total.profit.toLocaleString()}
-            </td>
-            <td style={{ ...tdStyle, borderBottom: "none" }}>
-              {badge(targets.targetProfit > 0 ? Math.round(total.profit / targets.targetProfit * 1000) / 10 : null)}
-            </td>
-            <td style={{ ...tdStyle, color: "#059669", fontWeight: 700, borderBottom: "none" }}>
-              ¥{Math.round(total.profit * ratio).toLocaleString()}
-            </td>
-            <td style={{ ...tdStyle, fontWeight: 700, color: "#065f46", borderBottom: "none" }}>
-              ¥{total.count > 0 ? Math.round(total.revenue / total.count).toLocaleString() : 0}
-            </td>
-            <td style={{ ...tdStyle, fontWeight: 700, color: "#065f46", borderBottom: "none" }}>
-              {total.count}件
-            </td>
-            <td style={{ ...tdStyle, fontWeight: 700, color: "#065f46", borderBottom: "none" }}>
-              {total.revenue > 0 ? (total.profit / total.revenue * 100).toFixed(1) : "0.0"}%
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}

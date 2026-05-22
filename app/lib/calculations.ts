@@ -159,6 +159,10 @@ export type DashboardSummary = {
   //   旧 outsourced + internal の合算 (発注ベース、各社統計表と不一致で工事取得率 100%
   //   超え問題) を撤去し、対応 1 件 = 工事 1 件 (10万円以上) で再定義。
   constructionCount: number;
+  // PR c93-3: 自社工事利益 (monthly_summaries.internal_construction_profit 由来)。
+  //   水道業態 MetricsTable に独立 row として表示するための流入経路。
+  //   c93-1 で粗利加算からは外し済 (内製化ボーナス廃止)、把握用として独立表示。
+  internalConstructionProfit: number;
   grossMargin: number;      // 粗利率(%)
   vehicleCount: number;     // 車両数
 };
@@ -263,6 +267,7 @@ export function calculateDashboard(
     outsourcedConstructionCount: 0,
     internalConstructionCount: 0,
     constructionCount: 0, // PR c93-2: 対応ベース、Dashboard.tsx で monthly_summaries.construction_count から流入
+    internalConstructionProfit: 0, // PR c93-3: Dashboard.tsx で monthly_summaries.internal_construction_profit から流入
     grossMargin,
     vehicleCount: entries.length > 0 ? Math.max(...entries.map(e => e.vehicleCount ?? 0), 0) : 0,
   };
@@ -412,6 +417,28 @@ export function buildMetricRows(
         landingValue: calcLanding(constructionCount), landingRate: calcLandingRate(constructionCount, targetConstructCount),
       };
     })(),
+    // PR c93-3: 自社工事件数 (target なし、参考値)
+    (() => {
+      // 自社工事比率 = 自社工事件数 ÷ 工事件数 × 100 (Section ④ の auto と同式)
+      const internalRatio = constructionCount > 0
+        ? (summary.internalConstructionCount / constructionCount) * 100
+        : 0;
+      return {
+        name: "自社工事件数", value: `${summary.internalConstructionCount}件`,
+        subValue: `${internalRatio.toFixed(1)}%`, // 自社工事比率を副表示 (Section ④ と整合)
+        subValueColor: "#6b7280",
+        salesRatio: null, targetRatio: null, status: "—", statusLevel: "none" as const, lineColor: "#3b82f6",
+        landingValue: 0, landingRate: null,
+      };
+    })(),
+    // PR c93-3: 自社工事利益 (target なし、参考値、c93-1 で粗利加算からは外し済)
+    (() => {
+      return {
+        name: "自社工事利益", value: `¥${summary.internalConstructionProfit.toLocaleString()}`,
+        salesRatio: null, targetRatio: null, status: "—", statusLevel: "none" as const, lineColor: "#3b82f6",
+        landingValue: 0, landingRate: null,
+      };
+    })(),
     (() => {
       const responseRate = callCount > 0 ? (summary.totalCount / callCount) * 100 : 0;
       return {
@@ -532,6 +559,18 @@ export function buildMetricRows(
         targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr, true), lineColor: "#d97706",
         landingValue: 0, landingRate: null,
         invert: true, // PR c87: cost — CPA 超過は red
+      };
+    })(),
+    // PR c93-3: 工事取得率 独立 row (subValue は「工事件数」row でも維持)。
+    //   工事件数 / 対応件数 で算出、達成率 badge 付き。c93-2 で対応ベースに移行済。
+    (() => {
+      const tr = targets.targetConstructionRate > 0
+        ? Math.round(constructionRateCalc / targets.targetConstructionRate * 1000) / 10
+        : null;
+      return {
+        name: "工事取得率", value: `${constructionRateCalc.toFixed(1)}%`, salesRatio: null,
+        targetRatio: tr, status: statusStr(tr), statusLevel: statusLevelFromPct(tr), lineColor: "#3b82f6",
+        landingValue: 0, landingRate: null,
       };
     })(),
     (() => {
