@@ -306,7 +306,10 @@ export default function AdminPage() {
                     </td>
                     <td style={{ padding: "10px 10px", fontSize: 10, color: "#9ca3af" }}>
                       {formatJST(u.lastLoginAt, "short")}
-                      {u.lockedUntil && <span style={{ color: "#dc2626", marginLeft: 4 }}>ロック中</span>}
+                      {/* c93-hotfix: NULL チェックだけだと「期限切れだが未クリア」の locked_until で
+                          永続「ロック中」表示になる (芝田事案で発覚)。NOW() 比較を追加し、
+                          locked_until > 現在時刻 のときのみ「ロック中」表示する。 */}
+                      {u.lockedUntil && new Date(u.lockedUntil) > new Date() && <span style={{ color: "#dc2626", marginLeft: 4 }}>ロック中</span>}
                     </td>
                     <td style={{ padding: "6px 10px" }}>
                       <div style={{ display: "flex", gap: 6 }}>
