@@ -73,7 +73,12 @@ export default function RankingPage() {
       const tgts = allTargets[a.id] ?? emptyTargets();
       const summary = calculateDashboard(entries, year, month, now);
 
-      const useMonthlySummary = ms && entries.length === 0;
+      // PR c93-5b: c90 日次差分モデル以降は entries.length > 0 が常態化、
+      //   旧条件 (entries.length === 0) は永続 false で全指標 0% 表示の bug。
+      //   monthly_summaries が authoritative データソース、ms があれば常に優先。
+      //   entries 経由集計は legacy DailyEntry (selfRevenue/newRevenue/addRevenue 等)
+      //   を読むが c90 以降 entries.data に書き込まれていないため 0 のみ返す。
+      const useMonthlySummary = ms != null;
       const revenue = useMonthlySummary ? Number(ms.total_revenue ?? 0) : summary.totalRevenue;
       const profit = useMonthlySummary ? Number(ms.total_profit ?? 0) : summary.totalProfit;
       const count = useMonthlySummary ? Number(ms.total_count ?? 0) : summary.totalCount;
