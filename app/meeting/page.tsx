@@ -106,13 +106,24 @@ function MeetingPageInner() {
     setYear(d.getFullYear());
     setMonth(d.getMonth() + 1);
   }
+
+  // PR c94-A: 旬独立 (上旬/中旬/下旬) の day range を period から導出。
+  //   "10"  → (1, 10)            上旬 10 日間
+  //   "20"  → (11, 20)           中旬 10 日間
+  //   "end" → (21, daysInMonth)  下旬 8〜11 日間 (月による、2月閏年=9日)
+  //   c94-A 仕様明確化 (Q2=b): "end" も累積ではなく下旬独立に変更。
+  const periodRange = useMemo(() => {
+    if (period === "10") return { startDay: 1, endDay: 10 };
+    if (period === "20") return { startDay: 11, endDay: 20 };
+    return { startDay: 21, endDay: daysInMonth };
+  }, [period, daysInMonth]);
+  const periodLengthDays = periodRange.endDay - periodRange.startDay + 1;
+  const periodLabel = period === "10" ? "上旬" : period === "20" ? "中旬" : "下旬";
+
   const isPastData = monthlySummary !== null && entries.length === 0 && !isCurrentMonth;
-  const actualDayOfMonth = now.getDate();
-  const daysElapsed = isPastData
-    ? daysInMonth
-    : (isCurrentMonth && entries.length === 0)
-      ? actualDayOfMonth
-      : (period === "10" ? 10 : period === "20" ? 20 : daysInMonth);
+  // PR c94-A: 旬独立では daysElapsed = 旬の長さ (10 / 10 / lastDays)。
+  //   旧累積モードの period==="end" 全月扱いは撤去 (Q2=b)。
+  const daysElapsed = periodLengthDays;
   const isEndPeriod = isPastData || period === "end";
   const areaName = ALL_AREAS.find((a) => a.id === areaId)?.name ?? "";
 
@@ -132,6 +143,8 @@ function MeetingPageInner() {
   }, [activeBusiness, areaId, period, year, month]);
 
   // データ fetch (5 KPI ストリップ + 業態別セクション共通)
+  // PR c94-A: monthlySummary 取得を /api/meeting-aggregate に統一 (3 ボタン全て旬独立)。
+  //   旧経路 /api/monthly-summary (月全体累積) は /meeting からは廃止 (他ページからは維持)。
   useEffect(() => {
     fetch(`/api/entries?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { entries: [] }))
@@ -139,19 +152,18 @@ function MeetingPageInner() {
     fetch(`/api/targets?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
       .then((r) => (r.ok ? r.json() : { targets: emptyTargets() }))
       .then((j) => setTargets(manToYen({ ...emptyTargets(), ...j.targets })));
-    fetch(`/api/monthly-summary?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}`)
+    fetch(`/api/meeting-aggregate?area=${areaId}&year=${year}&month=${month}&category=${activeBusiness}&start_day=${periodRange.startDay}&end_day=${periodRange.endDay}`)
       .then((r) => (r.ok ? r.json() : { summary: null }))
       .then((j) => setMonthlySummary(j.summary ?? null));
-  }, [areaId, year, month, activeBusiness]);
+  }, [areaId, year, month, activeBusiness, periodRange.startDay, periodRange.endDay]);
 
+  // PR c94-A: 旬独立フィルタ (累積 → 旬範囲)。periodRange の日付範囲のみ抽出。
   const filteredEntries = useMemo(() => {
-    if (period === "end") return entries;
-    const limit = Number(period);
     return entries.filter((e) => {
       const day = parseInt(e.date.split("-")[2], 10);
-      return day <= limit;
+      return day >= periodRange.startDay && day <= periodRange.endDay;
     });
-  }, [entries, period]);
+  }, [entries, periodRange.startDay, periodRange.endDay]);
 
   const periodSummary = useMemo(
     () => calculateDashboard(filteredEntries, year, month, new Date(year, month - 1, daysElapsed)),
@@ -241,16 +253,13 @@ function MeetingPageInner() {
               style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 14 }}>▶</button>
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>
-            {BUSINESSES.find(b => b.id === activeBusiness)?.label ?? ""} — {areaName}{period === "end" ? "月次" : `${period}日`}会議シート
+            {BUSINESSES.find(b => b.id === activeBusiness)?.label ?? ""} — {areaName}{periodLabel}会議シート
           </h1>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span>{year}年{month}月 ／ {areaName} ／ 1〜{period === "end" ? daysInMonth : period}日</span>
+            {/* PR c94-A: 旬独立の集計範囲表示 (1〜10日 / 11〜20日 / 21〜末日) + 期間長 */}
+            <span>{year}年{month}月 ／ {areaName} ／ {periodRange.startDay}〜{periodRange.endDay}日 ({periodLengthDays}日間)</span>
             {isPastData && <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "2px 8px" }}>過去データ</span>}
-            {!isEndPeriod && !isPastData && (
-              <span style={{ fontSize: 11, background: "rgba(255,255,255,0.15)", borderRadius: 4, padding: "2px 8px" }}>
-                着地予測 = {period}日ペースで月末換算
-              </span>
-            )}
+            {/* PR c94-A: 着地予測ラベルは旬独立では概念崩壊するため全 period で非表示 (Q2=b) */}
             {monthlySummary?.as_of_day != null && (
               <AsOfBadge
                 asOfDays={[Number(monthlySummary.as_of_day)]}
