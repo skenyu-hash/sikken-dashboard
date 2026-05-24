@@ -27,13 +27,13 @@ import {
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import AsOfBadge from "../components/AsOfBadge";
 import { resolveTotalProfit } from "../lib/profit";
-import {
-  MetricRow, SectionTable, fmtYen, fmtCount, fmtPct,
-} from "./components/MetricRow";
+// PR c94-B-1: MetricRow / SectionTable / fmtYen / fmtCount / fmtPct は水道インライン
+//   削除に伴い本ファイルでの使用が消失 → import 削除。WaterMeetingSection 内で同型 import。
 import LocksmithMeetingSection from "./components/LocksmithMeetingSection";
 import RoadMeetingSection from "./components/RoadMeetingSection";
 import DetectiveMeetingSection from "./components/DetectiveMeetingSection";
 import ElectricMeetingSection from "./components/ElectricMeetingSection";
+import WaterMeetingSection from "./components/WaterMeetingSection";
 
 const ALL_AREAS = [
   { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
@@ -187,30 +187,15 @@ function MeetingPageInner() {
     };
   }, [periodSummary, monthlySummary, year, month]);
 
-  // 水道レイアウト用の派生値 (既存挙動維持)
-  const callCount = monthlySummary
-    ? Number(monthlySummary.call_count ?? 0)
-    : filteredEntries.reduce((s, e) => s + (e.insourceCount ?? 0) + (e.outsourceCount ?? 0), 0);
-  const acquisitionCount = monthlySummary
-    ? Number(monthlySummary.acquisition_count ?? 0)
-    : displaySummary.totalCount;
-  const convRate = monthlySummary
-    ? Number(monthlySummary.conv_rate ?? 0)
-    : (callCount > 0 ? (acquisitionCount / callCount) * 100 : 0);
-  const grossRate = displaySummary.totalRevenue > 0 ? Math.round(displaySummary.totalProfit / displaySummary.totalRevenue * 1000) / 10 : 0;
-  const targetGrossRate = targets.targetSales > 0 && targets.targetProfit > 0 ? Math.round(targets.targetProfit / targets.targetSales * 1000) / 10 : 0;
-  const adRate = displaySummary.totalRevenue > 0 ? Math.round(displaySummary.totalAdCost / displaySummary.totalRevenue * 1000) / 10 : 0;
-  const cpaCurrent = acquisitionCount > 0 ? Math.round(displaySummary.totalAdCost / acquisitionCount) : 0;
+  // PR c94-B-1: 水道レイアウト用派生値 (callCount / acquisitionCount / grossRate /
+  //   targetGrossRate / adRate / cpaCurrent / convRate) は水道インライン削除に伴い
+  //   全て不要 → 削除。WaterMeetingSection 内で numOf / safeDiv で再計算。
 
   // 全業態セクションで使用する期間 props
   const meetingPeriodProps = { isEndPeriod: isEndPeriod || isPastData, daysElapsed, daysInMonth };
 
-  // 部門別 (水道レイアウトで使用)
-  const depts = [
-    { name: "自社施工", color: "#059669", d: displaySummary.self },
-    { name: "新規営業", color: "#3b82f6", d: displaySummary.newSales },
-    { name: "ヘルプ",   color: "#0891b2", d: displaySummary.help },
-  ];
+  // PR c94-B-1: depts 配列 (水道インライン部門別実績テーブル用) 削除。
+  //   c94-A の {false &&} ガード撤去と同期、WaterMeetingSection に移行。
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
@@ -280,96 +265,13 @@ function MeetingPageInner() {
       <div className="page-padding-mobile" style={{ padding: "16px 20px" }}>
         {/* ===== 業態別レイアウト routing (PR #55) ===== */}
 
-        {/* 水道: 既存インラインレイアウト (PR #56 で WaterMeetingSection 化予定) */}
+        {/* PR c94-B-1: 水道 WaterMeetingSection 化 (旧インライン + c94-A {false &&}
+            ガード部門別実績テーブル完全撤去、Electric と同型 5 セクション統一) */}
         {activeBusiness === "water" && (
-          <>
-            <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14, gridAutoRows: "min-content" }}>
-              <SectionTable title="売上・粗利・件数" group="rev" count={6} defaultOpen>
-                <MetricRow label="全体売上" actual={displaySummary.totalRevenue} target={targets.targetSales} {...meetingPeriodProps} format={fmtYen} />
-                <MetricRow label="全体粗利" actual={displaySummary.totalProfit} target={targets.targetProfit} {...meetingPeriodProps} format={fmtYen} />
-                <MetricRow label="粗利率" actual={grossRate} target={targetGrossRate} {...meetingPeriodProps} format={fmtPct} isRate />
-                <MetricRow label="獲得件数" actual={acquisitionCount} target={targets.targetCount} {...meetingPeriodProps} format={fmtCount} />
-                <MetricRow label="客単価" actual={displaySummary.companyUnitPrice} target={targets.targetUnitPrice} {...meetingPeriodProps} format={fmtYen} isRate />
-                <MetricRow label="対応件数" actual={displaySummary.totalCount} target={targets.targetCount} {...meetingPeriodProps} format={fmtCount} />
-              </SectionTable>
-
-              <SectionTable title="広告・効率指標" group="acq" count={6} defaultOpen={false}>
-                <MetricRow label="広告費" actual={displaySummary.totalAdCost} target={targets.targetAdCost} {...meetingPeriodProps} format={fmtYen} invertGap />
-                <MetricRow label="広告費率" actual={adRate} target={targets.targetAdRate} {...meetingPeriodProps} format={fmtPct} isRate invertGap />
-                <MetricRow label="入電件数" actual={callCount} target={targets.targetCallCount} {...meetingPeriodProps} format={fmtCount} />
-                <MetricRow label="獲得単価(CPA)" actual={cpaCurrent} target={targets.targetCpa} {...meetingPeriodProps} format={fmtYen} isRate invertGap />
-                <MetricRow label="工事取得率" actual={displaySummary.constructionRate} target={targets.targetConstructionRate} {...meetingPeriodProps} format={fmtPct} isRate />
-                <MetricRow label="成約率" actual={convRate} target={targets.targetConversionRate} {...meetingPeriodProps} format={fmtPct} isRate />
-              </SectionTable>
-            </div>
-
-            <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <SectionTable title="HELP部門" group="help" count={4} defaultOpen={false}>
-                <MetricRow label="HELP売上" actual={displaySummary.help.revenue} target={targets.targetHelpSales} {...meetingPeriodProps} format={fmtYen} />
-                <MetricRow label="HELP件数" actual={displaySummary.help.count} target={targets.targetHelpCount} {...meetingPeriodProps} format={fmtCount} />
-                <MetricRow label="HELP客単価" actual={displaySummary.help.unitPrice} target={targets.targetHelpUnitPrice} {...meetingPeriodProps} format={fmtYen} isRate />
-                <MetricRow label="HELP率" actual={displaySummary.helpRate ?? 0} target={targets.targetHelpRate} {...meetingPeriodProps} format={fmtPct} isRate />
-              </SectionTable>
-
-              {/* 部門別実績 (水道のみ、電気は ElectricMeetingSection 内に内蔵) */}
-              <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
-                <div style={{ background: "#ecfdf5", padding: "10px 14px", borderBottom: "1px solid #d1fae5" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>部門別実績</span>
-                </div>
-                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                  <colgroup>
-                    <col style={{ width: "18%" }} /><col style={{ width: "20%" }} /><col style={{ width: "16%" }} />
-                    <col style={{ width: "20%" }} /><col style={{ width: "13%" }} /><col style={{ width: "13%" }} />
-                  </colgroup>
-                  <thead>
-                    <tr style={{ background: "#f8fdf8" }}>
-                      {["部門", "売上", "粗利", "客単価", "件数", "粗利率"].map((h, i) => (
-                        <th key={h} style={{ padding: "7px 10px", fontSize: 9, fontWeight: 700, color: "#6b7280",
-                          textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #d1fae5",
-                          textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {depts.map(({ name, color, d }) => {
-                      const margin = d.revenue > 0 ? (d.profit / d.revenue * 100) : 0;
-                      return (
-                        <tr key={name} style={{ borderBottom: "1px solid #f0faf0" }}>
-                          <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, borderLeft: `3px solid ${color}`, color: "#111" }}>{name}</td>
-                          <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#111", fontWeight: 600 }}>
-                            {d.revenue > 0 ? fmtYen(d.revenue) : <span style={{ color: "#d1d5db" }}>¥0</span>}
-                          </td>
-                          <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#059669", fontWeight: 600 }}>
-                            {d.profit > 0 ? fmtYen(d.profit) : <span style={{ color: "#d1d5db" }}>¥0</span>}
-                          </td>
-                          <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>
-                            {d.unitPrice > 0 ? fmtYen(d.unitPrice) : "—"}
-                          </td>
-                          <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>{d.count}件</td>
-                          <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right",
-                            color: margin >= 25 ? "#059669" : margin >= 15 ? "#d97706" : "#dc2626" }}>
-                            {d.revenue > 0 ? `${margin.toFixed(1)}%` : "—"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    <tr style={{ background: "#f0fdf4" }}>
-                      <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, borderLeft: "3px solid #059669", color: "#065f46" }}>合計</td>
-                      <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#065f46" }}>{fmtYen(displaySummary.totalRevenue)}</td>
-                      <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#059669" }}>{fmtYen(displaySummary.totalProfit)}</td>
-                      <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{fmtYen(displaySummary.companyUnitPrice)}</td>
-                      <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{displaySummary.totalCount}件</td>
-                      <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right",
-                        color: displaySummary.totalRevenue > 0
-                          ? (displaySummary.totalProfit / displaySummary.totalRevenue * 100 >= 25 ? "#059669" : "#d97706") : "#d1d5db" }}>
-                        {displaySummary.totalRevenue > 0 ? `${(displaySummary.totalProfit / displaySummary.totalRevenue * 100).toFixed(1)}%` : "—"}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
+          <WaterMeetingSection
+            monthlySummary={monthlySummary} targets={targets}
+            {...meetingPeriodProps}
+          />
         )}
 
         {/* 電気: ElectricMeetingSection (水道 + 分電盤件数 + 部門別実績) */}
