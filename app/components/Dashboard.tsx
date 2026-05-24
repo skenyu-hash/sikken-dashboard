@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   calculateDashboard, calculateBreakeven, calculateAchievement,
   forecastWeekday, forecastRecent7, getDaysInMonth,
-  buildMetricRows, type MetricRow,
-  // PR c93-3: DashboardSummary 型 import は DeptTable 削除に伴い未使用化 → 削除
+  // PR c94-B-1: buildMetricRows / type MetricRow 削除 (MetricsTable / MetricsTableMobile 撤去に伴う)
   DailyEntry, FixedCosts, Targets, emptyTargets, manToYen,
   emptyEntry,
   yen,
@@ -20,36 +19,15 @@ import LocksmithDashboardSection from "./LocksmithDashboardSection";
 import RoadDashboardSection from "./RoadDashboardSection";
 import DetectiveDashboardSection from "./DetectiveDashboardSection";
 import ElectricDashboardSection from "./ElectricDashboardSection";
+import WaterDashboardSection from "./WaterDashboardSection";
 import { resolveTotalProfit } from "../lib/profit";
-// PR c87: formatAchievement (負値 → "未達"、null → "—"、normal → "X.X%") を共通 helper として import。
-//   getBadgeColor の invert オプションと組み合わせて cost-invert + 負値処理を統一する。
-import { MetricBadge, getBadgeColor, formatAchievement, type GroupType } from "./ui";
-import { getGroupBorderColor } from "./dashboard/metric-groups";
+// PR c94-B-1: MetricsTable / MetricsTableMobile 撤去に伴い formatAchievement / GroupType /
+//   getGroupBorderColor は本ファイルでの使用が消失 → 削除。
+//   MetricBadge / getBadgeColor は KPI ストリップ (line 1071, 1079) で継続使用のため残置。
+import { MetricBadge, getBadgeColor } from "./ui";
 
-// PR #59 c1: 水道 canonical 19 項目 → v9 グループ色マッピング
-// buildMetricRows (calculations.ts) は触らず Dashboard レイヤーで name→group を引く。
-// マッチしないメトリック (新規業態固有等) は row.lineColor へフォールバック。
-const WATER_METRIC_TO_GROUP: Record<string, GroupType> = {
-  "売上":         "rev",
-  "客単価":       "rev",
-  "粗利":         "rev",
-  "合計件数":     "cnt",
-  "工事件数":     "cnt",
-  "対応率":       "cnt",
-  "車両数":       "cnt",
-  "広告費":       "acq",
-  "入電件数":     "acq",
-  "入電単価":     "acq",
-  "獲得件数":     "acq",
-  "獲得単価(CPA)": "acq",
-  "成約率":       "acq",
-  "職人費":       "cost",
-  "材料費":       "cost",
-  "営業外注費":   "cost",
-  "HELP売上":     "help",
-  "HELP客単価":   "help",
-  "HELP件数":     "help",
-};
+// PR c94-B-1: WATER_METRIC_TO_GROUP は MetricsTable / MetricsTableMobile 専用だったため
+//   両関数撤去に伴い削除。新 WaterDashboardSection は Card group prop で直接管理。
 
 // ============ エリア定義 ============
 type Area = { id: string; name: string };
@@ -596,21 +574,7 @@ export default function Dashboard() {
     () => forecastRecent7(aggregateEntries, viewYear, viewMonth, summaryToday),
     [aggregateEntries, viewYear, viewMonth, summaryToday]
   );
-  const metricRowsResult = useMemo(
-    () => buildMetricRows(
-      displaySummary, aggregateEntries, targets,
-      isCurrentMonth ? now.getDate() : displaySummary.daysInMonth, displaySummary.daysInMonth,
-      monthlySummary ? {
-        callCount: Number(monthlySummary.call_count ?? 0),
-        acquisitionCount: Number(monthlySummary.acquisition_count ?? 0),
-        cpa: Number(monthlySummary.cpa ?? 0),
-        callUnitPrice: Number(monthlySummary.call_unit_price ?? 0),
-        convRate: Number(monthlySummary.conv_rate ?? 0),
-        vehicleCount: Number(monthlySummary.vehicle_count ?? 0),
-      } : undefined
-    ),
-    [displaySummary, aggregateEntries, targets, monthlySummary, isCurrentMonth]
-  );
+  // PR c94-B-1: metricRowsResult useMemo 削除 (MetricsTable / MetricsTableMobile 撤去に伴う)
   // 異常アラート: 前日比 -20% 以上
   const profitDropRate = yesterdaySummary.forecastProfit > 0
     ? ((summary.forecastProfit - yesterdaySummary.forecastProfit) / yesterdaySummary.forecastProfit) * 100
@@ -1231,10 +1195,9 @@ export default function Dashboard() {
           PR #52: ロード業態は RoadDashboardSection に置換。
           PR #53: 探偵業態は DetectiveDashboardSection に置換 (面談ファネル含む)。
           PR #54: 電気業態は ElectricDashboardSection に置換 (分電盤件数含む)。
-          残る水道タブは引き続き「指標一覧」(MetricsTable) を表示。
-          PR c93-3: ラベル「全17項目」表記を撤去 (数字なし、将来 row 追加削除で
-            stale にならないよう)。c93-3 時点では 22 row (左 11 + 右 11)、
-            内訳: 旧 19 row + 新 3 row (自社工事件数 / 自社工事利益 / 工事取得率)。 */}
+          PR c94-B-1: 水道業態を WaterDashboardSection に置換 (5 セクション、業態統一)。
+            旧 MetricsTable / MetricsTableMobile / buildMetricRows / WATER_METRIC_TO_GROUP
+            は完全撤去 (~390 line dead code)。 */}
       {!isGroup && activeBusiness === "locksmith" && (
         <LocksmithDashboardSection monthlySummary={monthlySummary} targets={targets} />
       )}
@@ -1247,26 +1210,8 @@ export default function Dashboard() {
       {!isGroup && activeBusiness === "electric" && (
         <ElectricDashboardSection monthlySummary={monthlySummary} targets={targets} />
       )}
-      {!isGroup && activeBusiness !== "locksmith" && activeBusiness !== "road" && activeBusiness !== "detective" && activeBusiness !== "electric" && (
-        <section style={{ marginBottom: 16 }}>
-          <SectionLabel>指標一覧</SectionLabel>
-          {/* PR #59 c4: PC 版 (≥641px) は現状の左右 2 列テーブル維持 */}
-          <div className="hide-mobile metrics-grid-2col" style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", background: "#fff",
-            borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden",
-          }}>
-            <div className="table-scroll-mobile" style={{ minWidth: 0, borderRight: "1px solid #d1fae5" }}>
-              <MetricsTable rows={metricRowsResult.left} />
-            </div>
-            <div className="table-scroll-mobile" style={{ minWidth: 0 }}>
-              <MetricsTable rows={metricRowsResult.right} />
-            </div>
-          </div>
-          {/* PR #59 c4: モバイル版 (≤640px) は 5 グループアコーディオン */}
-          <div className="show-mobile" style={{ display: "none" }}>
-            <MetricsTableMobile rows={[...metricRowsResult.left, ...metricRowsResult.right]} />
-          </div>
-        </section>
+      {!isGroup && activeBusiness === "water" && (
+        <WaterDashboardSection monthlySummary={monthlySummary} targets={targets} />
       )}
 
       {/* ============ グループ: 事業別クロス比較 ============ */}
@@ -1470,222 +1415,4 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MetricsTable({ rows }: { rows: MetricRow[] }) {
-  // PR #59 c1: 達成率表示を <MetricBadge> に統一 (旧 local badge() 廃止)
-  // PR c87: invert (cost-invert) + 負値処理 (赤字 → "未達") を共通 helper に委譲
-  const badge = (targetRatio: number | null, invert?: boolean) => (
-    <MetricBadge color={getBadgeColor(targetRatio, { invert })} minWidth={false}>
-      {formatAchievement(targetRatio, { invert })}
-    </MetricBadge>
-  );
-
-  return (
-    <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-      <thead>
-        <tr style={{ background: "#ecfdf5" }}>
-          {/* PR #59 c3: 列名 v9 統一 — 目標比→達成率、着地見込→月末予測 */}
-          {["指標", "実績", "売上比", "達成率", "月末予測"].map((h) => (
-            <th key={h} style={{
-              padding: "7px 10px", fontSize: 10, fontWeight: 700,
-              color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em",
-              borderBottom: "1px solid #d1fae5",
-              textAlign: h === "指標" ? "left" : "right",
-            }}>{h}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, i) => {
-          // PR #59 c1: 水道 canonical 名で v9 グループ色を引く。未マッチは lineColor フォールバック。
-          const group = WATER_METRIC_TO_GROUP[row.name];
-          const borderColor = group ? getGroupBorderColor(group) : (row.lineColor ?? "transparent");
-          return (
-          <tr key={i} style={{ borderBottom: "1px solid #f0faf0" }}>
-            <td style={{
-              padding: "8px 10px", fontSize: 13, fontWeight: 700, color: "#111",
-              borderLeft: `3px solid ${borderColor}`, paddingLeft: 10,
-            }}>{row.name}</td>
-            <td style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#111", textAlign: "right" }}>
-              {row.value}
-              {row.subValue && (
-                <span style={{
-                  fontSize: 11, fontWeight: 700,
-                  color: row.subValueColor ?? "#9ca3af",
-                  marginLeft: 3,
-                  background: row.subValueColor === "#065f46" ? "#d1fae5"
-                    : row.subValueColor === "#854d0e" ? "#fef9c3"
-                    : row.subValueColor === "#991b1b" ? "#fee2e2" : "transparent",
-                  borderRadius: 3, padding: "1px 4px",
-                }}>
-                  {row.subValue}
-                </span>
-              )}
-            </td>
-            <td style={{ padding: "8px 10px", fontSize: 11, color: "#9ca3af", textAlign: "right" }}>
-              {row.salesRatio ?? "—"}
-            </td>
-            <td style={{ padding: "8px 10px", textAlign: "right" }}>
-              {row.targetRatio !== null
-                ? badge(row.targetRatio, row.invert)
-                : <span style={{ color: "#d1d5db", fontSize: 10 }}>未設定</span>}
-            </td>
-            {/* PR #59 c3: 月末予測セル 2 段化 (バッジ + landingValue 絶対値併記)。
-                landingValue は MetricRow に number 型で既存 (calculations.ts 不変)。
-                達成率セルの絶対値併記は本 PR スコープ外 (c4 以降 / 別 PR で再検討)。 */}
-            <td style={{ padding: "8px 10px", textAlign: "right" }}>
-              {row.landingRate !== null ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                  {/* PR c87: invert (cost-invert) を反映、負値時は formatAchievement で "未達" 表示 */}
-                  <MetricBadge color={getBadgeColor(row.landingRate, { invert: row.invert })} minWidth={false}>
-                    {formatAchievement(row.landingRate, { invert: row.invert })}
-                  </MetricBadge>
-                  {row.landingValue > 0 && (
-                    <span style={{ fontSize: 10, color: "#9ca3af", fontVariantNumeric: "tabular-nums" }}>
-                      {row.name.includes("件") ? `${row.landingValue}件` : `¥${row.landingValue.toLocaleString()}`}
-                    </span>
-                  )}
-                </div>
-              ) : row.landingValue > 0 ? (
-                <span style={{ fontSize: 11, color: "#9ca3af" }}>
-                  {row.name.includes("件") ? `${row.landingValue}件` : `¥${row.landingValue.toLocaleString()}`}
-                </span>
-              ) : (
-                <span style={{ color: "#d1d5db", fontSize: 11 }}>{"\u2014"}</span>
-              )}
-            </td>
-          </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-// PR #59 c4: モバイル版 17 項目テーブル (5 グループ・アコーディオン)。
-//   - WATER_METRIC_TO_GROUP で各行を rev/cnt/acq/cost/help に分類
-//   - useState で開閉状態管理 (default: rev のみ open、Hero の優先順位と整合)
-//   - PC レイアウト (≥641px) では .show-mobile が display:none で非表示
-//   - 行レイアウトはコンパクト 2 段 (上: ラベル + 実績、下: 達成率 / 月末予測 % + 絶対値)
-//   - 売上比 / subValue はモバイルでは省略 (画面占有最小化、PC で確認可能)
-function MetricsTableMobile({ rows }: { rows: MetricRow[] }) {
-  const [openGroups, setOpenGroups] = useState<Set<GroupType>>(new Set(["rev"]));
-
-  const grouped: Record<GroupType, MetricRow[]> = { rev: [], cnt: [], acq: [], cost: [], help: [] };
-  const ungrouped: MetricRow[] = [];
-  for (const row of rows) {
-    const g = WATER_METRIC_TO_GROUP[row.name];
-    if (g) grouped[g].push(row);
-    else ungrouped.push(row);
-  }
-
-  const GROUP_ORDER: GroupType[] = ["rev", "cnt", "acq", "cost", "help"];
-  const GROUP_LABELS_ACC: Record<GroupType, string> = {
-    rev: "① 収益", cnt: "② 件数", acq: "③ 集客", cost: "④ コスト", help: "⑤ HELP",
-  };
-  const GROUP_HEADER_BG: Record<GroupType, string> = {
-    rev: "#ecfdf5", cnt: "#eff6ff", acq: "#fef3c7", cost: "#fce7f3", help: "#f3e8ff",
-  };
-
-  const toggleGroup = (g: GroupType) => {
-    setOpenGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(g)) next.delete(g); else next.add(g);
-      return next;
-    });
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
-      {GROUP_ORDER.map((g) => {
-        const items = grouped[g];
-        if (items.length === 0) return null;
-        const isOpen = openGroups.has(g);
-        const borderColor = getGroupBorderColor(g);
-        return (
-          <div key={g} style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e7eb", background: "#fff" }}>
-            <button
-              type="button"
-              onClick={() => toggleGroup(g)}
-              style={{
-                width: "100%", padding: "10px 12px",
-                background: GROUP_HEADER_BG[g], color: borderColor,
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700,
-                borderBottom: isOpen ? `1px solid ${borderColor}22` : "none",
-              }}
-              aria-expanded={isOpen}
-            >
-              <span>{GROUP_LABELS_ACC[g]} ({items.length} 項目)</span>
-              <span style={{ fontSize: 11 }}>{isOpen ? "▼" : "▶"}</span>
-            </button>
-            {isOpen && (
-              <div>
-                {items.map((row, i) => (
-                  <MobileMetricRow key={i} row={row} borderColor={borderColor} />
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-      {ungrouped.length > 0 && (
-        <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e7eb", background: "#fff" }}>
-          {ungrouped.map((row, i) => (
-            <MobileMetricRow key={i} row={row} borderColor="#9ca3af" />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MobileMetricRow({ row, borderColor }: { row: MetricRow; borderColor: string }) {
-  const numStyle: React.CSSProperties = {
-    fontSize: 10, color: "#9ca3af", fontVariantNumeric: "tabular-nums",
-  };
-  return (
-    <div style={{
-      padding: "8px 12px",
-      borderLeft: `3px solid ${borderColor}`,
-      borderBottom: "1px solid #f5faf5",
-      fontSize: 12,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#111" }}>{row.name}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#111", fontVariantNumeric: "tabular-nums" }}>{row.value}</span>
-      </div>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        {row.targetRatio !== null ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 10, color: "#6b7280" }}>達成率</span>
-            {/* PR c87: cost-invert + 負値処理 ("未達") */}
-            <MetricBadge color={getBadgeColor(row.targetRatio, { invert: row.invert })} minWidth={false}>
-              {formatAchievement(row.targetRatio, { invert: row.invert })}
-            </MetricBadge>
-          </span>
-        ) : null}
-        {row.landingRate !== null ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 10, color: "#6b7280" }}>月末予測</span>
-            <MetricBadge color={getBadgeColor(row.landingRate, { invert: row.invert })} minWidth={false}>
-              {formatAchievement(row.landingRate, { invert: row.invert })}
-            </MetricBadge>
-            {row.landingValue > 0 && (
-              <span style={numStyle}>
-                {row.name.includes("件") ? `${row.landingValue}件` : `¥${row.landingValue.toLocaleString()}`}
-              </span>
-            )}
-          </span>
-        ) : row.landingValue > 0 ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 10, color: "#6b7280" }}>月末予測</span>
-            <span style={numStyle}>
-              {row.name.includes("件") ? `${row.landingValue}件` : `¥${row.landingValue.toLocaleString()}`}
-            </span>
-          </span>
-        ) : null}
-      </div>
-    </div>
-  );
-}
 
