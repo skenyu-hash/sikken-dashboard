@@ -24,6 +24,9 @@ import { SECTION } from "../../components/sectionStyles";
 
 const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
 const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
+// ⑥ 体制 (PR c94-C-3a) — 車両数/研修生の単位表示 (件ではなく台/人)
+const fmtVehicle = (v: number): string => (v > 0 ? `${v}台` : "—");
+const fmtTrainee = (v: number): string => (v > 0 ? `${v}人` : "—");
 
 type Props = MeetingPeriodProps & {
   monthlySummary: Record<string, unknown> | null;
@@ -75,6 +78,10 @@ export default function ElectricMeetingSection({
 
   // 電気専用
   const switchboardCount = numOf(monthlySummary?.switchboard_count);
+
+  // ⑥ 体制 (PR c94-C-3a)
+  const vehicleCount = numOf(monthlySummary?.vehicle_count);
+  const traineeCount = numOf(monthlySummary?.trainee_count);
 
   // 部門別実績 (水道・電気特有、displaySummary から)
   const depts = [
@@ -129,6 +136,14 @@ export default function ElectricMeetingSection({
       <SectionTable title="⑤ 電気専用" group="cnt" count={1} defaultOpen={false}>
         <MetricRow label="分電盤件数" actual={switchboardCount} target={targets.targetSwitchboardCount} {...mp} format={fmtCount} />
       </SectionTable>
+
+      {/* ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (旬独立 MAX) */}
+      <div style={{ gridColumn: "1 / -1" }}>
+        <SectionTable title="⑥ 体制" group="cnt" count={2} defaultOpen={false}>
+          <MetricRow label="車両数"           actual={vehicleCount} target={targets.targetVehicleCount} {...mp} format={fmtVehicle} />
+          <MetricRow label="研修生（営業マン）" actual={traineeCount} target={targets.targetTraineeCount} {...mp} format={fmtTrainee} />
+        </SectionTable>
+      </div>
 
       {/* 部門別実績テーブル (水道・電気共通) */}
       <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
