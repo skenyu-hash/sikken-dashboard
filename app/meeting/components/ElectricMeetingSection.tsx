@@ -20,6 +20,7 @@ import { yen } from "../../lib/calculations";
 import type { Targets, DashboardSummary } from "../../lib/calculations";
 import { resolveTotalProfit } from "../../lib/profit";
 import { MetricRow, SectionTable, fmtYen, fmtCount, fmtPct, type MeetingPeriodProps } from "./MetricRow";
+import { SECTION } from "../../components/sectionStyles";
 
 const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
 const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
@@ -83,7 +84,7 @@ export default function ElectricMeetingSection({
   ];
 
   return (
-    <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, gridAutoRows: "min-content" }}>
+    <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SECTION.GAP, gridAutoRows: "min-content" }}>
       <SectionTable title="① 新規対応・コスト・粗利" group="rev" count={7} defaultOpen>
         <MetricRow label="売上"        actual={sales}         target={targets.targetSales}  {...mp} format={fmtYen} />
         <MetricRow label="職人費"      actual={laborCost}     target={0}                     {...mp} format={fmtYen} invertGap />
@@ -131,8 +132,8 @@ export default function ElectricMeetingSection({
 
       {/* 部門別実績テーブル (水道・電気共通) */}
       <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", overflow: "hidden" }}>
-        <div style={{ background: "#ecfdf5", padding: "10px 14px", borderBottom: "1px solid #d1fae5" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.07em" }}>部門別実績</span>
+        <div style={{ background: "#ecfdf5", padding: `10px ${SECTION.PADDING_H}px`, borderBottom: "1px solid #d1fae5" }}>
+          <span style={{ fontSize: SECTION.HEADER_FONT_SIZE, fontWeight: SECTION.HEADER_FONT_WEIGHT, color: SECTION.HEADER_COLOR, textTransform: "uppercase", letterSpacing: "0.07em" }}>部門別実績</span>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
           <colgroup>
@@ -142,7 +143,7 @@ export default function ElectricMeetingSection({
           <thead>
             <tr style={{ background: "#f8fdf8" }}>
               {["部門", "売上", "粗利", "客単価", "件数", "粗利率"].map((h, i) => (
-                <th key={h} style={{ padding: "7px 10px", fontSize: 9, fontWeight: 700, color: "#6b7280",
+                <th key={h} style={{ padding: `7px ${SECTION.PADDING_H}px`, fontSize: 9, fontWeight: 700, color: "#6b7280",
                   textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #d1fae5",
                   textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
               ))}
@@ -153,18 +154,18 @@ export default function ElectricMeetingSection({
               const margin = d.revenue > 0 ? (d.profit / d.revenue * 100) : 0;
               return (
                 <tr key={name} style={{ borderBottom: "1px solid #f0faf0" }}>
-                  <td style={{ padding: "9px 10px", fontSize: 12, fontWeight: 700, borderLeft: `3px solid ${color}`, color: "#111" }}>{name}</td>
-                  <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#111", fontWeight: 600 }}>
+                  <td style={{ padding: `9px ${SECTION.PADDING_H}px`, fontSize: 12, fontWeight: 700, borderLeft: `3px solid ${color}`, color: "#111" }}>{name}</td>
+                  <td style={{ padding: `9px ${SECTION.PADDING_H}px`, fontSize: 12, textAlign: "right", color: "#111", fontWeight: 600 }}>
                     {d.revenue > 0 ? yen(d.revenue) : <span style={{ color: "#d1d5db" }}>¥0</span>}
                   </td>
-                  <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#059669", fontWeight: 600 }}>
+                  <td style={{ padding: `9px ${SECTION.PADDING_H}px`, fontSize: 12, textAlign: "right", color: "#059669", fontWeight: 600 }}>
                     {d.profit > 0 ? yen(d.profit) : <span style={{ color: "#d1d5db" }}>¥0</span>}
                   </td>
-                  <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>
+                  <td style={{ padding: `9px ${SECTION.PADDING_H}px`, fontSize: 12, textAlign: "right", color: "#374151" }}>
                     {d.unitPrice > 0 ? yen(d.unitPrice) : "—"}
                   </td>
-                  <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right", color: "#374151" }}>{d.count}件</td>
-                  <td style={{ padding: "9px 10px", fontSize: 12, textAlign: "right",
+                  <td style={{ padding: `9px ${SECTION.PADDING_H}px`, fontSize: 12, textAlign: "right", color: "#374151" }}>{d.count}件</td>
+                  <td style={{ padding: `9px ${SECTION.PADDING_H}px`, fontSize: 12, textAlign: "right",
                     color: margin >= 25 ? "#059669" : margin >= 15 ? "#d97706" : "#dc2626" }}>
                     {d.revenue > 0 ? `${margin.toFixed(1)}%` : "—"}
                   </td>
@@ -172,12 +173,12 @@ export default function ElectricMeetingSection({
               );
             })}
             <tr style={{ background: "#f0fdf4" }}>
-              <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, borderLeft: "3px solid #059669", color: "#065f46" }}>合計</td>
-              <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#065f46" }}>{yen(displaySummary.totalRevenue)}</td>
-              <td style={{ padding: "10px 10px", fontSize: 13, fontWeight: 800, textAlign: "right", color: "#059669" }}>{yen(displaySummary.totalProfit)}</td>
-              <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{yen(displaySummary.companyUnitPrice)}</td>
-              <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{displaySummary.totalCount}件</td>
-              <td style={{ padding: "10px 10px", fontSize: 12, fontWeight: 700, textAlign: "right",
+              <td style={{ padding: `10px ${SECTION.PADDING_H}px`, fontSize: 13, fontWeight: 800, borderLeft: "3px solid #059669", color: "#065f46" }}>合計</td>
+              <td style={{ padding: `10px ${SECTION.PADDING_H}px`, fontSize: 13, fontWeight: 800, textAlign: "right", color: "#065f46" }}>{yen(displaySummary.totalRevenue)}</td>
+              <td style={{ padding: `10px ${SECTION.PADDING_H}px`, fontSize: 13, fontWeight: 800, textAlign: "right", color: "#059669" }}>{yen(displaySummary.totalProfit)}</td>
+              <td style={{ padding: `10px ${SECTION.PADDING_H}px`, fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{yen(displaySummary.companyUnitPrice)}</td>
+              <td style={{ padding: `10px ${SECTION.PADDING_H}px`, fontSize: 12, fontWeight: 700, textAlign: "right", color: "#374151" }}>{displaySummary.totalCount}件</td>
+              <td style={{ padding: `10px ${SECTION.PADDING_H}px`, fontSize: 12, fontWeight: 700, textAlign: "right",
                 color: displaySummary.totalRevenue > 0
                   ? (displaySummary.totalProfit / displaySummary.totalRevenue * 100 >= 25 ? "#059669" : "#d97706") : "#d1d5db" }}>
                 {displaySummary.totalRevenue > 0 ? `${(displaySummary.totalProfit / displaySummary.totalRevenue * 100).toFixed(1)}%` : "—"}

@@ -34,6 +34,7 @@
 import React, { useState } from "react";
 import { getGroupBorderColor, type GroupType } from "../../components/dashboard/metric-groups";
 import { GroupPill, getBadgeColor, formatAchievement, type BadgeColor } from "../../components/ui";
+import { SECTION } from "../../components/sectionStyles";
 
 // ===== calc 補助関数 (export して MeetingSection からも使用可) =====
 
@@ -117,7 +118,7 @@ export function MetricRow({
 
   // PR #75: PC v9 装飾整理 — padding 10px 10px、各セル font 軽量化
   const td: React.CSSProperties = {
-    padding: "10px 10px", fontSize: 12, textAlign: "right",
+    padding: `10px ${SECTION.PADDING_H}px`, fontSize: 12, textAlign: "right",
     color: "#374151", borderBottom: "1px solid #f0faf0",
   };
 
@@ -280,7 +281,7 @@ export function SectionTable({
           onClick={() => setIsOpen((o) => !o)}
           aria-expanded={isOpen}
           style={{
-            width: "100%", background: "#ecfdf5", padding: "8px 14px",
+            width: "100%", background: "#ecfdf5", padding: `8px ${SECTION.PADDING_H}px`,
             borderTop: "none", borderRight: "none", borderLeft: "none",
             borderBottom: "1px solid #d1fae5",
             display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -292,7 +293,7 @@ export function SectionTable({
               <GroupPill type={group}>{title}</GroupPill>
             ) : (
               <span style={{
-                fontSize: 11, fontWeight: 700, color: "#065f46",
+                fontSize: SECTION.HEADER_FONT_SIZE, fontWeight: SECTION.HEADER_FONT_WEIGHT, color: SECTION.HEADER_COLOR,
                 textTransform: "uppercase", letterSpacing: "0.07em",
               }}>{title}</span>
             )}
@@ -309,7 +310,7 @@ export function SectionTable({
         </button>
       ) : (
         <div style={{
-          background: "#ecfdf5", padding: "8px 14px", borderBottom: "1px solid #d1fae5",
+          background: "#ecfdf5", padding: `8px ${SECTION.PADDING_H}px`, borderBottom: "1px solid #d1fae5",
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -317,7 +318,7 @@ export function SectionTable({
               <GroupPill type={group}>{title}</GroupPill>
             ) : (
               <span style={{
-                fontSize: 11, fontWeight: 700, color: "#065f46",
+                fontSize: SECTION.HEADER_FONT_SIZE, fontWeight: SECTION.HEADER_FONT_WEIGHT, color: SECTION.HEADER_COLOR,
                 textTransform: "uppercase", letterSpacing: "0.07em",
               }}>{title}</span>
             )}
@@ -343,7 +344,7 @@ export function SectionTable({
             <tr style={{ background: "#fafafa" }}>
               {["指標", "実績", "着地予測", "達成率", "目標差", "1日の目安"].map((h, i) => (
                 <th key={h} style={{
-                  padding: "10px 10px", fontSize: 10, fontWeight: 500, color: "#6b7280",
+                  padding: `10px ${SECTION.PADDING_H}px`, fontSize: 10, fontWeight: 500, color: "#6b7280",
                   borderBottom: "0.5px solid rgba(0,0,0,0.1)",
                   textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap",
                 }}>{h}</th>

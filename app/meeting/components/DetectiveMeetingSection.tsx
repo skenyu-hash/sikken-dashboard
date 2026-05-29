@@ -21,6 +21,7 @@
 //   成約率 = total_count ÷ detective_meeting_count × 100
 
 import { MetricRow, SectionTable, fmtYen, fmtCount, fmtPct, type MeetingPeriodProps } from "./MetricRow";
+import { SECTION } from "../../components/sectionStyles";
 import type { Targets } from "../../lib/calculations";
 
 const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
@@ -73,7 +74,7 @@ export default function DetectiveMeetingSection({
   const closeRate = safeDiv(closeCount, meetingCount) * 100;
 
   return (
-    <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, gridAutoRows: "min-content" }}>
+    <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SECTION.GAP, gridAutoRows: "min-content" }}>
       <SectionTable title="① 新規対応・コスト・営業利益" group="rev" count={4} defaultOpen>
         <MetricRow label="売上"           actual={sales}            target={targets.targetSales}  {...mp} format={fmtYen} />
         <MetricRow label="広告費 (探偵LP)" actual={adCost}          target={targets.targetAdCost} {...mp} format={fmtYen} invertGap />
