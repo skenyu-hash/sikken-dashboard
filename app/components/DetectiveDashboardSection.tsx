@@ -36,6 +36,7 @@ import React from "react";
 import { yen, type Targets } from "../lib/calculations";
 import { MetricBadge, type GroupType } from "./ui";
 import { getGroupBorderColor } from "./dashboard/metric-groups";
+import { SECTION } from "./sectionStyles";
 
 type Props = {
   monthlySummary: Record<string, unknown> | null;
@@ -101,9 +102,9 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
   const targetMeetingRate = numOf(targets.targetMeetingRate);
 
   return (
-    <section style={{ marginBottom: 16 }}>
+    <section style={{ marginBottom: SECTION.MARGIN }}>
       <SectionLabel>探偵業態 — フォーム連動 KPI 一覧 (面談ファネル含む)</SectionLabel>
-      <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, gridAutoRows: "min-content" }}>
+      <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SECTION.GAP, gridAutoRows: "min-content" }}>
         {/* ① 新規対応 */}
         <Card title="① 新規対応 (売上・コスト・営業利益)" group="rev">
           <Row label="売上"   actual={fmtYen(sales)}    target={fmtYen(targetSales)}   achievement={achv(sales, targetSales)} />
@@ -179,7 +180,7 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      fontSize: 11, fontWeight: 700, color: "#065f46",
+      fontSize: SECTION.HEADER_FONT_SIZE, fontWeight: SECTION.HEADER_FONT_WEIGHT, color: SECTION.HEADER_COLOR,
       textTransform: "uppercase", letterSpacing: "0.07em",
       marginBottom: 8, paddingLeft: 4,
     }}>{children}</div>
@@ -199,9 +200,9 @@ function Card({ title, group, children }: { title: string; group: GroupType; chi
       border: "1px solid #d1fae5", overflow: "hidden",
     }}>
       <div style={{
-        background: "#ecfdf5", padding: "8px 14px",
+        background: "#ecfdf5", padding: `8px ${SECTION.PADDING_H}px`,
         borderBottom: "1px solid #d1fae5",
-        fontSize: 12, fontWeight: 700, color: "#065f46",
+        fontSize: SECTION.HEADER_FONT_SIZE, fontWeight: SECTION.HEADER_FONT_WEIGHT, color: SECTION.HEADER_COLOR,
       }}>{title}</div>
       <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <colgroup>
@@ -214,7 +215,7 @@ function Card({ title, group, children }: { title: string; group: GroupType; chi
           <tr style={{ background: "#fafffe" }}>
             {["指標", "実績", "目標", "達成率 / 補足"].map((h, i) => (
               <th key={h} style={{
-                padding: "7px 12px", fontSize: 10, fontWeight: 700, color: "#6b7280",
+                padding: `7px ${SECTION.PADDING_H}px`, fontSize: 10, fontWeight: 700, color: "#6b7280",
                 textTransform: "uppercase", letterSpacing: "0.06em",
                 borderBottom: "1px solid #d1fae5",
                 textAlign: i === 0 ? "left" : "right", whiteSpace: "nowrap",
@@ -241,7 +242,7 @@ function Row({
   group?: GroupType;
 }) {
   const td: React.CSSProperties = {
-    padding: "9px 12px", fontSize: 12, color: "#374151",
+    padding: `9px ${SECTION.PADDING_H}px`, fontSize: 12, color: "#374151",
     borderBottom: "1px solid #f5faf5", whiteSpace: "nowrap",
   };
   const bg = highlight ? "#f0fdf4" : "transparent";

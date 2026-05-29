@@ -12,6 +12,7 @@
 //   粗利 = 売上 - (広告費 + 手数料) (RoadForm と同式、販管費は記録のみで式に含めない)
 
 import { MetricRow, SectionTable, fmtYen, fmtCount, fmtPct, type MeetingPeriodProps } from "./MetricRow";
+import { SECTION } from "../../components/sectionStyles";
 import type { Targets } from "../../lib/calculations";
 
 const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
@@ -62,7 +63,7 @@ export default function RoadMeetingSection({
   const sellingAdminCost = numOf(monthlySummary?.road_selling_admin_cost);
 
   return (
-    <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, gridAutoRows: "min-content" }}>
+    <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SECTION.GAP, gridAutoRows: "min-content" }}>
       <SectionTable title="① 新規対応・コスト・粗利" group="rev" count={7} defaultOpen>
         <MetricRow label="売上"       actual={sales}              target={targets.targetSales}   {...mp} format={fmtYen} />
         <MetricRow label="保険売上"   actual={insuranceRevenue}   target={0}                      {...mp} format={fmtYen} />

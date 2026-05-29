@@ -20,6 +20,7 @@
 //   粗利 = 売上 - (工事費 + 材料費 + 広告費 + 手数料) (LocksmithForm/Dashboard と同式)
 
 import { MetricRow, SectionTable, fmtYen, fmtCount, fmtPct, type MeetingPeriodProps } from "./MetricRow";
+import { SECTION } from "../../components/sectionStyles";
 import type { Targets } from "../../lib/calculations";
 
 const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
@@ -63,7 +64,7 @@ export default function LocksmithMeetingSection({
   const helpRate = safeDiv(helpRevenue, sales) * 100;
 
   return (
-    <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, gridAutoRows: "min-content" }}>
+    <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SECTION.GAP, gridAutoRows: "min-content" }}>
       <SectionTable title="① 新規対応・コスト・粗利" group="rev" count={6} defaultOpen>
         <MetricRow label="売上"     actual={sales}             target={targets.targetSales}    {...mp} format={fmtYen} />
         <MetricRow label="工事費"   actual={constructionCost}  target={0}                       {...mp} format={fmtYen} invertGap />
