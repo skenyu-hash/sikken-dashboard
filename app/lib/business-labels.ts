@@ -82,7 +82,7 @@ const WATER_LABELS: FieldLabels = {
   section_acquisition: "③ 広告費",
   section_construction: "④ 施工",
   section_help: "⑤ HELP",
-  section_auto: "⑥ 粗利・自動計算",
+  section_auto: "⑦ 粗利・自動計算",
 
   outsourced_sales_revenue: "業務委託売上",
   internal_staff_revenue: "内勤社員売上",
