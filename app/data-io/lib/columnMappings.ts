@@ -53,6 +53,7 @@ export const MONTHLY_SUMMARY_COLUMNS: ColumnDef[] = [
   { key: "help_count",        label: "ヘルプ件数",     roundType: "intCount" },
   { key: "help_unit_price",   label: "ヘルプ客単価(円)", roundType: "intYen" },
   { key: "vehicle_count",     label: "車両数",        roundType: "intCount" },
+  { key: "trainee_count",     label: "研修生（営業マン）", roundType: "intCount" },
   { key: "created_at",        label: "登録日時",      roundType: "raw" },
 ];
 
@@ -85,7 +86,8 @@ export const DAILY_ENTRIES_COLUMNS: ColumnDef[] = [
   { key: "laborCost",         label: "職人費(全体・円)", roundType: "intYen" },
   { key: "materialCost",      label: "材料費(全体・円)", roundType: "intYen" },
   { key: "outsourceCost",     label: "営業外注費(円)", roundType: "intYen" },
-  { key: "vehicleCount",      label: "車両数",         roundType: "intCount" },
+  { key: "vehicle_count",     label: "車両数",         roundType: "intCount" },
+  { key: "trainee_count",     label: "研修生（営業マン）", roundType: "intCount" },
   { key: "data_raw",          label: "data_raw(JSON)", roundType: "raw" },
   { key: "updated_at",        label: "更新日時",       roundType: "raw" },
 ];

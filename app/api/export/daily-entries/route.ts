@@ -16,7 +16,9 @@ const FLAT_FIELDS = [
   "insourceCount", "outsourceCount", "reviewCount",
   "helpRevenue", "helpCount",
   "adCost", "laborCost", "materialCost", "outsourceCost",
-  "vehicleCount",
+  // 体制 (c94-C): entries.data には snake_case で格納される (handleSave / aggregation と一致)。
+  // 旧 camel "vehicleCount" は data に存在せず常に空列だった (c94-C-4 で修復)。
+  "vehicle_count", "trainee_count",
 ] as const;
 
 function isYmd(s: string): boolean {
