@@ -47,6 +47,7 @@ import { useMemo, useState } from "react";
 import SectionShell from "../SectionShell";
 import NumberField from "../NumberField";
 import LocalNumberField from "../LocalNumberField";
+import SectionShift from "../SectionShift";
 import { AutoRow, fmtYen, fmtCount, fmtPct } from "../AutoCalcDisplay";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "../../types";
 import type { FieldLabels } from "../../../lib/business-labels";
@@ -58,6 +59,8 @@ type Props = {
   errors: ValidationErrors;
   labels: FieldLabels;
   calc: AutoCalcResult;
+  vehicleSnapshot: number | null;
+  traineeSnapshot: number | null;
 };
 
 const num = (v: InputValue): number => (v === "" ? 0 : v);
@@ -72,7 +75,7 @@ export function computeLocksmithProfit(state: EntryFormState): number {
     - num(state.locksmith_commission_fee);
 }
 
-export default function LocksmithForm({ state, setField, validateField, errors, labels, calc }: Props) {
+export default function LocksmithForm({ state, setField, validateField, errors, labels, calc, vehicleSnapshot, traineeSnapshot }: Props) {
   // 販管費 + 入電 2 内訳は引き続き UI only (Phase B 後続で対応)。
   const [sellingAdmin, setSellingAdmin] = useState<InputValue>("");
   const [callLpMail, setCallLpMail] = useState<InputValue>("");
@@ -221,6 +224,9 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
         <AutoRow label={labels.help_unit_price} value={fmtYen(calc.help_unit_price)} formula="= HELP売上 ÷ HELP件数" />
         <AutoRow label="HELP 率" value={fmtPct(helpRate)} formula="= HELP売上 ÷ 売上 × 100" />
       </SectionShell>
+
+      {/* ⑥ 体制 (PR c94-C-2、全業態共通) */}
+      <SectionShift state={state} setField={setField} errors={errors} vehicleSnapshot={vehicleSnapshot} traineeSnapshot={traineeSnapshot} />
     </>
   );
 }

@@ -121,9 +121,12 @@ export type DailyEntry = {
   detective_line_other_acquisition_count?: number;
   detective_selling_admin_cost?: number;
 
-  // 体制 (PR c94-C) — スナップショット (MAX 集計、vehicle_count と同扱い)。
-  //   entries.data JSONB に snake_case で格納。aggregation が data->>'trainee_count' を MAX。
-  //   入力 UI (EntryFormState への追加) は c94-C-2 で対応。
+  // 体制 (PR c94-C) — スナップショット (MAX 集計)。
+  //   entries.data JSONB に snake_case で格納。aggregation が data->>'xxx' を MAX。
+  //   PR c94-C-2: /entry ⑥ 体制セクションから両者を書き込み開始。
+  //   注: 旧 camelCase vehicleCount (L34) は entries[] 由来の別レガシー経路。
+  //       aggregation / monthly_summaries 経路は本 snake_case を使う。
+  vehicle_count?: number;
   trainee_count?: number;
 };
 

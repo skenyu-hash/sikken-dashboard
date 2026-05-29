@@ -1,11 +1,14 @@
 "use client";
-// PR #48b c2: 車両台数 (vehicle_count) 用入力フィールド。
-// NumberField とは別コンポーネントとして用意する理由:
+// PR c94-C-2: スナップショット系カウント入力フィールド (車両数 / 研修生)。
+//   旧 VehicleCountField (PR #48b、未使用) を汎用化したもの。unit / emoji / label を
+//   props 化し、車両 (台/🚗) と研修生 (人/👤) の両方を 1 コンポーネントで描画する。
+//
+// NumberField とは別コンポーネントである理由:
 //   - 「前回スナップショットからの自動継承」UI を持つ
-//   - 業態別フォーム間で再利用するため、EntryFormState 依存を持たない
+//   - 業態別フォーム間で再利用するため EntryFormState 依存を持たない
 //     (NumberField は InputFieldKey に縛られている)
 //
-// 自動継承の挙動:
+// 自動継承の挙動 (旧 VehicleCountField から踏襲):
 //   - value === "" かつ initialFromLastSnapshot != null のとき、マウント時に
 //     1 度だけ onChange(initialFromLastSnapshot) を発火し、親 state を埋める。
 //   - useRef ガードで「外部リセット (空に戻る) → 再オートフィル」のループを防ぐ。
@@ -14,7 +17,7 @@
 //     解除して再度オートフィル可能にする。
 //
 // なお、表示としては lastSnapshot が与えられている間は常に
-// 「前回スナップショット: X 台」のヒントを表示する。
+// 「{emoji} 前回スナップショット: X {unit}」のヒントを表示する。
 
 import { useEffect, useRef } from "react";
 import type { InputValue } from "../types";
@@ -23,19 +26,21 @@ type Props = {
   value: InputValue;
   onChange: (v: InputValue) => void;
   /**
-   * 前回スナップショット (同エリア・前月 or 月内直前) の vehicle_count 値。
+   * 前回スナップショット (同エリア・月内直前) の値。
    * null/undefined のときは継承 UI を表示しない。
    */
   initialFromLastSnapshot?: number | null;
-  label?: string;
+  label: string;
+  unit: string;
+  emoji: string;
   disabled?: boolean;
   error?: string;
 };
 
-export default function VehicleCountField({
+export default function SnapshotCountField({
   value, onChange,
   initialFromLastSnapshot,
-  label = "車両台数", disabled, error,
+  label, unit, emoji, disabled, error,
 }: Props) {
   // 「同じ snapshot 値」に対して 1 度だけオートフィルを実行するためのガード。
   // initialFromLastSnapshot が変わったらリセットする (新しい月へ移動した等)。
@@ -65,7 +70,7 @@ export default function VehicleCountField({
         marginBottom: 4, fontWeight: 600,
       }}>
         {label}
-        <span style={{ color: "#9ca3af", marginLeft: 4, fontWeight: 400 }}>(台)</span>
+        <span style={{ color: "#9ca3af", marginLeft: 4, fontWeight: 400 }}>({unit})</span>
       </span>
       <input
         type="number"
@@ -92,7 +97,7 @@ export default function VehicleCountField({
           display: "inline-flex", alignItems: "center", gap: 6,
           marginTop: 4, fontSize: 10, color: "#047857", fontWeight: 600,
         }}>
-          <span>🚗 前回スナップショット: {initialFromLastSnapshot} 台</span>
+          <span>{emoji} 前回スナップショット: {initialFromLastSnapshot} {unit}</span>
           {value !== initialFromLastSnapshot && (
             <button
               type="button"

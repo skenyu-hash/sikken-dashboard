@@ -67,6 +67,9 @@ type FormProps = {
   errors: ValidationErrors;
   labels: FieldLabels;
   calc: AutoCalcResult;
+  // PR c94-C-2: ⑥ 体制の前回スナップショット (月内直前 entry 由来、null は継承なし)
+  vehicleSnapshot: number | null;
+  traineeSnapshot: number | null;
 };
 
 function renderBusinessForm(category: BusinessCategory, props: FormProps) {
@@ -122,6 +125,8 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     road_seo_call_count: "", road_insurance_call_count: "",
     road_insurance_revenue: "", road_non_insurance_revenue: "",
     road_selling_admin_cost: "",
+    // PR c94-C-2: ⑥ 体制
+    vehicle_count: "", trainee_count: "",
   };
 }
 
@@ -203,6 +208,24 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
     return `${state.year}-${m}-${d}`;
   }, [state.year, state.month, state.day]);
   const hasExistingEntryForCurrentDay = entriesByDate.has(currentDateStr);
+
+  // PR c94-C-2: ⑥ 体制の「前回スナップショット」算出。
+  //   現在選択日より前の最大日付 entry の vehicle_count / trainee_count を継承元にする。
+  //   "YYYY-MM-DD" は辞書順比較が日付順と一致。月の最初の入力日は継承元なし (null)。
+  const shiftSnapshot = useMemo(() => {
+    let bestDate = "";
+    let best: DailyEntry | undefined;
+    for (const [dateStr, entry] of entriesByDate) {
+      if (dateStr < currentDateStr && dateStr > bestDate) {
+        bestDate = dateStr;
+        best = entry;
+      }
+    }
+    return {
+      vehicle: best?.vehicle_count ?? null,
+      trainee: best?.trainee_count ?? null,
+    };
+  }, [entriesByDate, currentDateStr]);
 
   // PR c92-2b: 進捗バッジ計算 (Q2=b 採用 — 今日までの経過日数を分母に使用)。
   //   現在月 (today.year/month == state.year/month) なら today.date を分母 (=「現時点で
@@ -350,6 +373,9 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           road_insurance_revenue: numOrEmpty(entry.road_insurance_revenue),
           road_non_insurance_revenue: numOrEmpty(entry.road_non_insurance_revenue),
           road_selling_admin_cost: numOrEmpty(entry.road_selling_admin_cost),
+          // PR c94-C-2: ⑥ 体制
+          vehicle_count: numOrEmpty(entry.vehicle_count),
+          trainee_count: numOrEmpty(entry.trainee_count),
         };
         markClean(next); // baseline 同期 (c89-p1 で auto-save OFF だが将来防御)
         return next;
@@ -387,6 +413,8 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           road_seo_call_count: "", road_insurance_call_count: "",
           road_insurance_revenue: "", road_non_insurance_revenue: "",
           road_selling_admin_cost: "",
+          // PR c94-C-2: ⑥ 体制
+          vehicle_count: "", trainee_count: "",
         };
         markClean(next);
         return next;
@@ -498,6 +526,9 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         road_insurance_revenue: numOrZero(state.road_insurance_revenue),
         road_non_insurance_revenue: numOrZero(state.road_non_insurance_revenue),
         road_selling_admin_cost: numOrZero(state.road_selling_admin_cost),
+        // PR c94-C-2: ⑥ 体制 (snake、aggregation が MAX 集計)
+        vehicle_count: numOrZero(state.vehicle_count),
+        trainee_count: numOrZero(state.trainee_count),
       };
 
       // calc / computeLocksmithProfit は c90-2 では送信不要 (aggregation 関数が再計算)。
@@ -710,6 +741,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
               c5 で road → RoadForm、detective → DetectiveForm に分岐。 */}
           {renderBusinessForm(category, {
             state, setField, validateField, errors, labels, calc,
+            vehicleSnapshot: shiftSnapshot.vehicle, traineeSnapshot: shiftSnapshot.trainee,
           })}
         </div>
       </main>

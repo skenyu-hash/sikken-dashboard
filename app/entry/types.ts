@@ -134,6 +134,11 @@ export interface EntryFormState {
   road_insurance_revenue: InputValue;
   road_non_insurance_revenue: InputValue;
   road_selling_admin_cost: InputValue;
+
+  // PR c94-C: ⑥ 体制 (スナップショット、MAX 集計)。全業態共通。
+  //   車両数 (台) / 研修生・営業マン (人)。entries.data に snake_case で保存。
+  vehicle_count: InputValue;
+  trainee_count: InputValue;
 }
 
 /**

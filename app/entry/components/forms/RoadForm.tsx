@@ -44,6 +44,7 @@
 import { useMemo } from "react";
 import SectionShell from "../SectionShell";
 import NumberField from "../NumberField";
+import SectionShift from "../SectionShift";
 import { AutoRow, fmtYen, fmtCount, fmtPct } from "../AutoCalcDisplay";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "../../types";
 import type { FieldLabels } from "../../../lib/business-labels";
@@ -55,6 +56,8 @@ type Props = {
   errors: ValidationErrors;
   labels: FieldLabels;
   calc: AutoCalcResult;
+  vehicleSnapshot: number | null;
+  traineeSnapshot: number | null;
 };
 
 type ChannelKey = "ad" | "repeat" | "referral" | "revisit" | "wellnest" | "seo" | "insurance";
@@ -98,7 +101,7 @@ const CALL_FIELD: Record<ChannelKey, InputFieldKey> = {
 const num = (v: InputValue): number => (v === "" ? 0 : v);
 const safePct = (a: number, b: number): number => (b === 0 ? 0 : (a / b) * 100);
 
-export default function RoadForm({ state, setField, validateField, errors, labels, calc }: Props) {
+export default function RoadForm({ state, setField, validateField, errors, labels, calc, vehicleSnapshot, traineeSnapshot }: Props) {
   // PR #58c: 入電チャネル更新 — state.road_*_call_count を直接更新 + call_count に sync (PR #58b 同型)
   const updateCallChannel = (key: ChannelKey, v: InputValue) => {
     setField(CALL_FIELD[key], v);
@@ -222,6 +225,9 @@ export default function RoadForm({ state, setField, validateField, errors, label
         <AutoRow label={labels.cpa} value={fmtYen(calc.cpa)} formula="= 広告費 ÷ 総獲得件数" />
         <AutoRow label={labels.conv_rate} value={fmtPct(calc.conv_rate)} formula="= 総獲得件数 ÷ 総入電件数 × 100" />
       </SectionShell>
+
+      {/* ⑥ 体制 (PR c94-C-2、全業態共通) */}
+      <SectionShift state={state} setField={setField} errors={errors} vehicleSnapshot={vehicleSnapshot} traineeSnapshot={traineeSnapshot} />
     </>
   );
 }
