@@ -132,6 +132,7 @@ SQL では `CASE WHEN business_category = 'locksmith' THEN ... ELSE ... END` で
 | 列 | 扱い |
 |---|---|
 | vehicle_count | **MAX**(`(data->>'vehicle_count')::int`) — 車両数は累積でなく当日スナップショット最大値 |
+| trainee_count | **MAX**(`(data->>'trainee_count')::int`) — 研修生(営業マン)数も累積でなくスナップショット (PR c94-C) |
 | source | 定数 `'entries_aggregation'` (R3) |
 | updated_at | 定数 `NOW()` (R3) |
 | created_at | 既存値保持 (UPSERT で更新しない) |
@@ -148,6 +149,7 @@ WITH base AS (
     -- ... 60+ 列 ...
     -- 特殊
     COALESCE(MAX((data->>'vehicle_count')::int), 0) AS max_vehicle_count,
+    COALESCE(MAX((data->>'trainee_count')::int), 0) AS max_trainee_count,
     EXTRACT(DAY FROM MAX(entry_date))::INT AS as_of_day_calc
   FROM entries
   WHERE area_id = $1 AND business_category = $2

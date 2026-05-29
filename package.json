@@ -16,6 +16,7 @@
     "test:integration:c93-1-no-bonus": "tsx scripts/test-c93-1-no-bonus.ts",
     "test:integration:c93-2-construction-count": "tsx scripts/test-c93-2-construction-count.ts",
     "test:integration:c94-period-aggregate": "tsx scripts/test-c94-period-aggregate.ts",
+    "test:integration:c94-c-shift-foundation": "tsx scripts/test-c94-c-shift-foundation.ts",
     "migrate:c93-1-may2026": "tsx scripts/migrations/c93-1_reaggregate_may2026.ts",
     "migrate:c93-2-may2026": "tsx scripts/migrations/c93-2_init_construction_count_may2026.ts"
   },

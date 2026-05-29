@@ -90,6 +90,8 @@ export function ensureSchema(): Promise<void> {
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_labor_rate NUMERIC NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_material_rate NUMERIC NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_vehicle_count INT NOT NULL DEFAULT 0`,
+        // PR c94-C: 研修生(営業マン)数目標 (⑥体制)。
+        sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_trainee_count INT NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_call_count INT NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_construction_rate NUMERIC NOT NULL DEFAULT 0`,
         sql`ALTER TABLE targets ADD COLUMN IF NOT EXISTS target_pass_rate NUMERIC NOT NULL DEFAULT 0`,
@@ -159,6 +161,8 @@ export function ensureSchema(): Promise<void> {
       `);
 
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS vehicle_count INT NOT NULL DEFAULT 0`);
+      // PR c94-C: 研修生(営業マン)数。vehicle_count と同じスナップショット (MAX 集計)。
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS trainee_count INT NOT NULL DEFAULT 0`);
       // Phase 9.5: as_of_day カラム追加。
       // 「画面に表示している数値が何日時点のスナップショットか」を保持する。
       // 既存行は当該月の末日で埋めて、確定値とみなす。NOT NULL 化後は
@@ -421,7 +425,7 @@ export async function getTargets(
       target_self_sales, target_self_profit, target_self_count,
       target_new_sales, target_new_profit, target_new_count,
       target_ad_cost, target_ad_rate, target_labor_rate, target_material_rate,
-      target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate,
+      target_vehicle_count, target_trainee_count, target_call_count, target_construction_rate, target_pass_rate,
       target_unit_price, target_call_unit_price, target_help_rate,
       target_meeting_count, target_meeting_rate, target_switchboard_count
     FROM targets WHERE area_id = ${areaId} AND year = ${year} AND month = ${month}
@@ -434,7 +438,7 @@ export async function getTargets(
       targetSelfSales: 0, targetSelfProfit: 0, targetSelfCount: 0,
       targetNewSales: 0, targetNewProfit: 0, targetNewCount: 0,
       targetAdCost: 0, targetAdRate: 0, targetLaborRate: 0, targetMaterialRate: 0,
-      targetVehicleCount: 0, targetCallCount: 0,
+      targetVehicleCount: 0, targetTraineeCount: 0, targetCallCount: 0,
       targetConstructionRate: 0, targetPassRate: 0,
       targetUnitPrice: 0, targetCallUnitPrice: 0, targetHelpRate: 0,
       targetMeetingCount: 0, targetMeetingRate: 0,
@@ -462,6 +466,7 @@ export async function getTargets(
     targetLaborRate: Number(r.target_labor_rate),
     targetMaterialRate: Number(r.target_material_rate),
     targetVehicleCount: Number(r.target_vehicle_count),
+    targetTraineeCount: Number(r.target_trainee_count),
     targetCallCount: Number(r.target_call_count),
     targetConstructionRate: Number(r.target_construction_rate),
     targetPassRate: Number(r.target_pass_rate),
@@ -488,7 +493,7 @@ export async function upsertTargets(
       target_self_sales, target_self_profit, target_self_count,
       target_new_sales, target_new_profit, target_new_count,
       target_ad_cost, target_ad_rate, target_labor_rate, target_material_rate,
-      target_vehicle_count, target_call_count, target_construction_rate, target_pass_rate,
+      target_vehicle_count, target_trainee_count, target_call_count, target_construction_rate, target_pass_rate,
       target_unit_price, target_call_unit_price, target_help_rate,
       target_meeting_count, target_meeting_rate, target_switchboard_count,
       updated_at
@@ -500,7 +505,7 @@ export async function upsertTargets(
       ${t.targetSelfSales}, ${t.targetSelfProfit}, ${t.targetSelfCount},
       ${t.targetNewSales}, ${t.targetNewProfit}, ${t.targetNewCount},
       ${t.targetAdCost}, ${t.targetAdRate}, ${t.targetLaborRate}, ${t.targetMaterialRate},
-      ${t.targetVehicleCount}, ${t.targetCallCount}, ${t.targetConstructionRate}, ${t.targetPassRate},
+      ${t.targetVehicleCount}, ${t.targetTraineeCount}, ${t.targetCallCount}, ${t.targetConstructionRate}, ${t.targetPassRate},
       ${t.targetUnitPrice}, ${t.targetCallUnitPrice}, ${t.targetHelpRate},
       ${t.targetMeetingCount}, ${t.targetMeetingRate}, ${t.targetSwitchboardCount},
       NOW()
@@ -525,6 +530,7 @@ export async function upsertTargets(
         target_labor_rate = EXCLUDED.target_labor_rate,
         target_material_rate = EXCLUDED.target_material_rate,
         target_vehicle_count = EXCLUDED.target_vehicle_count,
+        target_trainee_count = EXCLUDED.target_trainee_count,
         target_call_count = EXCLUDED.target_call_count,
         target_construction_rate = EXCLUDED.target_construction_rate,
         target_pass_rate = EXCLUDED.target_pass_rate,
