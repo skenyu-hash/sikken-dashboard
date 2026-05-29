@@ -120,6 +120,11 @@ export type DailyEntry = {
   detective_line_uwaki_acquisition_count?: number;
   detective_line_other_acquisition_count?: number;
   detective_selling_admin_cost?: number;
+
+  // 体制 (PR c94-C) — スナップショット (MAX 集計、vehicle_count と同扱い)。
+  //   entries.data JSONB に snake_case で格納。aggregation が data->>'trainee_count' を MAX。
+  //   入力 UI (EntryFormState への追加) は c94-C-2 で対応。
+  trainee_count?: number;
 };
 
 export type DepartmentSummary = {
@@ -384,6 +389,7 @@ export type Targets = {
   targetLaborRate: number;
   targetMaterialRate: number;
   targetVehicleCount: number;
+  targetTraineeCount: number;     // PR c94-C: 研修生(営業マン)数目標 — ⑥体制
   targetCallCount: number;
   targetConstructionRate: number;
   targetPassRate: number;
@@ -403,7 +409,7 @@ export const emptyTargets = (): Targets => ({
   targetSelfSales: 0, targetSelfProfit: 0, targetSelfCount: 0,
   targetNewSales: 0, targetNewProfit: 0, targetNewCount: 0,
   targetAdCost: 0, targetAdRate: 0, targetLaborRate: 0, targetMaterialRate: 0,
-  targetVehicleCount: 0, targetCallCount: 0,
+  targetVehicleCount: 0, targetTraineeCount: 0, targetCallCount: 0,
   targetConstructionRate: 0, targetPassRate: 0,
   targetUnitPrice: 0, targetCallUnitPrice: 0, targetHelpRate: 0,
   targetMeetingCount: 0, targetMeetingRate: 0,

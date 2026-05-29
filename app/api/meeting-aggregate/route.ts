@@ -134,6 +134,7 @@ export async function GET(req: NextRequest) {
         COALESCE(SUM(COALESCE((data->>'detective_selling_admin_cost')::numeric, 0)), 0) AS sum_detective_selling_admin_cost,
         -- C 特殊扱い
         COALESCE(MAX(COALESCE((data->>'vehicle_count')::int, 0)), 0) AS max_vehicle_count,
+        COALESCE(MAX(COALESCE((data->>'trainee_count')::int, 0)), 0) AS max_trainee_count,
         EXTRACT(DAY FROM MAX(entry_date))::INT AS as_of_day_calc
       FROM entries
       WHERE area_id = ${area}
@@ -181,6 +182,7 @@ export async function GET(req: NextRequest) {
       ROUND(d.sum_help_count)::INT AS help_count,
       COALESCE(ROUND(d.sum_help_revenue / NULLIF(d.sum_help_count, 0))::INT, 0) AS help_unit_price,
       d.max_vehicle_count AS vehicle_count,
+      d.max_trainee_count AS trainee_count,
       COALESCE(d.as_of_day_calc, ${startDay}) AS as_of_day,
       d.sum_outsourced_sales_revenue AS outsourced_sales_revenue,
       d.sum_internal_staff_revenue AS internal_staff_revenue,

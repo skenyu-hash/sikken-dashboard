@@ -21,6 +21,7 @@
 //   - profit_rate   = total_profit / NULLIF(total_revenue, 0) * 100
 //   - as_of_day     = EXTRACT(DAY FROM MAX(entry_date))
 //   - vehicle_count = MAX (車両数は累積でなくスナップショット)
+//   - trainee_count = MAX (研修生数も同扱い、PR c94-C)
 //   - 分母 0 はすべて NULLIF + COALESCE(_, 0) で 0 に戻す (NULL を DB に書き込まない)
 
 import { getSql, ensureSchema } from "./db";
@@ -140,6 +141,7 @@ export async function aggregateMonthlySummary(
         COALESCE(SUM(COALESCE((data->>'detective_selling_admin_cost')::numeric, 0)), 0) AS sum_detective_selling_admin_cost,
         -- C 特殊扱い
         COALESCE(MAX(COALESCE((data->>'vehicle_count')::int, 0)), 0) AS max_vehicle_count,
+        COALESCE(MAX(COALESCE((data->>'trainee_count')::int, 0)), 0) AS max_trainee_count,
         COALESCE(EXTRACT(DAY FROM MAX(entry_date))::INT, 1) AS as_of_day_calc
       FROM entries
       WHERE area_id = ${areaId}
@@ -189,7 +191,7 @@ export async function aggregateMonthlySummary(
       ad_cost, ad_rate, acquisition_count, cpa,
       call_count, call_unit_price, conv_rate, profit_rate,
       help_revenue, help_count, help_unit_price,
-      vehicle_count, as_of_day,
+      vehicle_count, trainee_count, as_of_day,
       -- A-1 共通 base 列で monthly_summaries に列がある分
       outsourced_sales_revenue, internal_staff_revenue,
       outsourced_response_count, internal_staff_response_count,
@@ -241,6 +243,7 @@ export async function aggregateMonthlySummary(
       ROUND(d.sum_help_count)::INT,
       COALESCE(ROUND(d.sum_help_revenue / NULLIF(d.sum_help_count, 0))::INT, 0),
       d.max_vehicle_count,
+      d.max_trainee_count,
       COALESCE(d.as_of_day_calc, 1),  -- PR c91: entries 0 行のとき MAX(date)=NULL → 1 にフォールバック
       d.sum_outsourced_sales_revenue, d.sum_internal_staff_revenue,
       d.sum_outsourced_response_count, d.sum_internal_staff_response_count,
@@ -285,6 +288,7 @@ export async function aggregateMonthlySummary(
       help_count = EXCLUDED.help_count,
       help_unit_price = EXCLUDED.help_unit_price,
       vehicle_count = EXCLUDED.vehicle_count,
+      trainee_count = EXCLUDED.trainee_count,
       as_of_day = EXCLUDED.as_of_day,
       outsourced_sales_revenue = EXCLUDED.outsourced_sales_revenue,
       internal_staff_revenue = EXCLUDED.internal_staff_revenue,
