@@ -17,6 +17,9 @@ import type { Targets } from "../../lib/calculations";
 
 const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
 const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
+// ⑥ 体制 (PR c94-C-3a) — 車両数/研修生の単位表示 (件ではなく台/人)
+const fmtVehicle = (v: number): string => (v > 0 ? `${v}台` : "—");
+const fmtTrainee = (v: number): string => (v > 0 ? `${v}人` : "—");
 
 type Props = MeetingPeriodProps & {
   monthlySummary: Record<string, unknown> | null;
@@ -62,6 +65,10 @@ export default function RoadMeetingSection({
   const nonInsuranceRevenue = numOf(monthlySummary?.road_non_insurance_revenue);
   const sellingAdminCost = numOf(monthlySummary?.road_selling_admin_cost);
 
+  // ⑥ 体制 (PR c94-C-3a)
+  const vehicleCount = numOf(monthlySummary?.vehicle_count);
+  const traineeCount = numOf(monthlySummary?.trainee_count);
+
   return (
     <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SECTION.GAP, gridAutoRows: "min-content" }}>
       <SectionTable title="① 新規対応・コスト・粗利" group="rev" count={7} defaultOpen>
@@ -100,6 +107,14 @@ export default function RoadMeetingSection({
         <MetricRow label="CPA"             actual={cpa}              target={targets.targetCpa}      {...mp} format={fmtYen} isRate invertGap />
         <MetricRow label="成約率"          actual={convRate}         target={targets.targetConversionRate} {...mp} format={fmtPct} isRate />
       </SectionTable>
+      </div>
+
+      {/* ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (旬独立 MAX) */}
+      <div style={{ gridColumn: "1 / -1" }}>
+        <SectionTable title="⑥ 体制" group="cnt" count={2} defaultOpen={false}>
+          <MetricRow label="車両数"           actual={vehicleCount} target={targets.targetVehicleCount} {...mp} format={fmtVehicle} />
+          <MetricRow label="研修生（営業マン）" actual={traineeCount} target={targets.targetTraineeCount} {...mp} format={fmtTrainee} />
+        </SectionTable>
       </div>
     </div>
   );

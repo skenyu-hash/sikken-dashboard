@@ -100,6 +100,11 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
   // PR #53 新規目標
   const targetMeetingCount = numOf(targets.targetMeetingCount);
   const targetMeetingRate = numOf(targets.targetMeetingRate);
+  // ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット)
+  const vehicleCount = numOf(monthlySummary?.vehicle_count);
+  const traineeCount = numOf(monthlySummary?.trainee_count);
+  const targetVehicleCount = numOf(targets.targetVehicleCount);
+  const targetTraineeCount = numOf(targets.targetTraineeCount);
 
   return (
     <section style={{ marginBottom: SECTION.MARGIN }}>
@@ -170,6 +175,14 @@ export default function DetectiveDashboardSection({ monthlySummary, targets }: P
             target="—"
             sub="= 成約件数 ÷ 面談数 × 100" />
         </Card>
+
+        {/* ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット) */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Card title="⑥ 体制" group="cnt">
+            <Row label="車両数"           actual={vehicleCount > 0 ? `${vehicleCount}台` : "—"} target={targetVehicleCount > 0 ? `${targetVehicleCount}台` : "—"} achievement={achv(vehicleCount, targetVehicleCount)} />
+            <Row label="研修生（営業マン）" actual={traineeCount > 0 ? `${traineeCount}人` : "—"} target={targetTraineeCount > 0 ? `${targetTraineeCount}人` : "—"} achievement={achv(traineeCount, targetTraineeCount)} />
+          </Card>
+        </div>
       </div>
     </section>
   );

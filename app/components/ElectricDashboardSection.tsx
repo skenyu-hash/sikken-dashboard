@@ -104,6 +104,11 @@ export default function ElectricDashboardSection({ monthlySummary, targets }: Pr
   const targetHelpRate = numOf(targets.targetHelpRate);
   // PR #54 新規目標
   const targetSwitchboardCount = numOf(targets.targetSwitchboardCount);
+  // ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット)
+  const vehicleCount = numOf(monthlySummary?.vehicle_count);
+  const traineeCount = numOf(monthlySummary?.trainee_count);
+  const targetVehicleCount = numOf(targets.targetVehicleCount);
+  const targetTraineeCount = numOf(targets.targetTraineeCount);
 
   return (
     <section style={{ marginBottom: SECTION.MARGIN }}>
@@ -163,6 +168,14 @@ export default function ElectricDashboardSection({ monthlySummary, targets }: Pr
               target={fmtCount(targetSwitchboardCount)}
               achievement={achv(switchboardCount, targetSwitchboardCount)}
               highlight />
+          </Card>
+        </div>
+
+        {/* ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット) */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Card title="⑥ 体制" group="cnt">
+            <Row label="車両数"           actual={vehicleCount > 0 ? `${vehicleCount}台` : "—"} target={targetVehicleCount > 0 ? `${targetVehicleCount}台` : "—"} achievement={achv(vehicleCount, targetVehicleCount)} />
+            <Row label="研修生（営業マン）" actual={traineeCount > 0 ? `${traineeCount}人` : "—"} target={targetTraineeCount > 0 ? `${targetTraineeCount}人` : "—"} achievement={achv(traineeCount, targetTraineeCount)} />
           </Card>
         </div>
       </div>

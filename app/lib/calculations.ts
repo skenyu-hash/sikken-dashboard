@@ -173,6 +173,7 @@ export type DashboardSummary = {
   internalConstructionProfit: number;
   grossMargin: number;      // 粗利率(%)
   vehicleCount: number;     // 車両数
+  traineeCount: number;     // 研修生(営業マン)数 — PR c94-C-3a
 };
 
 export function getDaysInMonth(year: number, month: number): number {
@@ -278,6 +279,8 @@ export function calculateDashboard(
     internalConstructionProfit: 0, // PR c93-3: Dashboard.tsx で monthly_summaries.internal_construction_profit から流入
     grossMargin,
     vehicleCount: entries.length > 0 ? Math.max(...entries.map(e => e.vehicleCount ?? 0), 0) : 0,
+    // PR c94-C-3a: 研修生も MAX (スナップショット)。vehicle は camel、trainee は snake (DailyEntry 命名差)。
+    traineeCount: entries.length > 0 ? Math.max(...entries.map(e => e.trainee_count ?? 0), 0) : 0,
   };
 }
 

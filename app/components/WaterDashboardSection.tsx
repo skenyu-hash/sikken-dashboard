@@ -86,7 +86,9 @@ export default function WaterDashboardSection({ monthlySummary, targets }: Props
   const repeatCount = numOf(monthlySummary?.repeat_count);
   const revisitCount = numOf(monthlySummary?.revisit_count);
   const reviewCount = numOf(monthlySummary?.review_count);
+  // ⑥ 体制 (PR c94-C-3a) — 車両数を ⑤ から移動、研修生を新規追加 (スナップショット)
   const vehicleCount = numOf(monthlySummary?.vehicle_count);
+  const traineeCount = numOf(monthlySummary?.trainee_count);
 
   // 売上比% (UI 表示用)
   const ratio = (cost: number) => (sales > 0 ? (cost / sales) * 100 : 0);
@@ -107,6 +109,7 @@ export default function WaterDashboardSection({ monthlySummary, targets }: Props
   const targetHelpUnitPrice = numOf(targets.targetHelpUnitPrice);
   const targetHelpRate = numOf(targets.targetHelpRate);
   const targetVehicleCount = numOf(targets.targetVehicleCount);
+  const targetTraineeCount = numOf(targets.targetTraineeCount);
 
   return (
     <section style={{ marginBottom: SECTION.MARGIN }}>
@@ -153,17 +156,21 @@ export default function WaterDashboardSection({ monthlySummary, targets }: Props
           <Row label="HELP 率"     actual={fmtPct(helpRate)}      target={fmtPct(targetHelpRate)}      achievement={achv(helpRate, targetHelpRate)} sub="= HELP売上 ÷ 売上 × 100" />
         </Card>
 
-        {/* ⑤ 水道専用 (PR c94-B-1) — 5 sections (odd) → 最終を full-width 化 (Electric ⑤ と同パターン) */}
+        {/* ⑤ 水道専用 (PR c94-B-1) — c94-C-3a で車両数を ⑥ 体制 へ移動 (4 項目に縮小) */}
         <div style={{ gridColumn: "1 / -1" }}>
           <Card title="⑤ 水道専用" group="cnt">
             <Row label="対応率"       actual={fmtPct(responseRate)}    target="—" sub="= 対応件数 ÷ 入電件数 × 100" />
             <Row label="リピート件数" actual={fmtCount(repeatCount)}   target="—" />
             <Row label="再訪問件数"   actual={fmtCount(revisitCount)}  target="—" />
             <Row label="口コミ件数"   actual={fmtCount(reviewCount)}   target="—" />
-            <Row label="車両数"       actual={vehicleCount > 0 ? `${vehicleCount}台` : "—"}
-                                      target={targetVehicleCount > 0 ? `${targetVehicleCount}台` : "—"}
-                                      achievement={achv(vehicleCount, targetVehicleCount)}
-                                      sub="c94-C で ⑥ 体制 へ移動予定" />
+          </Card>
+        </div>
+
+        {/* ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット) */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Card title="⑥ 体制" group="cnt">
+            <Row label="車両数"           actual={vehicleCount > 0 ? `${vehicleCount}台` : "—"} target={targetVehicleCount > 0 ? `${targetVehicleCount}台` : "—"} achievement={achv(vehicleCount, targetVehicleCount)} />
+            <Row label="研修生（営業マン）" actual={traineeCount > 0 ? `${traineeCount}人` : "—"} target={targetTraineeCount > 0 ? `${targetTraineeCount}人` : "—"} achievement={achv(traineeCount, targetTraineeCount)} />
           </Card>
         </div>
       </div>

@@ -84,6 +84,11 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
   const targetCpa = numOf(targets.targetCpa);
   const targetConvRate = numOf(targets.targetConversionRate);
   const targetCallCount = numOf(targets.targetCallCount);
+  // ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット)
+  const vehicleCount = numOf(monthlySummary?.vehicle_count);
+  const traineeCount = numOf(monthlySummary?.trainee_count);
+  const targetVehicleCount = numOf(targets.targetVehicleCount);
+  const targetTraineeCount = numOf(targets.targetTraineeCount);
 
   return (
     <section style={{ marginBottom: SECTION.MARGIN }}>
@@ -127,6 +132,14 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
             <Row label="客単価"      actual={fmtYen(Math.round(safeDiv(sales, acquisitionCount)))} target={fmtYen(targetUnitPrice)} sub="= 売上 ÷ 総獲得件数" />
             <Row label="CPA"         actual={fmtYen(cpa)}                target={fmtYen(targetCpa)}     achievement={achv(cpa, targetCpa, true)} sub="= 広告費 ÷ 総獲得件数" />
             <Row label="成約率"      actual={fmtPct(convRate)}            target={fmtPct(targetConvRate)} achievement={achv(convRate, targetConvRate)} sub="= 総獲得件数 ÷ 総入電件数 × 100" />
+          </Card>
+        </div>
+
+        {/* ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット) */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Card title="⑥ 体制" group="cnt">
+            <Row label="車両数"           actual={vehicleCount > 0 ? `${vehicleCount}台` : "—"} target={targetVehicleCount > 0 ? `${targetVehicleCount}台` : "—"} achievement={achv(vehicleCount, targetVehicleCount)} />
+            <Row label="研修生（営業マン）" actual={traineeCount > 0 ? `${traineeCount}人` : "—"} target={targetTraineeCount > 0 ? `${targetTraineeCount}人` : "—"} achievement={achv(traineeCount, targetTraineeCount)} />
           </Card>
         </div>
       </div>
