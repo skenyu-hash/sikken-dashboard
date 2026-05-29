@@ -42,7 +42,10 @@ type MetricKey =
   | "targetMeetingCount"
   | "targetMeetingRate"
   // ⑤ 電気専用 (PR #54)
-  | "targetSwitchboardCount";
+  | "targetSwitchboardCount"
+  // ⑥ 体制 (PR c94-C-3b) — 全業態共通
+  | "targetVehicleCount"
+  | "targetTraineeCount";
 
 // 単位種別。
 //   yen_man: DB が万円単位で保存 (lib/calculations.manToYen が ×10000 する対象)
@@ -109,7 +112,14 @@ const ELECTRIC_METRICS: MetricDef[] = [
   { key: "targetSwitchboardCount", label: "分電盤件数目標", unit: "count" },
 ];
 
-const ALL_METRICS: MetricDef[] = [...SALES_METRICS, ...ADS_METRICS, ...HELP_METRICS, ...MEETING_METRICS, ...ELECTRIC_METRICS];
+// セクション 6: 体制 (PR c94-C-3b) — 全業態共通、車両数 + 研修生（営業マン）
+//   実績は monthly_summaries.vehicle_count / trainee_count (旬独立 MAX、c94-C-1)。
+const SHIFT_METRICS: MetricDef[] = [
+  { key: "targetVehicleCount", label: "車両数目標",           unit: "count" },
+  { key: "targetTraineeCount", label: "研修生（営業マン）目標", unit: "count" },
+];
+
+const ALL_METRICS: MetricDef[] = [...SALES_METRICS, ...ADS_METRICS, ...HELP_METRICS, ...MEETING_METRICS, ...ELECTRIC_METRICS, ...SHIFT_METRICS];
 
 // 既存呼び出し元 (page.tsx setAllAreasSameValue / exportCsv、GroupView、CompanyView) は
 // この name で import している。意味は「全 14 項目」だが既存変数名で公開。
@@ -316,6 +326,7 @@ function getMetricsForCategory(category: BusinessCategory): {
   help: MetricDef[] | null;
   meeting: MetricDef[] | null;
   electric: MetricDef[] | null;
+  shift: MetricDef[];
 } {
   const hideConstructionRate = category === "locksmith" || category === "road" || category === "detective";
   const hideHelp = category === "road" || category === "detective";
@@ -337,18 +348,19 @@ function getMetricsForCategory(category: BusinessCategory): {
     help: hideHelp ? null : HELP_METRICS,
     meeting: showMeeting ? MEETING_METRICS : null,
     electric: showElectric ? ELECTRIC_METRICS : null,
+    shift: SHIFT_METRICS, // 全業態共通 (条件分岐なし)
   };
 }
 
 // 業態別のフラットなメトリクス一覧 (グループビュー / CSV エクスポート / 一括設定で使用)
 function getAllMetricsForCategory(category: BusinessCategory): MetricDef[] {
-  const { sales, ads, help, meeting, electric } = getMetricsForCategory(category);
-  return [...sales, ...ads, ...(help ?? []), ...(meeting ?? []), ...(electric ?? [])];
+  const { sales, ads, help, meeting, electric, shift } = getMetricsForCategory(category);
+  return [...sales, ...ads, ...(help ?? []), ...(meeting ?? []), ...(electric ?? []), ...shift];
 }
 
 export {
   METRICS as TARGETS_METRICS,
-  SALES_METRICS, ADS_METRICS, HELP_METRICS, MEETING_METRICS, ELECTRIC_METRICS,
+  SALES_METRICS, ADS_METRICS, HELP_METRICS, MEETING_METRICS, ELECTRIC_METRICS, SHIFT_METRICS,
   formatYen, formatYenRaw, formatCount, formatPercent, formatByUnit,
   emptyMetricRow,
   getMetricsForCategory, getAllMetricsForCategory,

@@ -73,6 +73,8 @@ function getActualForMetric(
       return acq > 0 ? (mtg / acq) * 100 : null;
     }
     case "targetSwitchboardCount": return numOf(summary.switchboard_count);
+    case "targetVehicleCount":     return numOf(summary.vehicle_count);
+    case "targetTraineeCount":     return numOf(summary.trainee_count);
     default: return null;
   }
 }
@@ -93,7 +95,7 @@ export default function TargetsSections({ areas, category, year, month, canEdit,
     areas, category, year, month, onSaveStatusChange,
   });
 
-  const { sales, ads, help, meeting, electric } = getMetricsForCategory(category);
+  const { sales, ads, help, meeting, electric, shift } = getMetricsForCategory(category);
 
   // PR #76: TargetsSections は単一エリア render 前提 (page.tsx で activeAreaTab
   //   !== GROUP_TAB_ID の時のみ呼び出される)。areas[0] を mobile cards で参照。
@@ -180,6 +182,15 @@ export default function TargetsSections({ areas, category, year, month, canEdit,
           </SectionWrapper>
         )}
 
+        {/* ⑥ 体制 (PR c94-C-3b) — 全業態共通、無条件レンダリング */}
+        <SectionWrapper title="⑥ 体制" subtitle={`入力 ${shift.length}項目`}>
+          <TargetsMatrix
+            areas={areas} metrics={shift}
+            areaTargets={areaTargets} setCell={setCell}
+            canEdit={canEdit} flashCells={flashCells}
+          />
+        </SectionWrapper>
+
         <p style={{
           fontSize: 11, color: "#6b7280", lineHeight: 1.5,
           padding: "8px 12px", background: "#f9fafb",
@@ -221,6 +232,11 @@ export default function TargetsSections({ areas, category, year, month, canEdit,
             {renderMobileCards(electric, "cnt")}
           </MobileTargetSection>
         )}
+
+        {/* ⑥ 体制 (PR c94-C-3b) — 全業態共通、無条件レンダリング */}
+        <MobileTargetSection title="⑥ 体制" group="cnt" count={shift.length}>
+          {renderMobileCards(shift, "cnt")}
+        </MobileTargetSection>
       </div>
     </>
   );
