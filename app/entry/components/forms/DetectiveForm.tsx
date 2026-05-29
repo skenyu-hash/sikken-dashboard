@@ -44,6 +44,7 @@
 
 import SectionShell from "../SectionShell";
 import NumberField from "../NumberField";
+import SectionShift from "../SectionShift";
 import { AutoRow, fmtYen, fmtCount, fmtPct } from "../AutoCalcDisplay";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "../../types";
 import type { FieldLabels } from "../../../lib/business-labels";
@@ -55,6 +56,8 @@ type Props = {
   errors: ValidationErrors;
   labels: FieldLabels;
   calc: AutoCalcResult;
+  vehicleSnapshot: number | null;
+  traineeSnapshot: number | null;
 };
 
 // 入電 4 チャネル
@@ -109,7 +112,7 @@ const ACQ_CHANNEL_TO_DB: Record<AcqChannelKey, InputFieldKey> = {
 const num = (v: InputValue): number => (v === "" ? 0 : v);
 const safePct = (a: number, b: number): number => (b === 0 ? 0 : (a / b) * 100);
 
-export default function DetectiveForm({ state, setField, validateField, errors, labels, calc }: Props) {
+export default function DetectiveForm({ state, setField, validateField, errors, labels, calc, vehicleSnapshot, traineeSnapshot }: Props) {
   // PR #53: 面談数 / キャンセル数 を shared state に切替 (DB 保存対応)
   // PR #57: 入電 4 内訳も shared state に切替 (DB 保存対応)
   // PR #58b: 獲得 6 内訳 + 販管費も shared state に切替 (DB 保存対応)
@@ -271,6 +274,9 @@ export default function DetectiveForm({ state, setField, validateField, errors, 
         <AutoRow label="面談率" value={fmtPct(meetingRate)} formula="= 面談数 ÷ 合計獲得件数 × 100" />
         <AutoRow label="成約率" value={fmtPct(closeRate)} formula="= 成約件数 ÷ 面談数 × 100" />
       </SectionShell>
+
+      {/* ⑥ 体制 (PR c94-C-2、全業態共通) */}
+      <SectionShift state={state} setField={setField} errors={errors} vehicleSnapshot={vehicleSnapshot} traineeSnapshot={traineeSnapshot} />
     </>
   );
 }
