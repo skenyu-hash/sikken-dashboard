@@ -1,5 +1,5 @@
 "use client";
-// ⑥ 粗利・自動計算 サマリ: profit / total_profit を強調表示。
+// ⑦ 粗利・自動計算 サマリ: profit / total_profit を強調表示。
 // 各セクションで使う AutoRow / fmt 関数もここから export。
 
 import type { AutoCalcResult } from "../types";
