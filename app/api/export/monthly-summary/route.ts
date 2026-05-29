@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
         unit_price, ad_cost, cpa, call_count, acquisition_count,
         ad_rate, conv_rate, profit_rate,
         help_revenue, help_count, help_unit_price,
-        vehicle_count, created_at
+        vehicle_count, trainee_count, created_at
       FROM monthly_summaries
       WHERE (year * 100 + month) BETWEEN ${fromInt} AND ${toInt}
         AND COALESCE(business_category, 'water') = ANY(${categories})

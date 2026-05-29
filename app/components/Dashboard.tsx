@@ -923,7 +923,7 @@ export default function Dashboard() {
                         .then(j => ({ y, m, s: j.summary }))
                     )
                   ).then(results => {
-                    const header = "エリア,年月,売上,粗利,粗利率,件数,客単価,広告費,広告費率,CPA,入電件数,成約率,HELP売上,HELP件数,車両数";
+                    const header = "エリア,年月,売上,粗利,粗利率,件数,客単価,広告費,広告費率,CPA,入電件数,成約率,HELP売上,HELP件数,車両数,研修生（営業マン）";
                     const rows = results
                       .filter(r => r.s)
                       .map(({ y, m, s }) => {
@@ -940,7 +940,8 @@ export default function Dashboard() {
                         const helpRev = Number(s.help_revenue ?? 0);
                         const helpCount = Number(s.help_count ?? 0);
                         const vehicleCount = Number(s.vehicle_count ?? 0);
-                        return `${areaName},${y}年${m}月,${rev},${profit},${profitRate}%,${count},${unitPrice},${adCost},${adRate}%,${cpa},${callCount},${convRate}%,${helpRev},${helpCount},${vehicleCount}`;
+                        const traineeCount = Number(s.trainee_count ?? 0);
+                        return `${areaName},${y}年${m}月,${rev},${profit},${profitRate}%,${count},${unitPrice},${adCost},${adRate}%,${cpa},${callCount},${convRate}%,${helpRev},${helpCount},${vehicleCount},${traineeCount}`;
                       });
                     const bom = "\uFEFF";
                     const csv = bom + header + "\n" + rows.join("\n");
