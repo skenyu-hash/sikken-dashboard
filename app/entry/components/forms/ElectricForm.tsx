@@ -20,12 +20,13 @@ import SectionConstruction from "../SectionConstruction";
 import SectionHelp from "../SectionHelp";
 import SectionShift from "../SectionShift";
 import AutoCalcDisplay from "../AutoCalcDisplay";
-import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "../../types";
+import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue, HelpStaffEntry } from "../../types";
 import type { FieldLabels } from "../../../lib/business-labels";
 
 type Props = {
   state: EntryFormState;
   setField: (k: InputFieldKey, v: InputValue) => void;
+  setHelpStaff: (next: HelpStaffEntry[]) => void;
   validateField: (field: InputFieldKey, value: InputValue, state: EntryFormState) => boolean;
   errors: ValidationErrors;
   labels: FieldLabels;
@@ -34,14 +35,14 @@ type Props = {
   traineeSnapshot: number | null;
 };
 
-export default function ElectricForm({ state, setField, validateField, errors, labels, calc, vehicleSnapshot, traineeSnapshot }: Props) {
+export default function ElectricForm({ state, setField, setHelpStaff, validateField, errors, labels, calc, vehicleSnapshot, traineeSnapshot }: Props) {
   return (
     <>
       <SectionSales state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} defaultOpen />
       <SectionCosts state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} />
       <SectionAcquisition state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
       <SectionConstruction state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} showSwitchboardCount />
-      <SectionHelp state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
+      <SectionHelp state={state} setHelpStaff={setHelpStaff} errors={errors} labels={labels} calc={calc} />
       <SectionShift state={state} setField={setField} errors={errors} vehicleSnapshot={vehicleSnapshot} traineeSnapshot={traineeSnapshot} />
       <AutoCalcDisplay calc={calc} labels={labels} />
     </>

@@ -45,16 +45,20 @@
 
 import { useMemo, useState } from "react";
 import SectionShell from "../SectionShell";
+import SectionHelp from "../SectionHelp"; // PR c95-A-2 (G7): ④ HELP を共通化、インライン削除
 import NumberField from "../NumberField";
 import LocalNumberField from "../LocalNumberField";
 import SectionShift from "../SectionShift";
 import { AutoRow, fmtYen, fmtCount, fmtPct } from "../AutoCalcDisplay";
-import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "../../types";
+import { sumHelpSales, sumHelpCount } from "../../lib/helpStaffUtils";
+import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue, HelpStaffEntry } from "../../types";
 import type { FieldLabels } from "../../../lib/business-labels";
 
 type Props = {
   state: EntryFormState;
   setField: (k: InputFieldKey, v: InputValue) => void;
+  // PR c95-A-2: HELP 担当者配列の setter (Water/Electric と同じ Props)
+  setHelpStaff: (next: HelpStaffEntry[]) => void;
   validateField: (field: InputFieldKey, value: InputValue, state: EntryFormState) => boolean;
   errors: ValidationErrors;
   labels: FieldLabels;
@@ -75,20 +79,34 @@ export function computeLocksmithProfit(state: EntryFormState): number {
     - num(state.locksmith_commission_fee);
 }
 
-export default function LocksmithForm({ state, setField, validateField, errors, labels, calc, vehicleSnapshot, traineeSnapshot }: Props) {
+export default function LocksmithForm({ state, setField, setHelpStaff, validateField, errors, labels, calc, vehicleSnapshot, traineeSnapshot }: Props) {
   // 販管費 + 入電 2 内訳は引き続き UI only (Phase B 後続で対応)。
   const [sellingAdmin, setSellingAdmin] = useState<InputValue>("");
   const [callLpMail, setCallLpMail] = useState<InputValue>("");
   const [callInhouse, setCallInhouse] = useState<InputValue>("");
+
+  // PR c95-A-2 (G2): ③ 5番目スロット (HELP) は help_staff 配列の合計から派生表示。
+  //   旧 state.help_count NumberField を撤去、syncAcquisitionCount は配列 SUM を使う。
+  const helpCountSum = sumHelpCount(state.help_staff);
 
   // 入電 内訳 → state.call_count 同期 (直接代入、useEffect は使わない:
   // マウント時に DB-loaded 値を 0 に上書きするのを防ぐため)
   const syncCallCount = (lp: InputValue, ih: InputValue) => {
     setField("call_count", num(lp) + num(ih));
   };
-  // 獲得 5 内訳 → state.acquisition_count 同期
-  const syncAcquisitionCount = (lp: InputValue, ih: InputValue, rep: InputValue, rev: InputValue, help: InputValue) => {
-    setField("acquisition_count", num(lp) + num(ih) + num(rep) + num(rev) + num(help));
+  // 獲得 5 内訳 → state.acquisition_count 同期 (5番目 HELP は配列 SUM を内部で取得)
+  const syncAcquisitionCount = (lp: InputValue, ih: InputValue, rep: InputValue, rev: InputValue) => {
+    setField("acquisition_count", num(lp) + num(ih) + num(rep) + num(rev) + helpCountSum);
+  };
+  // PR c95-A-2: help_staff 更新時に acquisition_count を再同期 (4 channel + 新配列 SUM)
+  const wrappedSetHelpStaff = (next: HelpStaffEntry[]) => {
+    setHelpStaff(next);
+    const nextHelpSum = sumHelpCount(next);
+    setField("acquisition_count",
+      num(state.locksmith_car_lp_email_count) + num(state.locksmith_inhouse_count) +
+      num(state.locksmith_repeat_count) + num(state.locksmith_revisit_count) +
+      nextHelpSum,
+    );
   };
 
   // 売上比% (UI 表示用、ローカル計算)
@@ -105,7 +123,8 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
   // は locksmith の total_labor_cost / sales_outsourcing_cost が 0 のため使えない。
   const profit = useMemo(() => computeLocksmithProfit(state), [state]);
 
-  const helpRate = useMemo(() => safePct(num(state.help_revenue), sales), [sales, state.help_revenue]);
+  // PR c95-A-2: HELP 売上は help_staff 配列の SUM
+  const helpRate = useMemo(() => safePct(sumHelpSales(state.help_staff), sales), [sales, state.help_staff]);
 
   return (
     <>
@@ -162,68 +181,57 @@ export default function LocksmithForm({ state, setField, validateField, errors, 
         <AutoRow label={labels.call_unit_price} value={fmtYen(calc.call_unit_price)} formula="= 広告費 ÷ 総入電件数" />
       </SectionShell>
 
-      {/* ③ 獲得セクション (PR #51 で 4 内訳を DB 保存化) */}
-      <SectionShell title="③ 獲得" subtitle="入力 5項目 + 自動計算 (総獲得件数 / 獲得単価 / 成約率)" group="acq" count={8}>
+      {/* ③ 獲得セクション (PR #51 で 4 内訳を DB 保存化、PR c95-A-2 で 5番目 HELP は派生表示化) */}
+      <SectionShell title="③ 獲得" subtitle="入力 4項目 + HELP派生 + 自動計算 (総獲得件数 / 獲得単価 / 成約率)" group="acq" count={8}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           <NumberField field="locksmith_car_lp_email_count" label="車LP+メール" unit="件"
             value={state.locksmith_car_lp_email_count}
             onChange={(v) => {
               setField("locksmith_car_lp_email_count", v);
-              syncAcquisitionCount(v, state.locksmith_inhouse_count, state.locksmith_repeat_count, state.locksmith_revisit_count, state.help_count);
+              syncAcquisitionCount(v, state.locksmith_inhouse_count, state.locksmith_repeat_count, state.locksmith_revisit_count);
             }}
             onBlur={validateField} state={state} error={errors.locksmith_car_lp_email_count} />
           <NumberField field="locksmith_inhouse_count" label="インハウス" unit="件"
             value={state.locksmith_inhouse_count}
             onChange={(v) => {
               setField("locksmith_inhouse_count", v);
-              syncAcquisitionCount(state.locksmith_car_lp_email_count, v, state.locksmith_repeat_count, state.locksmith_revisit_count, state.help_count);
+              syncAcquisitionCount(state.locksmith_car_lp_email_count, v, state.locksmith_repeat_count, state.locksmith_revisit_count);
             }}
             onBlur={validateField} state={state} error={errors.locksmith_inhouse_count} />
           <NumberField field="locksmith_repeat_count" label="リピート（紹介）" unit="件"
             value={state.locksmith_repeat_count}
             onChange={(v) => {
               setField("locksmith_repeat_count", v);
-              syncAcquisitionCount(state.locksmith_car_lp_email_count, state.locksmith_inhouse_count, v, state.locksmith_revisit_count, state.help_count);
+              syncAcquisitionCount(state.locksmith_car_lp_email_count, state.locksmith_inhouse_count, v, state.locksmith_revisit_count);
             }}
             onBlur={validateField} state={state} error={errors.locksmith_repeat_count} />
           <NumberField field="locksmith_revisit_count" label="再訪問" unit="件"
             value={state.locksmith_revisit_count}
             onChange={(v) => {
               setField("locksmith_revisit_count", v);
-              syncAcquisitionCount(state.locksmith_car_lp_email_count, state.locksmith_inhouse_count, state.locksmith_repeat_count, v, state.help_count);
+              syncAcquisitionCount(state.locksmith_car_lp_email_count, state.locksmith_inhouse_count, state.locksmith_repeat_count, v);
             }}
             onBlur={validateField} state={state} error={errors.locksmith_revisit_count} />
-          <NumberField field="help_count" label="HELP件数" unit="件"
-            value={state.help_count}
-            onChange={(v) => {
-              setField("help_count", v);
-              syncAcquisitionCount(state.locksmith_car_lp_email_count, state.locksmith_inhouse_count, state.locksmith_repeat_count, state.locksmith_revisit_count, v);
-            }}
-            onBlur={validateField} state={state} error={errors.help_count} />
         </div>
 
         <p style={{
           marginTop: 8, padding: "8px 10px", fontSize: 11, color: "#374151", lineHeight: 1.5,
           background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb",
         }}>
-          💡 内訳を入力すると総獲得件数が自動更新されます。PR #51 で 5 内訳すべて DB 保存対象。
+          💡 内訳 4 つを入力すると総獲得件数が自動更新されます。5番目の HELP は ④ HELP セクションの担当者別合計から派生 (PR c95-A-2)。
         </p>
 
-        <AutoRow label={labels.acquisition_count} value={fmtCount(num(state.acquisition_count))} formula="= 5 内訳の合計" />
+        {/* PR c95-A-2 (G2): 5番目 HELP は ④ help_staff 合計の派生表示 */}
+        <AutoRow label="HELP件数 (派生)" value={fmtCount(helpCountSum)} formula="= ④ HELP 担当者別の件数合計" />
+        <AutoRow label={labels.acquisition_count} value={fmtCount(num(state.acquisition_count))} formula="= 4 内訳 + HELP 派生" />
         <AutoRow label={labels.cpa} value={fmtYen(calc.cpa)} formula="= 広告費 ÷ 総獲得件数" />
         <AutoRow label={labels.conv_rate} value={fmtPct(calc.conv_rate)} formula="= 総獲得件数 ÷ 総入電件数 × 100" />
       </SectionShell>
 
-      {/* ④ HELP セクション */}
-      <SectionShell title="④ HELP" subtitle="入力 1項目 + 自動計算 (HELP 客単価 / HELP 率)" group="help" count={3}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-          <NumberField field="help_revenue" label={labels.help_revenue} unit="円"
-            value={state.help_revenue} onChange={(v) => setField("help_revenue", v)}
-            onBlur={validateField} state={state} error={errors.help_revenue} />
-        </div>
-        <AutoRow label={labels.help_unit_price} value={fmtYen(calc.help_unit_price)} formula="= HELP売上 ÷ HELP件数" />
-        <AutoRow label="HELP 率" value={fmtPct(helpRate)} formula="= HELP売上 ÷ 売上 × 100" />
-      </SectionShell>
+      {/* ④ HELP セクション (PR c95-A-2 G7: SectionHelp 共通化、インライン削除)。
+          helpRate prop で Locksmith 専用の HELP 率 (= HELP売上 ÷ 業態売上 × 100) を表示。
+          wrappedSetHelpStaff で help_staff 変更時に acquisition_count を再同期。 */}
+      <SectionHelp state={state} setHelpStaff={wrappedSetHelpStaff} errors={errors} labels={labels} calc={calc} helpRate={helpRate} />
 
       {/* ⑥ 体制 (PR c94-C-2、全業態共通) */}
       <SectionShift state={state} setField={setField} errors={errors} vehicleSnapshot={vehicleSnapshot} traineeSnapshot={traineeSnapshot} />

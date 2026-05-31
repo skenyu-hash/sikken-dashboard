@@ -14,7 +14,9 @@ const FLAT_FIELDS = [
   "newRevenue", "newMaterial", "newLabor", "newCount",
   "addRevenue", "addMaterial", "addLabor", "addCount",
   "insourceCount", "outsourceCount", "reviewCount",
-  "helpRevenue", "helpCount",
+  // HELP (PR c95-A-2 修復): 旧 camel "helpRevenue/helpCount" は entries.data に存在せず常に空列だった。
+  //   handleSave / aggregation と一致する snake へ揃え (c94-C-4 vehicleCount 修復と同型 latent bug fix)。
+  "help_revenue", "help_count",
   "adCost", "laborCost", "materialCost", "outsourceCost",
   // 体制 (c94-C): entries.data には snake_case で格納される (handleSave / aggregation と一致)。
   // 旧 camel "vehicleCount" は data に存在せず常に空列だった (c94-C-4 で修復)。

@@ -5,6 +5,7 @@
 
 import { useMemo } from "react";
 import type { EntryFormState, AutoCalcResult, InputValue } from "../types";
+import { sumHelpSales, sumHelpCount } from "../lib/helpStaffUtils";
 
 const num = (v: InputValue): number => (v === "" ? 0 : v);
 const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
@@ -32,8 +33,10 @@ export function useFormCalculations(state: EntryFormState): AutoCalcResult {
     //   f26 廃止に伴い未参照、profit.ts / monthlyAggregation で別途集計される。
     const f_construction_count = num(state.construction_count); // 新規入力 (対応ベース)
     const f_internal_construction_count = num(state.internal_construction_count); // 意味変更
-    const f27 = num(state.help_count);
-    const f28 = num(state.help_revenue);
+    // PR c95-A-2: HELP は help_staff 配列の SUM。f27 = Σ help_count、f28 = Σ help_sales。
+    //   旧 state.help_count / state.help_revenue スカラーは撤去。helpStaffUtils に集約。
+    const f27 = sumHelpCount(state.help_staff);
+    const f28 = sumHelpSales(state.help_staff);
 
     // ① 新規対応 (auto 3)
     const f1 = f2 + f3; // 全体売上
