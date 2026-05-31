@@ -27,6 +27,7 @@ import { useFormValidation } from "./hooks/useFormValidation";
 import { useDebouncedAutoSave, type SaveOutcome } from "./hooks/useDebouncedAutoSave";
 import EntryCalendar from "./components/EntryCalendar";
 import CumulativePreview from "./components/CumulativePreview";
+import DailyReportModal from "./components/DailyReportModal"; // PR c95-A-3
 import WaterForm from "./components/forms/WaterForm";
 import ElectricForm from "./components/forms/ElectricForm";
 import LocksmithForm from "./components/forms/LocksmithForm";
@@ -165,6 +166,10 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
   //   sending : "送信中..."
   //   done    : "✓ 送信完了" (2 秒後 idle へ)
   const [submitFeedback, setSubmitFeedback] = useState<"idle" | "sending" | "done">("idle");
+
+  // PR c95-A-3: 日報モーダル表示 state。confirm 成功後 (done feedback 完了後、G8) と
+  //   ヘッダー「📋 日報を表示」pill (G12 常時表示) の両方から open される。
+  const [showDailyReport, setShowDailyReport] = useState(false);
 
   const labels = BUSINESS_LABELS[category];
 
@@ -640,6 +645,8 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
     if (result === "success") {
       setSubmitFeedback("done");
       setTimeout(() => setSubmitFeedback("idle"), 2500);
+      // PR c95-A-3 (G8): done feedback 完了 (2.5 秒) 後に日報モーダルを自動表示
+      setTimeout(() => setShowDailyReport(true), 2500);
     } else {
       setSubmitFeedback("idle");
     }
@@ -711,6 +718,17 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
                 denominator={progressBadge.denominator}
                 percent={progressBadge.percent}
               />
+              {/* PR c95-A-3 (G12): 「📋 日報を表示」pill、常時表示。過去日も日付ナビで閲覧可能。 */}
+              <button
+                type="button"
+                onClick={() => setShowDailyReport(true)}
+                style={{
+                  padding: "6px 12px", borderRadius: 999,
+                  background: "rgba(255,255,255,0.18)", color: "#fff",
+                  border: "1px solid rgba(255,255,255,0.35)", cursor: "pointer",
+                  fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+                }}
+              >📋 日報を表示</button>
             </div>
           </div>
         </div>
@@ -828,6 +846,16 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           </span>
         </div>
       </div>
+      {/* PR c95-A-3: 日報モーダル。確定送信成功後 (done feedback 完了 2.5 秒後、G8) または
+          ヘッダー「📋 日報を表示」pill (G12) から open される。 */}
+      {showDailyReport && state.area_id && (
+        <DailyReportModal
+          date={`${state.year}-${String(state.month).padStart(2, "0")}-${String(state.day).padStart(2, "0")}`}
+          areaId={state.area_id}
+          category={category}
+          onClose={() => setShowDailyReport(false)}
+        />
+      )}
     </div>
   );
 }
