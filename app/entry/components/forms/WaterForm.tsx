@@ -20,6 +20,7 @@ import SectionConstruction from "../SectionConstruction";
 import SectionHelp from "../SectionHelp";
 import SectionShift from "../SectionShift";
 import AutoCalcDisplay from "../AutoCalcDisplay";
+import { CONSULTANT_FEE_APPLIED_FROM_YYYYMM, CONSULTANT_FEE_RATE, toYyyyMm } from "../../../lib/consultantFee";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue, HelpStaffEntry } from "../../types";
 import type { FieldLabels } from "../../../lib/business-labels";
 
@@ -36,6 +37,11 @@ type Props = {
 };
 
 export default function WaterForm({ state, setField, setHelpStaff, validateField, errors, labels, calc, vehicleSnapshot, traineeSnapshot }: Props) {
+  // PR c95-B-3: water 業態のみ、当日 yyyymm が 202605 以降のとき controle 費控除あり。
+  //   AutoCalcDisplay の subtitle に控除式 + 注記が表示される (入力者混乱防止)。
+  //   CONSULTANT_FEE_RATE.water > 0 のガードで将来率を 0 に戻した時も自動 OFF。
+  const yyyymm = toYyyyMm(state.year, state.month);
+  const consultantFeeApplied = CONSULTANT_FEE_RATE.water > 0 && yyyymm >= CONSULTANT_FEE_APPLIED_FROM_YYYYMM;
   return (
     <>
       <SectionSales state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} defaultOpen />
@@ -44,7 +50,7 @@ export default function WaterForm({ state, setField, setHelpStaff, validateField
       <SectionConstruction state={state} setField={setField} validateField={validateField} errors={errors} labels={labels} calc={calc} />
       <SectionHelp state={state} setHelpStaff={setHelpStaff} errors={errors} labels={labels} calc={calc} />
       <SectionShift state={state} setField={setField} errors={errors} vehicleSnapshot={vehicleSnapshot} traineeSnapshot={traineeSnapshot} />
-      <AutoCalcDisplay calc={calc} labels={labels} />
+      <AutoCalcDisplay calc={calc} labels={labels} consultantFeeApplied={consultantFeeApplied} />
     </>
   );
 }
