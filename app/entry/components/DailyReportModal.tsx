@@ -159,7 +159,10 @@ export default function DailyReportModal({ date, areaId, category, staffLabel, o
   }, [internalDate, areaId, category, hasHelp, kpiToday, kpiMonthly, helpStaffMonthly, companyReference]);
 
   // アクション: LINE・メール (OS share intent、G11)
-  const onShare = useCallback(() => {
+  // PR c95-A-3 hotfix: 旧実装は mailto: のみで LINE 共有不可。Web Share API → line.me → mailto の
+  //   3 段 fallback に置換。テキストのみ共有 (画像は別ボタン「🖼 画像で保存」で責務分離、G-share-2)。
+  //   ユーザー明示キャンセル (AbortError) は何もしない (G-share-3、勝手に fallback しない)。
+  const onShare = useCallback(async () => {
     const text = buildDailyReportText({
       date: internalDate,
       areaName: AREA_NAMES[areaId] ?? areaId,
@@ -170,9 +173,28 @@ export default function DailyReportModal({ date, areaId, category, staffLabel, o
       companyReference: companyReference ?? undefined,
     });
     const subject = `日報 ${internalDate} ${AREA_NAMES[areaId] ?? areaId} ${categoryLabelOf(category)}`;
-    // mailto: でメーラ起動 (LINE もモバイル OS の share インテントに乗ることが多い)
-    const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
-    window.location.href = url;
+
+    // (1) Web Share API: iOS Safari / Android Chrome 等で OS share sheet を起動 (LINE/メール選択可、推奨)
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: subject, text });
+        return; // 共有成功
+      } catch (e) {
+        // ユーザーキャンセル (AbortError) は握りつぶす、勝手に fallback 起動しない (G-share-3)
+        if (e instanceof Error && e.name === "AbortError") return;
+        // 権限拒否・未対応等のその他エラーは次の fallback へ
+      }
+    }
+
+    // (2) LINE URL scheme: デスクトップ Chrome / Firefox 等の fallback
+    //     https://line.me/R/share?text=... で LINE Web/App を起動 (HTTPS 必須、本番 Vercel OK)
+    const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(`${subject}\n\n${text}`)}`;
+    const opened = window.open(lineUrl, "_blank");
+    if (opened) return; // ポップアップ許可 → LINE 起動成功
+
+    // (3) 最終 fallback: mailto: でメーラ起動 (LINE 不可・ポップアップブロック時)
+    const mailUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    window.location.href = mailUrl;
   }, [internalDate, areaId, category, hasHelp, kpiToday, kpiMonthly, helpStaffMonthly, companyReference]);
 
   // モック準拠スタイル
