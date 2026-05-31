@@ -244,7 +244,7 @@ function Row({
             {achievement.pct.toFixed(1)}%
           </MetricBadge>
         ) : sub ? (
-          <span style={{ fontSize: 10, color: "#9ca3af" }}>{sub}</span>
+          <span style={{ fontSize: 10, color: "#6b7280" }}>{sub}</span>
         ) : (
           <span style={{ color: "#d1d5db" }}>—</span>
         )}
