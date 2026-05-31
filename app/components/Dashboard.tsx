@@ -1007,6 +1007,8 @@ export default function Dashboard() {
                 landRate: lRate(lProfit, targets.targetProfit), landLabel: lProfit > 0 ? yen(lProfit) : null, landInvert: false,
                 momVal: momProfit, momInvert: false,
                 momDiff: momProfit !== null ? `${displaySummary.totalProfit - prevSummaryCalc.totalProfit >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalProfit - prevSummaryCalc.totalProfit).toLocaleString()}` : null,
+                // PR c95-A-1 (B-1): 売上に対する比率をサブ表示 (粗利率 = 粗利 ÷ 売上)
+                extraRate: displaySummary.grossMargin > 0 ? { label: "粗利率", value: displaySummary.grossMargin } : null,
               },
               { label: "対応件数", val: `${displaySummary.totalCount}件`, isHero: false,
                 targetRatio: targets.targetCount > 0 ? Math.round(displaySummary.totalCount / targets.targetCount * 1000) / 10 : null,
@@ -1029,6 +1031,10 @@ export default function Dashboard() {
                 landRate: lRate(lAdCost, targets.targetAdCost), landLabel: lAdCost > 0 ? yen(lAdCost) : null, landInvert: true,
                 momVal: momAdCost, momInvert: true,
                 momDiff: momAdCost !== null ? `${displaySummary.totalAdCost - prevSummaryCalc.totalAdCost >= 0 ? "+" : ""}¥${Math.abs(displaySummary.totalAdCost - prevSummaryCalc.totalAdCost).toLocaleString()}` : null,
+                // PR c95-A-1 (B-1): 売上に対する比率をサブ表示 (広告費率 = 広告費 ÷ 売上)
+                extraRate: displaySummary.totalRevenue > 0
+                  ? { label: "広告費率", value: Math.round(displaySummary.totalAdCost / displaySummary.totalRevenue * 1000) / 10 }
+                  : null,
               },
             ];
             // PR #59 c2 / PR c87: invert 考慮の badge 色判定は共通 getBadgeColor に統合済。
@@ -1087,6 +1093,15 @@ export default function Dashboard() {
                             background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }}>着地 {kpi.landLabel}</span>
                         </div>
                       ) : null}
+                      {/* PR c95-A-1 (B-1): 売上比率サブ表示 (粗利率 / 広告費率) */}
+                      {kpi.extraRate && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                            background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.9)" }}>
+                            {kpi.extraRate.label} {kpi.extraRate.value}%
+                          </span>
+                        </div>
+                      )}
                     </div>
                     {kpi.momVal === null ? (
                       <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)" }}>前月比 —</div>
