@@ -25,6 +25,7 @@
 //   - 分母 0 はすべて NULLIF + COALESCE(_, 0) で 0 に戻す (NULL を DB に書き込まない)
 
 import { getSql, ensureSchema } from "./db";
+import { CONSULTANT_FEE_RATE, CONSULTANT_FEE_APPLIED_FROM_YYYYMM, toYyyyMm } from "./consultantFee";
 
 export type BusinessCategory = "water" | "electric" | "locksmith" | "road" | "detective";
 
@@ -53,11 +54,23 @@ export async function aggregateMonthlySummary(
   await ensureSchema();
   const sql = getSql();
 
-  // 業態別 total_profit 計算:
+  // PR c95-B-2: 水道 consultant fee 控除 (7.7%) を water + 202605 以降に適用。
+  //   consultantFee.ts の定数 (率・月境界) を JS-side で評価し、SQL に bind。
+  //   SQL 内ハードコードを避けて lib と整合させる方針 (G-2)。
+  //   - water + yyyymm >= 202605 → consultRate = 0.077
+  //   - その他 (他業態 / water+pre-202605)   → consultRate = 0 (控除なし、過去表示遡及変動なし)
+  const yyyymm = toYyyyMm(year, month);
+  const consultRate = (category === "water" && yyyymm >= CONSULTANT_FEE_APPLIED_FROM_YYYYMM)
+    ? CONSULTANT_FEE_RATE.water : 0;
+
+  // 業態別 total_profit 計算 (PR c95-B-2 で 2 段 case に拡張):
   //   - locksmith: revenue - locksmith_construction_cost - material_cost - ad_cost - locksmith_commission_fee
+  //   - water    : revenue - total_labor_cost - material_cost - ad_cost - sales_outsourcing_cost - card_processing_fee
+  //               - revenue * consultRate (B-2 追加、5月以降のみ非 0)
   //   - その他   : revenue - total_labor_cost - material_cost - ad_cost - sales_outsourcing_cost - card_processing_fee
-  //               + internal_construction_profit (f25 戻し戻し、AutoCalcResult.total_profit と整合)
+  //               (electric/road/detective、consultRate 対象外)
   //
+  // PR c93-1: internal_construction_profit (f25) 加算は廃止済 (二重計上排除)。
   // SQL CASE WHEN で分岐。base CTE で両方分の構成要素を SUM しておき、SELECT 時に CASE で切替。
 
   // entries.data JSONB から numeric 抽出するヘルパは SQL inline で記述。
@@ -161,6 +174,10 @@ export async function aggregateMonthlySummary(
         --   monthly_summaries.internal_construction_profit カラムは保持し、SUM 結果も
         --   引き続き格納 (把握用)。total_profit にだけ加算しない設計に変更。
         --   locksmith 分岐は元から加算なしのため変更不要。
+        -- PR c95-B-2: water 専用分岐を追加し、consultant fee 控除を末尾に減算。
+        --   控除率は JS-side で consultantFee.ts の定数から算出してパラメータ binding
+        --   (water + yyyymm >= 202605 で 0.077、それ以外で 0)。SQL 内のハードコード回避。
+        --   electric/road/detective の ELSE 分岐は無変更 (c93-1 と完全互換)。
         CASE
           WHEN ${category} = 'locksmith' THEN
             (b.sum_outsourced_sales_revenue + b.sum_internal_staff_revenue)
@@ -168,6 +185,14 @@ export async function aggregateMonthlySummary(
             - b.sum_material_cost
             - b.sum_ad_cost
             - b.sum_locksmith_commission_fee
+          WHEN ${category} = 'water' THEN
+            (b.sum_outsourced_sales_revenue + b.sum_internal_staff_revenue)
+            - b.sum_total_labor_cost
+            - b.sum_material_cost
+            - b.sum_ad_cost
+            - b.sum_sales_outsourcing_cost
+            - b.sum_card_processing_fee
+            - (b.sum_outsourced_sales_revenue + b.sum_internal_staff_revenue) * ${consultRate}::numeric
           ELSE
             (b.sum_outsourced_sales_revenue + b.sum_internal_staff_revenue)
             - b.sum_total_labor_cost
