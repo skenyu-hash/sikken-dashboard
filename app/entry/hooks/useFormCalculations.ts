@@ -6,6 +6,7 @@
 import { useMemo } from "react";
 import type { EntryFormState, AutoCalcResult, InputValue } from "../types";
 import { sumHelpSales, sumHelpCount } from "../lib/helpStaffUtils";
+import { consultantFee, toYyyyMm } from "../../lib/consultantFee";
 
 const num = (v: InputValue): number => (v === "" ? 0 : v);
 const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
@@ -64,7 +65,13 @@ export function useFormCalculations(state: EntryFormState): AutoCalcResult {
     //   各社統計表で既に自社施工分を粗利に織り込み済 → bonus 加算は実態と乖離していた。
     //   f25 (internal_construction_profit / 自社工事利益) は入力 / 集計対象として残すが、
     //   粗利には加算しない (把握用、c93-2 で再設計予定)。
-    const f30 = f1 - f12 - f11 - f15 - f13 - f14; // 粗利
+    // PR c95-B-3: day-level コンサル費控除を組込 (consultantFee.ts の率・月境界を参照)。
+    //   water + (state.year * 100 + state.month) >= 202605 で f1 × 0.077 を控除。
+    //   electric/locksmith/road/detective は consultantFee が 0 を返すため副作用なし。
+    //   4 月以前の当日表示も自動で控除 0 (yyyymm 境界ガード)。
+    const yyyymm = toYyyyMm(state.year, state.month);
+    const fee = consultantFee(state.category, f1, yyyymm);
+    const f30 = f1 - f12 - f11 - f15 - f13 - f14 - fee; // 粗利 (B-3 で - fee)
 
     return {
       total_revenue: f1,

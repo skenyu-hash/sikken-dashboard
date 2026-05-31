@@ -8,6 +8,7 @@
 
 import type { DailyEntry } from "../../../lib/calculations";
 import type { BusinessCategory } from "../../../lib/businesses";
+import { consultantFee } from "../../../lib/consultantFee";
 
 export type KpiToday = {
   sales: number;
@@ -39,6 +40,10 @@ export function computeKpiToday(category: BusinessCategory, e: DailyEntry | null
     profit = sales
       - num(e.total_labor_cost) - num(e.material_cost)
       - num(e.ad_cost) - num(e.sales_outsourcing_cost) - num(e.card_processing_fee);
+    // PR c95-B-3: day-level コンサル費控除 (water + 5月以降のみ非 0、electric は 0)。
+    //   e.date (YYYY-MM-DD) から yyyymm 算出 → 4 月以前の当日表示は自動で控除 0。
+    const yyyymm = Number(e.date.slice(0, 4)) * 100 + Number(e.date.slice(5, 7));
+    profit -= consultantFee(category, sales, yyyymm);
   } else if (category === "locksmith") {
     sales = num(e.outsourced_sales_revenue);
     count = num(e.acquisition_count);

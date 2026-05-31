@@ -41,17 +41,23 @@ export function AutoRow({ label, value, formula }: { label: string; value: strin
 type Props = {
   calc: AutoCalcResult;
   labels: FieldLabels;
+  /** PR c95-B-3: water + 5月以降のみ true。SummaryCard subtitle に控除式 + 注記を併記。 */
+  consultantFeeApplied?: boolean;
 };
 
-export default function AutoCalcDisplay({ calc, labels }: Props) {
+export default function AutoCalcDisplay({ calc, labels, consultantFeeApplied = false }: Props) {
   // PR c93-1: auto 2 → 1 に縮減。合計粗利 (f31) は二重計上で廃止、粗利 (f30) 単独表示。
   //   1-col grid で SummaryCard の幅は親 (entry main col) 全幅に伸びる。
   //   max-width 制限を入れず親側 (EntryForm の右メイン flex-1) のレイアウトに委ねる。
+  // PR c95-B-3: consultantFeeApplied=true (water+5月以降) で subtitle に控除式 + 注記を追加。
+  const subtitle = consultantFeeApplied
+    ? "売上 − 材料 − 職人 − 広告 − 営業外注 − カード − コンサル費 7.7% (2026年5月以降、水道)"
+    : "売上 − 材料 − 職人 − 広告 − 営業外注 − カード";
   return (
     <SectionShell title={labels.section_auto} subtitle="自動計算 1項目（粗利）" group="rev" count={1}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
         <SummaryCard label={labels.profit} value={fmtYen(calc.profit)} variant={calc.profit < 0 ? "danger" : "ok"}
-          subtitle="売上 − 材料 − 職人 − 広告 − 営業外注 − カード" />
+          subtitle={subtitle} />
       </div>
     </SectionShell>
   );

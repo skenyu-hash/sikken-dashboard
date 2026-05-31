@@ -4,6 +4,7 @@
 
 import type { DailyEntry } from "../../../lib/calculations";
 import { Panel, Row, HighlightProfitRow, TaiseiPanel, yen, cnt, pct } from "./reportPrimitives";
+import { consultantFee } from "../../../lib/consultantFee";
 
 const num = (v: number | undefined | null): number => Number(v ?? 0) || 0;
 const safePct = (a: number, b: number): number | null => (b === 0 ? null : (a / b) * 100);
@@ -25,7 +26,11 @@ export default function WaterDailyReportSection({ todayEntry: e }: Props) {
   const card = num(e.card_processing_fee);
   const ad = num(e.ad_cost);
 
-  const profit = totalSales - labor - material - ad - outsource - card;
+  // PR c95-B-3: day-level コンサル費控除 (water + 5月以降のみ非 0)。
+  //   e.date (YYYY-MM-DD) から yyyymm 算出 → 4 月以前の当日表示は自動で控除 0。
+  const yyyymm = Number(e.date.slice(0, 4)) * 100 + Number(e.date.slice(5, 7));
+  const consultFee = consultantFee("water", totalSales, yyyymm);
+  const profit = totalSales - labor - material - ad - outsource - card - consultFee;
   const profitRate = safePct(profit, totalSales);
   const unitPrice = totalResp === 0 ? 0 : Math.round(totalSales / totalResp);
 
