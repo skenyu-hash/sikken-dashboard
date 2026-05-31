@@ -105,32 +105,34 @@ async function main() {
   try {
     // -------------------------------------------------------------
     // CASE 1: water + internal_construction_profit=20000
-    //   旧仕様: total_profit = revenue - costs + 20000 = 100000 + 20000 = 120000
-    //   新仕様: total_profit = revenue - costs = 100000 (加算なし)
+    //   c93-1 仕様: total_profit = revenue - costs (内製化ボーナス加算なし)
+    //   PR c95-B-2 追加: water + TEST_YEAR=2099 (yyyymm=209904 >= 202605) → consultant fee 7.7% 控除
+    //     total_profit = 100000 - 100000*0.077 = 100000 - 7700 = 92300
+    //   (TEST_MONTH=4 だが 2099 年なので yyyymm=209904 >= 境界 202605 で控除対象)
     // -------------------------------------------------------------
-    console.log(`📋 CASE 1: water 業態、internal_construction_profit=20000 (加算されないこと検証)`);
+    console.log(`📋 CASE 1: water 業態、internal_construction_profit=20000 (加算されないこと + c95-B-2 控除 検証)`);
     await setupCellWithEntry(client, "water", {
       outsourced_sales_revenue: 100000,
       internal_construction_profit: 20000,  // ← これが加算されないことを確認
-      // 他コストは全て 0 → total_profit = revenue 単独
+      // 他コストは全て 0 → total_profit = revenue - revenue*0.077 = 92300
     });
     await aggregateMonthlySummary(TEST_AREA, "water", TEST_YEAR, TEST_MONTH);
     const tp1 = await readTotalProfit(client, "water");
-    check("water: total_profit = 100000 (revenue 単独、bonus 加算なし)", tp1, 100000);
+    check("water: total_profit = 92300 (revenue 単独 - c95-B-2 控除、bonus 加算なし)", tp1, 92300);
     await cleanup(client, "water");
 
     // -------------------------------------------------------------
     // CASE 2: water + internal_construction_profit=0 (regression check)
-    //   新旧両式で結果同じ → 既存挙動が壊れていないことを確認
+    //   bonus=0 でも c95-B-2 控除は同様に適用される (= 同じ 92300)
     // -------------------------------------------------------------
-    console.log(`\n📋 CASE 2: water 業態、internal_construction_profit=0 (regression check)`);
+    console.log(`\n📋 CASE 2: water 業態、internal_construction_profit=0 (c95-B-2 控除込み regression check)`);
     await setupCellWithEntry(client, "water", {
       outsourced_sales_revenue: 100000,
       internal_construction_profit: 0,
     });
     await aggregateMonthlySummary(TEST_AREA, "water", TEST_YEAR, TEST_MONTH);
     const tp2 = await readTotalProfit(client, "water");
-    check("water: total_profit = 100000 (bonus=0 ケース、新旧同じ結果)", tp2, 100000);
+    check("water: total_profit = 92300 (bonus=0 ケース、c95-B-2 控除込み)", tp2, 92300);
     await cleanup(client, "water");
 
     // -------------------------------------------------------------
@@ -156,11 +158,13 @@ async function main() {
 
     // -------------------------------------------------------------
     // CASE 4: water + 複数フィールドの組合せ
-    //   total_profit = revenue - labor - material - ad - sales_outsourcing - card
-    //   = 1000000 - 200000 - 100000 - 50000 - 30000 - 5000 = 615000
-    //   internal_construction_profit=50000 を入れても加算されない
+    //   c93-1 の素朴な式: revenue - labor - material - ad - sales_outsourcing - card
+    //     = 1000000 - 200000 - 100000 - 50000 - 30000 - 5000 = 615000
+    //   PR c95-B-2 追加: consultant fee 7.7% 控除 (water + 2099 = yyyymm 209904 >= 202605)
+    //     = 615000 - 1000000*0.077 = 615000 - 77000 = 538000
+    //   internal_construction_profit=50000 を入れても加算されない (c93-1 維持)
     // -------------------------------------------------------------
-    console.log(`\n📋 CASE 4: water 業態、複数コスト + internal_construction_profit=50000`);
+    console.log(`\n📋 CASE 4: water 業態、複数コスト + internal_construction_profit=50000 (c95-B-2 控除込み)`);
     await setupCellWithEntry(client, "water", {
       outsourced_sales_revenue: 1000000,
       total_labor_cost: 200000,
@@ -172,7 +176,7 @@ async function main() {
     });
     await aggregateMonthlySummary(TEST_AREA, "water", TEST_YEAR, TEST_MONTH);
     const tp4 = await readTotalProfit(client, "water");
-    check("water: total_profit = 615000 (revenue - 5 コスト、bonus 加算なし)", tp4, 615000);
+    check("water: total_profit = 538000 (revenue - 5 コスト - c95-B-2 控除、bonus 加算なし)", tp4, 538000);
     await cleanup(client, "water");
 
     console.log(`\n${failed === 0 ? "✅" : "❌"} ${passed}/${passed + failed} assertions passed`);

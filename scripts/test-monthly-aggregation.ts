@@ -137,16 +137,14 @@ const EXPECTED = {
   ad_rate: Math.round(1350000 / 6750000 * 100 * 10) / 10, // 20.0
   help_unit_price: Math.round(900000 / 9), // 100000
   // PR c93-1: 内製化ボーナス (+ internal_construction_profit) 廃止に伴い期待値更新。
-  //   旧式: revenue - labor - material - ad - sales_outsourcing - card_fee + internal_construction_profit
-  //         = 6750000 - 900000 - 450000 - 1350000 - 225000 - 90000 + 360000 = 4095000
-  //   新式: revenue - labor - material - ad - sales_outsourcing - card_fee (bonus 加算なし)
+  //   c93-1 式: revenue - labor - material - ad - sales_outsourcing - card_fee (bonus 加算なし)
   //         = 6750000 - 900000 - 450000 - 1350000 - 225000 - 90000 = 3735000
-  // TEST_VALUES.internal_construction_profit=360000 は保持 (sum 集計対象として残るが
-  // total_profit には加算しないことを本テストでも確認、c93-1 仕様の意思表示)。
-  total_profit: 3735000,
-  // PR c93-1: total_profit 変更に伴い profit_rate も更新。
-  //   新式: 3735000 / 6750000 * 100 = 55.333..%、ROUND 55.3
-  profit_rate: 55.3,
+  // PR c95-B-2: water + TEST_YEAR=2099/TEST_MONTH=12 (yyyymm=209912 >= 202605) → consultant fee 7.7% 控除
+  //   c95-B-2 式: c93-1 式 - revenue * 0.077 = 3735000 - 6750000*0.077 = 3735000 - 519750 = 3215250
+  total_profit: 3215250,
+  // PR c93-1 → c95-B-2: total_profit 変更に伴い profit_rate も更新。
+  //   c95-B-2 式: 3215250 / 6750000 * 100 = 47.633..%、ROUND 47.6
+  profit_rate: 47.6,
   // 特殊
   vehicle_count: 7, // MAX
   as_of_day: 15, // MAX(day)
