@@ -20,6 +20,8 @@
     "test:integration:c94-c-shift-foundation": "tsx scripts/test-c94-c-shift-foundation.ts",
     "test:integration:c94-c-4-shift-e2e": "tsx scripts/test-c94-c-4-shift-e2e.ts",
     "test:integration:c95-a-2-help-staff": "tsx scripts/test-c95-a-2-help-staff.ts",
+    "test:integration:c95-a-3-help-stats": "tsx scripts/test-c95-a-3-help-stats.ts",
+    "test:integration:c95-a-3-build-text": "tsx scripts/test-c95-a-3-build-text.ts",
     "migrate:c93-1-may2026": "tsx scripts/migrations/c93-1_reaggregate_may2026.ts",
     "migrate:c93-2-may2026": "tsx scripts/migrations/c93-2_init_construction_count_may2026.ts"
   },
@@ -27,6 +29,7 @@
     "@anthropic-ai/sdk": "^0.87.0",
     "@neondatabase/serverless": "^1.0.2",
     "bcryptjs": "^3.0.3",
+    "html-to-image": "^1.11.13",
     "jose": "^6.2.2",
     "next": "16.2.2",
     "papaparse": "^5.5.3",

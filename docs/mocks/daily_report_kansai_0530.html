@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif; background:#f3f6f4; color:#1c2b25; -webkit-font-smoothing:antialiased; }
+  .alert { color:#dc2626 !important; font-weight:700; }
+  .dim td { opacity:.4; }
+
+  .hd { background:#2e8b62; color:#fff; padding:20px 36px 0; }
+  .hd .top { display:flex; align-items:center; gap:12px; }
+  .hd .title { font-size:21px; font-weight:700; letter-spacing:.5px; }
+  .hd .badge { background:rgba(255,255,255,.18); padding:5px 13px; border-radius:8px; font-weight:600; font-size:13px; }
+  .hd .close { margin-left:auto; width:32px; height:32px; border-radius:9px; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; font-size:17px; cursor:pointer; }
+  .hd .meta { margin-top:6px; font-size:12.5px; opacity:.85; }
+
+  .kpi { display:grid; grid-template-columns:repeat(4,1fr); gap:0; background:#2e8b62; padding:18px 36px 24px; }
+  .kpi .c { padding:0 24px; border-right:1px solid rgba(255,255,255,.18); }
+  .kpi .c:first-child { padding-left:0; } .kpi .c:last-child { border-right:none; padding-right:0; }
+  .kpi .c .k { font-size:12.5px; color:rgba(255,255,255,.8); margin-bottom:7px; }
+  .kpi .c .today-lbl { font-size:10px; color:rgba(255,255,255,.7); margin-bottom:1px; }
+  .kpi .c .v { font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.3px; line-height:1.15; color:#fff; }
+  .kpi .c .now { margin-top:9px; padding-top:9px; border-top:1px solid rgba(255,255,255,.22); display:flex; justify-content:space-between; align-items:baseline; }
+  .kpi .c .now-lbl { font-size:10.5px; color:rgba(255,255,255,.7); }
+  .kpi .c .now-v { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; color:#fff; }
+
+  .sec-title { padding:18px 36px 6px; font-size:14px; font-weight:700; color:#2a3d36; }
+  .sec-title .sm { font-weight:500; font-size:11px; color:#8a9c95; }
+
+  .main { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:6px 36px 0; align-items:stretch; }
+  .col { display:flex; flex-direction:column; gap:16px; }
+  .panel { background:#fff; border:1px solid #e0e8e4; border-radius:12px; overflow:hidden; }
+  .panel .ph { background:#f4f9f7; border-bottom:1px solid #e8f1ed; padding:11px 16px; font-weight:700; font-size:13.5px; color:#2a3d36; display:flex; align-items:center; gap:8px; }
+  .panel .ph .n { width:21px; height:21px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; color:#fff; }
+  .ph .tag { margin-left:auto; font-size:11px; color:#8a9c95; font-weight:500; }
+  .n1{background:#3d8bd4;} .n2{background:#d96a8b;} .n3{background:#d9a23b;} .n4{background:#2f9e6e;} .n6{background:#2f9e6e;}
+  .panel.fill { display:flex; flex-direction:column; height:100%; }
+  .panel.fill table { flex:1; }
+
+  table.t { width:100%; border-collapse:collapse; font-size:13px; }
+  table.t td { padding:8px 16px; border-bottom:1px solid #f1f5f3; }
+  table.t td:first-child { color:#46554e; }
+  table.t td:last-child { text-align:right; font-weight:700; font-variant-numeric:tabular-nums; color:#1c2b25; }
+  table.t tr.hl td { background:#f0f8f4; font-weight:700; color:#0e6b4f; }
+  table.t tr.auto td { color:#46554e; font-weight:500; } table.t tr.auto td:last-child { color:#1c2b25; font-weight:700; }
+  table.t tr:last-child td { border-bottom:none; }
+
+  .taisei { display:grid; grid-template-columns:1fr 1fr; }
+  .taisei > div { padding:14px 16px; text-align:center; border-right:1px solid #f1f5f3; }
+  .taisei > div:last-child { border-right:none; }
+  .taisei .k { font-size:12px; color:#7d8f88; margin-bottom:5px; } .taisei .v { font-size:21px; font-weight:700; color:#0e6b4f; }
+
+  .help-wrap { padding:6px 36px 0; }
+  .help-panel { background:#fff; border:1px solid #e0e8e4; border-radius:12px; overflow:hidden; }
+  .help-ph { background:#f4f9f7; border-bottom:1px solid #e8f1ed; padding:11px 16px; font-weight:700; font-size:13.5px; color:#2a3d36; display:flex; align-items:center; gap:8px; }
+  .help-ph .n { background:#c97f2e; width:21px; height:21px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; color:#fff; }
+  .help-ph .tag { margin-left:auto; font-size:11px; color:#8a9c95; font-weight:500; }
+  .help-grid { display:grid; grid-template-columns:1.3fr 1fr; }
+  .help-left { border-right:1px solid #eef2f0; padding:14px; }
+  .help-total { background:#2e8b62; color:#fff; padding:14px 18px; border-radius:11px; margin-bottom:12px; }
+  .help-total .nm { font-weight:700; font-size:13px; margin-bottom:10px; opacity:.95; }
+  .help-total .g { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; }
+  .help-total .g .cell { text-align:center; }
+  .help-total .g .cell .k { font-size:10px; color:rgba(255,255,255,.75); margin-bottom:4px; }
+  .help-total .g .cell .v { font-size:16px; font-weight:700; }
+  .help-sub { display:grid; grid-template-columns:repeat(7,1fr); border:1px solid #e3ebe7; border-radius:10px; background:#f7faf9; overflow:hidden; }
+  .help-sub .cell { text-align:center; padding:9px 5px; border-right:1px solid #eaf0ed; }
+  .help-sub .cell:last-child { border-right:none; }
+  .help-sub .cell .k { font-size:9px; color:#7d8f88; line-height:1.2; margin-bottom:4px; } .help-sub .cell .v { font-size:12.5px; font-weight:700; color:#0e6b4f; }
+  .help-staff { padding:14px; }
+  .help-staff .hd2 { font-size:12px; font-weight:700; color:#46554e; margin-bottom:8px; }
+  table.help { width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.help th { background:#f7f3ea; color:#9a5e1e; padding:8px 11px; text-align:right; font-size:11px; font-weight:700; }
+  table.help th:first-child { text-align:left; }
+  table.help td { padding:8px 11px; text-align:right; border-bottom:1px solid #f3f5f3; font-variant-numeric:tabular-nums; }
+  table.help td:first-child { text-align:left; font-weight:600; color:#46554e; }
+  table.help tr:last-child td { border-bottom:none; }
+  .help-auto { color:#b58a4a; }
+
+  .act { display:flex; gap:10px; justify-content:flex-end; padding:18px 36px 28px; }
+  .act button { padding:11px 22px; border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; }
+  .a1{background:#eef2f0;color:#5d7a70;}.a2{background:#3d8bd4;color:#fff;}.a3{background:#2f9e6e;color:#fff;}.a4{background:#06C755;color:#fff;}
+</style>
+</head>
+<body>
+  <div class="hd">
+    <div class="top">
+      <span class="title">📋 日報</span>
+      <span class="badge">水道</span><span class="badge">関西エリア</span><span class="badge">担当 A</span>
+      <span class="close">×</span>
+    </div>
+    <div class="meta">2026年5月30日 ・ 今日の実績と現在地</div>
+  </div>
+
+  <div class="kpi">
+    <div class="c"><div class="k">売上</div><div class="today-lbl">今日</div><div class="v">¥4,897,700</div>
+      <div class="now"><span class="now-lbl">現在地</span><span class="now-v">¥88,857,300</span></div></div>
+    <div class="c"><div class="k">粗利</div><div class="today-lbl">今日</div><div class="v">¥1,866,246</div>
+      <div class="now"><span class="now-lbl">現在地</span><span class="now-v">¥30,460,693</span></div>
+      <div class="now" style="border-top:none;padding-top:3px;margin-top:3px;"><span class="now-lbl">粗利率</span><span class="now-v">38.1%</span></div></div>
+    <div class="c"><div class="k">対応件数</div><div class="today-lbl">今日</div><div class="v">24件</div>
+      <div class="now"><span class="now-lbl">現在地</span><span class="now-v">623件</span></div></div>
+    <div class="c"><div class="k">客単価</div><div class="today-lbl">今日</div><div class="v">¥204,071</div>
+      <div class="now"><span class="now-lbl">現在地</span><span class="now-v">¥142,628</span></div></div>
+  </div>
+
+  <div class="sec-title">水道業態 — 今日の内訳</div>
+  <div class="main">
+    <div class="col">
+      <div class="panel fill">
+        <div class="ph"><span class="n n1">①</span>新規対応・コスト・粗利</div>
+        <table class="t">
+          <tr><td>業務委託売上</td><td>¥4,838,300</td></tr>
+          <tr><td>内勤社員売上</td><td>¥59,400</td></tr>
+          <tr class="hl"><td>全体売上(自動)</td><td>¥4,897,700</td></tr>
+          <tr><td>業務委託対応件数</td><td>22件</td></tr>
+          <tr><td>内勤社員対応件数</td><td>2件</td></tr>
+          <tr class="hl"><td>合計対応件数(自動)</td><td>24件</td></tr>
+          <tr><td>職人費</td><td style="text-align:right;color:#7d8f88;font-weight:500;font-size:11.5px;">18.9%</td><td>¥924,700</td></tr>
+          <tr><td>材料費</td><td style="text-align:right;color:#7d8f88;font-weight:500;font-size:11.5px;">17.9%</td><td>¥878,260</td></tr>
+          <tr><td>営業外注費</td><td style="text-align:right;color:#7d8f88;font-weight:500;font-size:11.5px;">12.8%</td><td>¥628,651</td></tr>
+          <tr><td>カード手数料</td><td style="text-align:right;color:#7d8f88;font-weight:500;font-size:11.5px;">0.2%</td><td>¥8,855</td></tr>
+          <tr class="hl"><td>粗利(自動)</td><td style="text-align:right;color:#0e6b4f;font-weight:600;font-size:11.5px;">38.1%</td><td>¥1,866,246</td></tr>
+          <tr class="auto"><td>客単価(自動)</td><td>¥204,071</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div class="ph"><span class="n n3">③</span>広告・効率</div>
+        <table class="t">
+          <tr><td>総広告費</td><td>¥590,988</td></tr>
+          <tr><td>入電件数</td><td>29件</td></tr>
+          <tr><td>獲得件数</td><td>18件</td></tr>
+          <tr class="auto"><td>入電単価(自動)</td><td>¥20,379</td></tr>
+          <tr class="auto"><td>CPA(自動)</td><td>¥32,833</td></tr>
+          <tr class="auto"><td>成約率(自動)</td><td>62.1%</td></tr>
+        </table>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="n n4">④</span>施工</div>
+        <table class="t">
+          <tr><td>工事件数</td><td>11件</td></tr>
+          <tr><td>自社工事件数</td><td>4件</td></tr>
+          <tr class="auto"><td>自社工事比率(自動)</td><td>36.4%</td></tr>
+          <tr><td>外注工事費</td><td>¥715,700</td></tr>
+          <tr><td>自社工事利益</td><td>¥208,998</td></tr>
+        </table>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="n n6">⑥</span>体制<span class="tag">スナップショット</span></div>
+        <div class="taisei"><div><div class="k">車両数</div><div class="v">10台</div></div><div><div class="k">研修生</div><div class="v">0名</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-title" style="padding-top:16px;">⑤ HELP 統計 <span class="sm">水道・電気・鍵のみ / 担当者別 ・ 月初〜5/30 累積</span></div>
+  <div class="help-wrap">
+    <div class="help-panel">
+      <div class="help-ph"><span class="n">⑤</span>HELP 統計<span class="tag">月累積(5/1〜5/30)</span></div>
+      <div class="help-grid">
+        <div class="help-left">
+          <div class="help-total">
+            <div class="nm">HELP合計(月累積)</div>
+            <div class="g">
+              <div class="cell"><div class="k">売上</div><div class="v">¥33,684,500</div></div>
+              <div class="cell"><div class="k">件数</div><div class="v">48</div></div>
+              <div class="cell"><div class="k">成約数</div><div class="v">41</div></div>
+              <div class="cell"><div class="k">顧客単価</div><div class="v">¥701,760</div></div>
+              <div class="cell"><div class="k">成約率</div><div class="v">85%</div></div>
+              <div class="cell"><div class="k">—</div><div class="v">—</div></div>
+            </div>
+          </div>
+          <div class="help-sub">
+            <div class="cell"><div class="k">会社総売上(累積)</div><div class="v">¥88,857,300</div></div>
+            <div class="cell"><div class="k">会社総件数(累積)</div><div class="v">623</div></div>
+            <div class="cell"><div class="k">会社工事数(累積)</div><div class="v">187</div></div>
+            <div class="cell"><div class="k">HELP成約率</div><div class="v">85%</div></div>
+            <div class="cell"><div class="k">売上高率</div><div class="v">37.9%</div></div>
+            <div class="cell"><div class="k">引継率(対件数)</div><div class="v">7.7%</div></div>
+            <div class="cell"><div class="k">引継率(対工事)</div><div class="v alert">25.7%</div></div>
+          </div>
+        </div>
+        <div class="help-staff">
+          <div class="hd2">個人成績(月累積)</div>
+          <table class="help">
+            <thead><tr><th>担当者</th><th>HELP売上高</th><th>件数</th><th>成約数</th><th>顧客単価</th><th>成約率</th></tr></thead>
+            <tbody>
+              <tr><td>A</td><td>¥33,684,500</td><td>48</td><td>41</td><td class="help-auto">¥701,760</td><td class="help-auto">85%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="act">
+    <button class="a1">閉じる</button>
+    <button class="a2">🖼 画像で保存</button>
+    <button class="a3">📋 テキストでコピー</button>
+    <button class="a4">📨 LINE・メール</button>
+  </div>
+</body>
