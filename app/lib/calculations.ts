@@ -128,6 +128,16 @@ export type DailyEntry = {
   //       aggregation / monthly_summaries 経路は本 snake_case を使う。
   vehicle_count?: number;
   trainee_count?: number;
+
+  // ⑤ HELP — PR c95-A-2: 担当者別配列 (Effect B 既存読込 / handleSave 書込で使用)。
+  //   entries.data には G1 案 (b) で本配列 + 派生 scalar (help_count/help_revenue) を併存書込。
+  //   aggregation は scalar を SUM するため SQL 変更不要 (後方互換)。
+  help_staff?: Array<{
+    staff_name?: string;
+    help_sales?: number;
+    help_count?: number;
+    help_close_count?: number;
+  }>;
 };
 
 export type DepartmentSummary = {

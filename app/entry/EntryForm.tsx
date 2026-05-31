@@ -35,7 +35,8 @@ import DetectiveForm from "./components/forms/DetectiveForm";
 import { BUSINESS_LABELS, type BusinessCategory, type FieldLabels } from "../lib/business-labels";
 import { BUSINESSES } from "../lib/businesses";
 import type { DailyEntry } from "../lib/calculations";
-import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue } from "./types";
+import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue, HelpStaffEntry } from "./types";
+import { cleanHelpStaffForSave } from "./lib/helpStaffUtils";
 
 type Props = {
   initialArea: string;
@@ -63,6 +64,8 @@ const CATEGORY_LABELS: Record<BusinessCategory, string> = {
 type FormProps = {
   state: EntryFormState;
   setField: (k: InputFieldKey, v: InputValue) => void;
+  // PR c95-A-2: HELP は配列のため専用 setter。SectionHelp が行追加/削除/更新を集約。
+  setHelpStaff: (next: HelpStaffEntry[]) => void;
   validateField: (field: InputFieldKey, value: InputValue, state: EntryFormState) => boolean;
   errors: ValidationErrors;
   labels: FieldLabels;
@@ -99,7 +102,8 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     construction_count: "", // PR c93-2: 新規入力 (対応ベース)
     outsourced_construction_count: "", internal_construction_count: "",
     outsourced_construction_cost: "", internal_construction_profit: "",
-    help_count: "", help_revenue: "",
+    // PR c95-A-2: HELP を担当者別配列に置換。emptyState では空配列 (G4)。
+    help_staff: [],
     switchboard_count: "",
     // PR #51: 鍵業態専用 (他業態は "" のまま、保存時 0)
     locksmith_car_lp_email_count: "", locksmith_inhouse_count: "",
@@ -166,6 +170,12 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
 
   const setField = (k: InputFieldKey, v: InputValue) => {
     setState((s) => ({ ...s, [k]: v }));
+    setSaveResult("idle");
+  };
+
+  // PR c95-A-2: HELP は配列のため専用 setter。SectionHelp が行追加/削除/更新を集約。
+  const setHelpStaff = (next: HelpStaffEntry[]) => {
+    setState((s) => ({ ...s, help_staff: next }));
     setSaveResult("idle");
   };
 
@@ -334,8 +344,23 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           internal_construction_count: numOrEmpty(entry.internal_construction_count),
           outsourced_construction_cost: numOrEmpty(entry.outsourced_construction_cost),
           internal_construction_profit: numOrEmpty(entry.internal_construction_profit),
-          help_count: numOrEmpty(entry.help_count),
-          help_revenue: numOrEmpty(entry.help_revenue),
+          // PR c95-A-2: HELP は help_staff 配列を優先、空または未保存なら旧 scalar から 1 行生成
+          //   (自動移行行)、scalar も 0 なら空配列。G1 案 (b) で entries.data には併存している前提。
+          help_staff: Array.isArray(entry.help_staff) && entry.help_staff.length > 0
+            ? entry.help_staff.map((s) => ({
+                staff_name: s.staff_name ?? "",
+                help_sales: numOrEmpty(s.help_sales),
+                help_count: numOrEmpty(s.help_count),
+                help_close_count: numOrEmpty(s.help_close_count),
+              }))
+            : (numOrZero(numOrEmpty(entry.help_count)) > 0 || numOrZero(numOrEmpty(entry.help_revenue)) > 0
+                ? [{
+                    staff_name: "(不明・自動移行)",
+                    help_sales: numOrEmpty(entry.help_revenue),
+                    help_count: numOrEmpty(entry.help_count),
+                    help_close_count: "" as InputValue,
+                  }]
+                : []),
           switchboard_count: numOrEmpty(entry.switchboard_count),
           locksmith_car_lp_email_count: numOrEmpty(entry.locksmith_car_lp_email_count),
           locksmith_inhouse_count: numOrEmpty(entry.locksmith_inhouse_count),
@@ -393,7 +418,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           construction_count: "", // PR c93-2
           outsourced_construction_count: "", internal_construction_count: "",
           outsourced_construction_cost: "", internal_construction_profit: "",
-          help_count: "", help_revenue: "",
+          help_staff: [], // PR c95-A-2: HELP 配列リセット
           switchboard_count: "",
           locksmith_car_lp_email_count: "", locksmith_inhouse_count: "",
           locksmith_repeat_count: "", locksmith_revisit_count: "",
@@ -447,6 +472,18 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
       setSaveMsg("入力内容を確認してください");
       return "skip";
     }
+
+    // PR c95-A-2: HELP 担当者配列を整形 (G4: 全項目空の行を除外、G5: 数値入力時 staff_name 必須)。
+    //   ここで判定して fail-fast。本体送信は派生 scalar 含む二重書込 (G1 案 b)。
+    //   ロジックは helpStaffUtils に集約 (純関数、test:integration:c95-a-2-help-staff で検証)。
+    const { cleaned: helpStaffWrite, nameMissingIndex, sumSales: helpRevenueSum, sumCount: helpCountSum } =
+      cleanHelpStaffForSave(state.help_staff);
+    if (nameMissingIndex >= 0) {
+      setSaveResult("error");
+      setSaveMsg(`HELP 担当者 ${nameMissingIndex + 1}: 数値入力時は氏名が必須です`);
+      return "skip";
+    }
+
     setSaving(true);
     setSaveResult("idle");
     setSaveMsg(null);
@@ -487,8 +524,11 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         internal_construction_count: numOrZero(state.internal_construction_count),
         outsourced_construction_cost: numOrZero(state.outsourced_construction_cost),
         internal_construction_profit: numOrZero(state.internal_construction_profit),
-        help_count: numOrZero(state.help_count),
-        help_revenue: numOrZero(state.help_revenue),
+        // PR c95-A-2 (G1 案 b): help_staff 配列 + 派生 scalar の二重書込。
+        //   配列が新規 source of truth、scalar は aggregation 既存 SQL 互換 + export 互換のため併存。
+        help_staff: helpStaffWrite,
+        help_count: helpCountSum,
+        help_revenue: helpRevenueSum,
         switchboard_count: numOrZero(state.switchboard_count),
         locksmith_car_lp_email_count: numOrZero(state.locksmith_car_lp_email_count),
         locksmith_inhouse_count: numOrZero(state.locksmith_inhouse_count),
@@ -740,7 +780,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
               c4 で electric → ElectricForm、locksmith → LocksmithForm に分岐。
               c5 で road → RoadForm、detective → DetectiveForm に分岐。 */}
           {renderBusinessForm(category, {
-            state, setField, validateField, errors, labels, calc,
+            state, setField, setHelpStaff, validateField, errors, labels, calc,
             vehicleSnapshot: shiftSnapshot.vehicle, traineeSnapshot: shiftSnapshot.trainee,
           })}
         </div>

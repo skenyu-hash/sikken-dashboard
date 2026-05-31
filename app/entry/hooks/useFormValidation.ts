@@ -60,8 +60,10 @@ export function useFormValidation() {
     // 緊急緩和)。売上は引き続き必須。
 
     // 各フィールド非負チェック
+    // PR c95-A-2: help_staff は配列 (HelpStaffEntry[]) のため本ループの InputValue 単体検証から除外。
+    //   配列要素の検証は SectionHelp / HelpStaffRow / handleSave 側で行う (G3, G5)。
     (Object.keys(state) as Array<keyof EntryFormState>).forEach((k) => {
-      if (k === "area_id" || k === "year" || k === "month" || k === "category") return;
+      if (k === "area_id" || k === "year" || k === "month" || k === "category" || k === "help_staff") return;
       const v = state[k] as InputValue;
       const negErr = checkNonNegative(v);
       if (negErr) errs[k] = negErr;

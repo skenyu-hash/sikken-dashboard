@@ -13,6 +13,23 @@ import type { BusinessCategory } from "../lib/business-labels";
 export type InputValue = number | "";
 
 /**
+ * PR c95-A-2: HELP 担当者ごとの動的入力行。
+ *   State 型は help_staff 配列化（help_count/help_revenue スカラーを置換）。
+ *   entries.data JSON は G1 案 (b) で「help_staff 配列 + 派生 scalar (help_count/help_revenue)」
+ *   を併存書込 → aggregation の既存スカラー SUM がそのまま動き、後方互換を担保。
+ *   仕様書フィールド名読み替え:
+ *     help_sales            → 本配列の help_sales (新規)
+ *     help_average_revenue → AutoCalcResult.help_unit_price (派生)
+ *     help_ratio            → 派生計算 (sum/sales*100)
+ */
+export interface HelpStaffEntry {
+  staff_name: string;            // 担当者名 (G5: 数値入力時は必須)
+  help_sales: InputValue;        // HELP 売上 (円)
+  help_count: InputValue;        // HELP 件数 (件)
+  help_close_count: InputValue;  // 成約数 (件)
+}
+
+/**
  * フォームの入力フィールド (20個) + メタ (4個) = 24 状態。
  * auto 計算項目 (total_revenue / total_response_count / unit_price 等) は
  * useFormCalculations が EntryFormState から導出するためここには含めない。
@@ -59,15 +76,16 @@ export interface EntryFormState {
   outsourced_construction_cost: InputValue; // f24
   internal_construction_profit: InputValue; // f25
 
-  // ⑤ HELP (入力 2)
-  help_count: InputValue; // f27
-  help_revenue: InputValue; // f28
+  // ⑤ HELP — PR c95-A-2: 担当者別の動的行に置換 (旧スカラー help_count/help_revenue を撤去)。
+  //   entries.data JSON は handleSave で「help_staff 配列 + 派生 scalar」を併存書込 (G1 案 b)。
+  //   aggregation は scalar をそのまま読むため SQL 変更不要。
+  help_staff: HelpStaffEntry[];
 
   // PR #48b: 電気業態専用 (他業態では常に "" → 保存時 0)
   switchboard_count: InputValue;
 
   // PR #51: 鍵業態専用 (他業態では常に "" → 保存時 0)
-  //   獲得 4 内訳: 5 番目の HELP は state.help_count を再利用
+  //   獲得 4 内訳。PR c95-A-2: 5 番目 HELP は help_staff 配列 SUM の派生表示 (旧 state.help_count 撤去)。
   locksmith_car_lp_email_count: InputValue;
   locksmith_inhouse_count: InputValue;
   locksmith_repeat_count: InputValue;
@@ -173,8 +191,15 @@ export interface AutoCalcResult {
   profit: number; // f30 = f1 - f12 - f11 - f15 - f13 - f14
 }
 
-/** フィールドごとのバリデーションエラー (undefined はエラーなし) */
-export type ValidationErrors = Partial<Record<keyof EntryFormState, string>>;
+/** フィールドごとのバリデーションエラー (undefined はエラーなし)。
+ *   PR c95-A-2 (G3): help_staff は配列のためフラット Record から除外し、
+ *   help_staff_errors に行 index 別のエラーマップを持たせる。
+ */
+export type ValidationErrors = Partial<Record<Exclude<keyof EntryFormState, "help_staff">, string>> & {
+  help_staff_errors?: Array<Partial<Record<keyof HelpStaffEntry, string>>>;
+};
 
-/** 入力フィールドのキー (バリデーション・onBlur 用) */
-export type InputFieldKey = Exclude<keyof EntryFormState, "area_id" | "year" | "month" | "category">;
+/** 入力フィールドのキー (バリデーション・onBlur 用)。
+ *   PR c95-A-2: help_staff は配列のため除外、配列専用 API で扱う。
+ */
+export type InputFieldKey = Exclude<keyof EntryFormState, "area_id" | "year" | "month" | "category" | "help_staff">;
