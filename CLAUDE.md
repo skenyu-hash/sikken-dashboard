@@ -203,8 +203,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
   - §5 報告フォーマットに「タスク完了時は §7 進行状況を都度更新」を追加（CLAUDE.md を生きた進行管理表として維持）
 
 ### 保留中
-- **c95-B-4**（profit.ts read fallback への控除 + Dashboard / 推移 / 損益分岐への注記バッジ「2026年5月以降コンサル費 7.7% 控除適用」）
-- **c95-C**（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— 設計承認済・実装着手は **c95-B-4 マージ後**。
+- **c95-B-4a**（profit.ts read fallback への 7.7% 控除追加 + test-profit.ts 新 case） — 実装中（branch `feature/c95-b-4a-profit-fallback-consultant-fee`）
+- **c95-B-4b**（Dashboard / 推移 / 損益分岐への共通注記バッジ `<ConsultantFeeBadge>` 追加）— B-4a マージ後着手
+- ⚠️ **c95-B-5（最優先・経営数字の静かな破綻リスク）**: water 2026年5月以降データを `/import-monthly` (Excel) 経由で投入するとコンサル費 7.7% 控除が抜け、ダッシュボード粗利が **+7.7% 過大表示** になる。`/api/import-monthly` は `monthlyAggregation` 経路を経由せず `total_profit` を直接 INSERT する独立経路 (`source='file_import'`) のため。c95-B-2 / B-3 / B-4a は entries 経由のみカバー。**対応完了まで water 5月以降の Excel import は禁止**（[KNOWN_ISSUES.md §8](./KNOWN_ISSUES.md) に詳細・検出 SQL・運用ガード明記）。現状本番 DB は entries_aggregation のみで未発火、ただし新メンバー / 将来運用変更で容易に踏む。
+- **c95-C**（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— 設計承認済・実装着手は **c95-B-4b マージ後**。
   - 新ルート `/daily-report`、ナビに「日報」タブ（/entry 直後）、URL クエリ `?area=&category=&date=`
   - モバイル: B 案（セクション折りたたみ、①と⑤展開・③④⑥折りたたみ、見出しに要約値）
   - LINE 画像共有: `navigator.share` に html-to-image の PNG File を載せる（show-mobile のみ、PC は既存 3 段 fallback）
