@@ -186,6 +186,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 **タスク完了時は必ず §7 進行状況を更新すること**（CLAUDE.md を生きた進行管理表として維持。完了/保留中/着手予定の現在地が常に最新になるように）。報告と CLAUDE.md §7 更新を同 PR / 同 commit で扱うのが望ましい。
 
+**§7 に「✅ マージ済」と書く前に、必ず `gh pr view <PR#> --json mergedAt,state` または `git log --merges --grep="<branch名>"` で実マージ commit の存在を確認する。誰の情報であっても（user / Web Claude / CC 自身）、写す前に必ず検証する**（[DECISIONS.md D-009](./DECISIONS.md) 参照、2026-06-01 c95-A-3 hotfix の二重伝播誤記録事故を踏まえたルール）。同様に DECISIONS.md / KNOWN_ISSUES.md / ONBOARDING.md などで「マージ済」「実装済」を述べる際も実コード grep / git log で確証する。
+
 ---
 
 ## 6. git / PR 運用
