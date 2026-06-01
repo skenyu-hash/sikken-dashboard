@@ -304,6 +304,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 重要な判断をしたら [DECISIONS.md](./DECISIONS.md) に記録する（なぜそう決めたか、却下した代替案も）。
 - UI を変更したら [VISUAL_CHECKLIST.md](./VISUAL_CHECKLIST.md) に沿って目視確認。本番トラブル時は [RUNBOOK.md](./RUNBOOK.md)。
 - 新メンバー引き継ぎ時は [ONBOARDING.md](./ONBOARDING.md) を参照。
+- 着手未確定のアイデアは [BACKLOG.md](./BACKLOG.md) に溜める。やると決まったら §7 保留中に移す。
 - タスクが完了したら CLAUDE.md §7 進行状況を都度更新する（CLAUDE.md を生きた進行管理表として維持）。
 
 ---
