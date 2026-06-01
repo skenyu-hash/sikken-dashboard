@@ -61,6 +61,22 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 同じ Claude モデル同士なので思考の癖が似る。番人は特に **「テストが緑でも画面実値・実データで検算する」** ことを徹底し、コードだけ見て満足しない。
 - 反さんは監督。ディベートの結果（磨かれた成果物 + 検証記録）を見て判断する。
 
+### 番人の必須招集条件（implementer の裁量で省略不可）
+以下に該当したら、implementer は必ず番人を招集する。「不要と判断した」は許されない:
+- **金額・粗利・率・件数の計算に1文字でも触れた** → number-verifier 必須
+- **マイグレーション・aggregation・DB書き込みに触れた** → number-verifier + invariant-guard 必須
+- **5行以上のコード変更、または絶対不変項目の周辺ファイルに触れた** → invariant-guard 必須
+- **既存テストの期待値を変更した** → number-verifier 必須（新期待値を独立検算）
+
+### 第三者レビュー（Web Claude 等）を呼ぶ条件
+番人で完結せず、人間（反さん）が claude.ai 等で第三者の目を通すべき重大局面:
+- 本番DBの不可逆な書き換え（re-aggregation、過去データ更新、DELETE系）
+- 複数業態の粗利定義を同時に変える変更
+- 2026年4月以前データに触れる可能性がある変更
+- 経営数字の定義そのもの（売上・粗利・KPIの計算式）を変える変更
+
+これら以外は番人で完結してよい。第三者は「最後の保険」であり、日常の実装では呼ばない。
+
 ---
 
 ## 1. 絶対不変項目（TOUCH 厳禁）
@@ -285,6 +301,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 作業依頼は「監督が自然言語で指示 → CC が調査計画 → 承認 → 実装検証報告」のループ。
 - 本番視覚確認は反さんがスクショで行う（Chrome 拡張は不安定なため、拡張に依存しない）。
 - テストは tsx スクリプト（`scripts/test-*.ts`、`npm run test:integration:*`）。現在 312 件（純関数 271 + DB 41）pass。
+- 重要な判断をしたら [DECISIONS.md](./DECISIONS.md) に記録する（なぜそう決めたか、却下した代替案も）。
+- UI を変更したら [VISUAL_CHECKLIST.md](./VISUAL_CHECKLIST.md) に沿って目視確認。本番トラブル時は [RUNBOOK.md](./RUNBOOK.md)。
+- 新メンバー引き継ぎ時は [ONBOARDING.md](./ONBOARDING.md) を参照。
+- タスクが完了したら CLAUDE.md §7 進行状況を都度更新する（CLAUDE.md を生きた進行管理表として維持）。
 
 ---
 
