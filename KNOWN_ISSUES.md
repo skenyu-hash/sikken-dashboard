@@ -302,3 +302,58 @@ PR #38 → #41 → #42 で「**新列追加 → 投入経路追加忘れ → 表
 - PR #41: INSERT 列追加忘れ修正 + 統合テスト + 静的テスト
 - PR #42: displaySummary 流入修正 + buildMetricRows 切替 + 本ガイドライン追加
 
+---
+
+## 8. ⚠️ `/import-monthly` (Excel 取込) で water 2026年5月以降の投入禁止 (c95-B-5 で対応)
+
+### 概要
+**water 業態の 2026年5月以降のデータを `/import-monthly` (Excel) 経由で投入すると、コンサル費 7.7% 控除が抜け、ダッシュボード粗利が約 7.7% 過大表示される。** c95-B-5 で根本対応するまで、water + 2026/5 以降の Excel 取込は **絶対に行わないこと**。
+
+### 構造的原因
+c95-B-2 (PR #118) で `monthlyAggregation` 経路に water コンサル費 7.7% 控除を組み込んだが、`/api/import-monthly` (Excel 取込) は aggregation を経由せず Excel から `total_profit` を直接 INSERT する別経路 (`source='file_import'`)。
+
+- aggregation 経路 (`source='entries_aggregation'`): 控除後 profit が DB に保存される → 正しい
+- import-monthly 経路 (`source='file_import'`): 控除前 profit が DB に保存される → 過大
+
+さらに c95-B-4a (PR `feature/c95-b-4a-...`) の `resolveTotalProfit` 読み込み fallback は `dbProfit > 0` を尊重する設計のため、Excel 経由で書かれた控除前 profit が早期 return でそのまま画面に出る。
+
+### 影響規模
+- 例: water/2026/5/kansai で revenue 88,857,300 → 控除額 6,842,012 円 → **粗利 +6,842,012 円過大表示**
+- 経営判断の数字が静かに狂う (UI には警告が出ない)
+
+### 現状の本番 DB (2026-06-01 時点、c95-B-4a 着手時 number-verifier 確認)
+- water + ym >= 202605 は 7 行、全て `source='entries_aggregation'` (file_import なし)
+- legacy `total_profit = 0` 行は 0 件
+- → **現時点で本問題は未発火**。ただし新メンバー / 将来運用変更で容易に踏む。
+
+### やってはいけないこと (やる前にこのドキュメントを読むこと)
+- ❌ water 業態の 2026年5月以降の月次データを `/import-monthly` (Excel) で投入する
+- ❌ water 業態の 2026年5月以降を import-monthly テンプレートに含めて流す
+- ❌ 「dbProfit に値が入っているから正しいだろう」と仮定する (経路によって控除前/後が混在)
+
+### やって良いこと
+- ✅ water 業態の 2026年4月以前の Excel 取込 (consultantFee helper が 0 を返すため影響なし)
+- ✅ water 業態の 2026年5月以降を day 単位で entries 経由 (`/entry` 画面) で入力 → aggregation 経由で控除後 profit が保存される
+- ✅ electric / locksmith / road / detective は全期間 Excel 取込可 (現時点で water 以外の控除率は 0)
+
+### c95-B-5 で予定する対応 (どれか or 組み合わせ)
+1. `/api/import-monthly` で water + yyyymm >= 202605 のとき、書き込み前に 7.7% 控除を適用する
+2. または、`source='file_import'` 行を `resolveTotalProfit` の早期 return から除外し、構成要素から再計算する
+3. または、`/import-monthly` テンプレートから water 5月以降を除外し、Excel 取込自体を遮断する
+
+### 関連
+- ロジック層: [app/lib/profit.ts](app/lib/profit.ts) (c95-B-4a で控除追加、ただし dbProfit > 0 は早期 return)
+- 投入経路: [app/api/import-monthly/route.ts:118](app/api/import-monthly/route.ts#L118)
+- ヘルパー: [app/lib/consultantFee.ts](app/lib/consultantFee.ts) (c95-B-1)
+
+### 検出方法 (発火確認)
+```sql
+SELECT area_id, year, month, source, total_revenue, total_profit,
+       (total_revenue * 0.077)::INT AS expected_fee
+  FROM monthly_summaries
+ WHERE business_category = 'water'
+   AND (year * 100 + month) >= 202605
+   AND source = 'file_import';
+```
+このクエリで 1 行でも返れば本問題が発火している。number-verifier を再招集し、当該行の `total_profit` を控除後値に修正する手順を確立すること。
+
