@@ -272,16 +272,16 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **c95-B 検算スクリプト**（2026-06-01）✅ PR #126 マージ済 — `scripts/check-day-level-profit-debug.ts` + `scripts/check-pre-april-snapshot.ts` (READ ONLY)
 - **c95-B-4a**（2026-06-01）✅ PR #121 マージ済 — profit.ts read fallback への water 7.7% 控除 + Math.round 整数粒度一致 + test-profit.ts 11 case 追加 (合計 26/26 pass)
 - **c95-B-4b**（2026-06-01）✅ 本 PR マージ済 — `<ConsultantFeeBadge>` 共通コンポーネント新設 + WaterDashboardSection / Dashboard グループクロス表 / trends / breakeven の 4 配線。yyyymm>=202605 ガードで過去月閲覧時は非表示 (4 月以前データへの誤認回避)
+- **c95-C-1**（2026-06-01）✅ PR #133 マージ済 — 日報モーダルの内部構造を `<DailyReportContent>` (Content 層) + `useDailyReportData` (データ取得 hook) に分割、`DailyReportModal.tsx` を 379 → 71 行に縮小。純リファクタ (動作・見た目 1 ピクセル不変)、撮影 ref は Modal 側に残し captureRef props 経由で渡すことで boxShadow + 白背景 + borderRadius 含む撮影範囲を完全保持。EntryForm.tsx 無修正、Props 不変。第三者レビュー (反さん) 完了。c95-C-2 (/daily-report 独立ページ) 着手可能
 
 ### 保留中
 - ⚠️ **c95-B-5（最優先・経営数字の静かな破綻リスク）**: water 2026年5月以降データを `/import-monthly` (Excel) 経由で投入するとコンサル費 7.7% 控除が抜け、ダッシュボード粗利が **+7.7% 過大表示** になる。`/api/import-monthly` は `monthlyAggregation` 経路を経由せず `total_profit` を直接 INSERT する独立経路 (`source='file_import'`) のため。c95-B-2 / B-3 / B-4a / B-4b は entries 経由のみカバー。**対応完了まで water 5月以降の Excel import は禁止**（[KNOWN_ISSUES.md §8](./KNOWN_ISSUES.md) に詳細・検出 SQL・運用ガード明記）。現状本番 DB は entries_aggregation のみで未発火、ただし新メンバー / 将来運用変更で容易に踏む。
-- **c95-C**（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— 設計承認済・実装着手は **c95-B-4b マージ後**（= 本 PR マージ後着手可能）。
-  - 新ルート `/daily-report`、ナビに「日報」タブ（/entry 直後）、URL クエリ `?area=&category=&date=`
-  - モバイル: B 案（セクション折りたたみ、①と⑤展開・③④⑥折りたたみ、見出しに要約値）
-  - LINE 画像共有: `navigator.share` に html-to-image の PNG File を載せる（show-mobile のみ、PC は既存 3 段 fallback）
-  - /entry「日報を表示」ボタンは廃止 → `/daily-report` へのリンク化（最後の cutover PR で）
-  - モック: `docs/mocks/daily_report_pc_v2.html` / `daily_report_mobile_v2.html` として配置
-  - 設計詳細: ロジック層（kpiCompute / helpStats / Section / buildText）は untouch で `<DailyReportContent>` に抽出、`useDailyReportData` フック化、`<CollapsibleReportSection>` ラッパー方式（既存 Section 改修なし）
+- **c95-C** 残作業（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— C-1 完了、C-2〜C-5 着手可能
+  - **c95-C-2**: `/daily-report` 独立ページ + ナビ追加 (NavBar.tsx / MobileHeader.tsx の `/entry` 直後に「日報」)。URL クエリ `?area=&category=&date=`。PC layout、`<DailyReportContent>` 再利用 (C-1 で抽出済)。Modal と並走 (cutover は C-5)
+  - **c95-C-3**: モバイル B 案（セクション折りたたみ、①と⑤展開・③④⑥折りたたみ、見出しに要約値）。`<CollapsibleReportSection>` ラッパー方式（既存 Section 改修なし）
+  - **c95-C-4**: LINE 画像共有 (`navigator.share` に html-to-image の PNG File を載せる、show-mobile のみ、PC は C-1 で保持済の 3 段 fallback 流用)
+  - **c95-C-5**: cutover (EntryForm の「📋 日報を表示」pill を `<Link href="/daily-report">` に置換、DailyReportModal.tsx 削除、docs 更新)
+  - モック: `docs/mocks/daily_report_pc_v2.html` / `daily_report_mobile_v2.html` として配置 (C-2/C-3 同 PR 内で作成予定)
 
 ### 過去 Phase 履歴（2025〜）
 - Phase 1〜6: ダッシュボード基本機能、各ページ実装
