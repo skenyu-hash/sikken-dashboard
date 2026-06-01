@@ -14,8 +14,12 @@
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
-/** 768px 以下をモバイル判定。SSR 中は false (= PC 扱い)、mount 後に matchMedia で更新。 */
-function useIsMobile(): boolean {
+/**
+ * 768px 以下をモバイル判定。SSR 中は false (= PC 扱い)、mount 後に matchMedia で更新。
+ * PR c95-C-4: named export 追加 (DailyReportContent の onSaveImage がモバイル判定で
+ * navigator.share を出し分けるために再利用)。
+ */
+export function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;

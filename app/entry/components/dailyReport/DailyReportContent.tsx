@@ -14,7 +14,7 @@
 //     ボタン非表示 (c95-C-2 独立ページから使うとき用)。モーダル版 (DailyReportModal) は必ず渡す。
 
 import { useCallback, useMemo, useRef, useState, type RefObject } from "react";
-import { toPng } from "html-to-image";
+import { toPng, toBlob } from "html-to-image";
 import type { DailyEntry } from "../../../lib/calculations";
 import type { BusinessCategory } from "../../../lib/businesses";
 import { AREA_NAMES, BUSINESSES } from "../../../lib/businesses";
@@ -30,7 +30,7 @@ import { aggregateHelpStaffByMonth } from "../../lib/helpStats";
 import { buildDailyReportText } from "../../lib/buildDailyReportText";
 import { yen, cnt, pct } from "./reportPrimitives";
 import { useDailyReportData } from "./useDailyReportData";
-import CollapsibleReportSection from "./CollapsibleReportSection";
+import CollapsibleReportSection, { useIsMobile } from "./CollapsibleReportSection";
 
 const categoryLabelOf = (c: BusinessCategory): string =>
   BUSINESSES.find((b) => b.id === c)?.label ?? c;
@@ -105,6 +105,8 @@ export default function DailyReportContent({
   // 撮影 ref: 外部から渡されたら使う、なければ自前 ref (c95-C-2 独立ページから使う想定の fallback)
   const localRef = useRef<HTMLDivElement>(null);
   const effectiveCaptureRef = captureRef ?? localRef;
+  // PR c95-C-4: モバイル判定 (画像共有が navigator.share files で OS share sheet 経由 LINE/X 等選択可)
+  const isMobile = useIsMobile();
 
   // 日付ナビ ◀▶ (抽出元: L117-121、setInternalDate → onDateChange に置換)
   const navigate = useCallback((deltaDays: number) => {
@@ -113,14 +115,39 @@ export default function DailyReportContent({
     onDateChange(d.toISOString().slice(0, 10));
   }, [date, onDateChange]);
 
-  // アクション: 画像で保存 (抽出元: L123-139、撮影対象は effectiveCaptureRef = Modal 側 container)
+  // アクション: 画像で保存 (抽出元: c95-C-1、PR c95-C-4 でモバイル時 navigator.share files に拡張)
+  // - モバイル + navigator.share + canShare({ files }) 対応 → OS share sheet 経由で LINE/X 等選択可
+  // - PC または share 未対応 → 旧挙動の PNG ダウンロード (撮影 ref / ファイル名 / バックグラウンド色 全 verbatim)
+  // - AbortError (ユーザーキャンセル) は握りつぶし、ステータスメッセージも出さない (c95-A-3 hotfix と同じ思想)
   const onSaveImage = useCallback(async () => {
     if (!effectiveCaptureRef.current) return;
+    const filename = `daily_report_${date}_${areaId}_${category}.png`;
+    const opts = { pixelRatio: 2, backgroundColor: "#f3f6f4" };
     try {
-      const dataUrl = await toPng(effectiveCaptureRef.current, { pixelRatio: 2, backgroundColor: "#f3f6f4" });
+      // (a) モバイル + navigator.share files 対応経路
+      if (isMobile && typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        const blob = await toBlob(effectiveCaptureRef.current, opts);
+        if (blob) {
+          const file = new File([blob], filename, { type: "image/png" });
+          if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({ files: [file], title: filename });
+              setActionMsg("📷 画像を共有しました");
+              setTimeout(() => setActionMsg(null), 2500);
+              return;
+            } catch (e) {
+              // ユーザーキャンセルは握りつぶし、メッセージも出さず終了
+              if (e instanceof Error && e.name === "AbortError") return;
+              // それ以外のエラー (権限拒否等) は PC fallback (PNG DL) に流す
+            }
+          }
+        }
+      }
+      // (b) PC fallback / share 未対応経路: 旧 c95-C-1 と完全同等の PNG ダウンロード
+      const dataUrl = await toPng(effectiveCaptureRef.current, opts);
       const a = document.createElement("a");
       a.href = dataUrl;
-      a.download = `daily_report_${date}_${areaId}_${category}.png`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -129,7 +156,7 @@ export default function DailyReportContent({
       setActionMsg(`画像保存失敗: ${e instanceof Error ? e.message : String(e)}`);
     }
     setTimeout(() => setActionMsg(null), 2500);
-  }, [date, areaId, category, effectiveCaptureRef]);
+  }, [date, areaId, category, effectiveCaptureRef, isMobile]);
 
   // アクション: テキストコピー (抽出元: L141-159)
   const onCopyText = useCallback(async () => {
