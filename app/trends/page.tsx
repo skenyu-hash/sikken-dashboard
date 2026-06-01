@@ -4,6 +4,7 @@ import { calculateDashboard, getDaysInMonth, yen } from "../lib/calculations";
 import type { DailyEntry, Targets } from "../lib/calculations";
 import { BUSINESSES, AREA_NAMES, type BusinessCategory } from "../lib/businesses";
 import AsOfBadge from "../components/AsOfBadge";
+import ConsultantFeeBadge from "../components/ConsultantFeeBadge";
 import { resolveTotalProfit } from "../lib/profit";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -306,8 +307,13 @@ export default function TrendsPage() {
           <>
             {/* バーチャート */}
             <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #d1fae5", padding: 20, marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#065f46", marginBottom: 16 }}>
-                {AREAS.find((a) => a.id === areaId)?.name} — {year}年 {metricObj.label}推移
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#065f46" }}>
+                  {AREAS.find((a) => a.id === areaId)?.name} — {year}年 {metricObj.label}推移
+                </div>
+                {/* PR c95-B-4b: 年単位 view (month=0) で year >= 2026 のときバッジ表示。
+                    2025 年表示時は year-only ガードで非表示 (過去年への誤誘導回避)。 */}
+                <ConsultantFeeBadge category={activeBusiness} year={year} month={0} />
               </div>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 180, marginBottom: 8 }}>
                 {chartData.map((val, i) => {

@@ -9,6 +9,7 @@ import { useRole } from "../components/RoleProvider";
 import { hasPageAccess } from "../lib/permissions";
 import { BUSINESSES, type BusinessCategory } from "../lib/businesses";
 import AsOfBadge from "../components/AsOfBadge";
+import ConsultantFeeBadge from "../components/ConsultantFeeBadge";
 import { resolveTotalProfit } from "../lib/profit";
 
 const ALL_AREAS = [
@@ -223,6 +224,9 @@ export default function BreakevenPage() {
                     style={{ background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.95)", opacity: 1 }}
                   />
                 )}
+                {/* PR c95-B-4b: water + yyyymm>=202605 のみ表示。dark header 用に style override。 */}
+                <ConsultantFeeBadge category={activeBusiness} year={year} month={month}
+                  style={{ background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.95)", borderColor: "rgba(255,255,255,0.35)" }} />
               </div>
             </div>
             <select value={areaId} onChange={(e) => setAreaId(e.target.value)}
