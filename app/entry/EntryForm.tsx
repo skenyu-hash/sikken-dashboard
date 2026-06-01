@@ -27,7 +27,7 @@ import { useFormValidation } from "./hooks/useFormValidation";
 import { useDebouncedAutoSave, type SaveOutcome } from "./hooks/useDebouncedAutoSave";
 import EntryCalendar from "./components/EntryCalendar";
 import CumulativePreview from "./components/CumulativePreview";
-import DailyReportModal from "./components/DailyReportModal"; // PR c95-A-3
+// PR c95-C-5: DailyReportModal の import 撤去 (/daily-report 独立ページに cutover、Modal 廃止)
 import WaterForm from "./components/forms/WaterForm";
 import ElectricForm from "./components/forms/ElectricForm";
 import LocksmithForm from "./components/forms/LocksmithForm";
@@ -167,9 +167,11 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
   //   done    : "✓ 送信完了" (2 秒後 idle へ)
   const [submitFeedback, setSubmitFeedback] = useState<"idle" | "sending" | "done">("idle");
 
-  // PR c95-A-3: 日報モーダル表示 state。confirm 成功後 (done feedback 完了後、G8) と
-  //   ヘッダー「📋 日報を表示」pill (G12 常時表示) の両方から open される。
-  const [showDailyReport, setShowDailyReport] = useState(false);
+  // PR c95-C-5 (cutover): DailyReportModal を廃止し /daily-report 独立ページに移行。
+  //   showDailyReport state / setShowDailyReport / DailyReportModal import / render block
+  //   すべて撤去。ヘッダー pill は <Link href="/daily-report?..."> で独立ページへ遷移。
+  //   G8 (確定送信後の日報自動表示) は cutover で廃止 (独立ページ遷移は別タブ的に新画面と
+  //   なり既存 UX 連続性が損なわれるため。反さん帰宅後に必要なら別 PR で復活)。
 
   const labels = BUSINESS_LABELS[category];
 
@@ -645,8 +647,10 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
     if (result === "success") {
       setSubmitFeedback("done");
       setTimeout(() => setSubmitFeedback("idle"), 2500);
-      // PR c95-A-3 (G8): done feedback 完了 (2.5 秒) 後に日報モーダルを自動表示
-      setTimeout(() => setShowDailyReport(true), 2500);
+      // PR c95-C-5: G8 (確定送信後の日報自動表示) は cutover で廃止。
+      //   独立ページ遷移は EntryForm を unmount してしまい done feedback (2.5 秒) と
+      //   両立しない。ユーザーは done 後、自分で「📋 日報を表示」リンクから遷移する。
+      //   反さん帰宅後に「自動遷移を維持したい」となれば router.push() ベースで別 PR 復活可。
     } else {
       setSubmitFeedback("idle");
     }
@@ -718,17 +722,22 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
                 denominator={progressBadge.denominator}
                 percent={progressBadge.percent}
               />
-              {/* PR c95-A-3 (G12): 「📋 日報を表示」pill、常時表示。過去日も日付ナビで閲覧可能。 */}
-              <button
-                type="button"
-                onClick={() => setShowDailyReport(true)}
+              {/* PR c95-A-3 (G12) → PR c95-C-5: 「📋 日報を表示」pill、常時表示。
+                  Modal を廃止し /daily-report 独立ページへ <Link> 遷移。state.area_id/
+                  category/state.year-month-day を URL クエリに付ける (過去日も日付ナビ
+                  で閲覧可能、現状の Modal と同等)。style は旧 button と verbatim 同一
+                  (色・padding・borderRadius・fontSize 等)、UI 見た目変更なし。 */}
+              <Link
+                href={`/daily-report?area=${state.area_id}&category=${category}&date=${state.year}-${String(state.month).padStart(2, "0")}-${String(state.day).padStart(2, "0")}`}
                 style={{
                   padding: "6px 12px", borderRadius: 999,
                   background: "rgba(255,255,255,0.18)", color: "#fff",
                   border: "1px solid rgba(255,255,255,0.35)", cursor: "pointer",
                   fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+                  textDecoration: "none",  // anchor のデフォルト下線を除外、旧 button と見た目同一
+                  display: "inline-block", // 旧 button (display:inline-block) と一致
                 }}
-              >📋 日報を表示</button>
+              >📋 日報を表示</Link>
             </div>
           </div>
         </div>
@@ -846,16 +855,8 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           </span>
         </div>
       </div>
-      {/* PR c95-A-3: 日報モーダル。確定送信成功後 (done feedback 完了 2.5 秒後、G8) または
-          ヘッダー「📋 日報を表示」pill (G12) から open される。 */}
-      {showDailyReport && state.area_id && (
-        <DailyReportModal
-          date={`${state.year}-${String(state.month).padStart(2, "0")}-${String(state.day).padStart(2, "0")}`}
-          areaId={state.area_id}
-          category={category}
-          onClose={() => setShowDailyReport(false)}
-        />
-      )}
+      {/* PR c95-C-5: DailyReportModal の render block を撤去。
+          日報は /daily-report 独立ページに移行 (ヘッダー pill の Link から遷移)。 */}
     </div>
   );
 }
