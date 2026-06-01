@@ -1286,6 +1286,14 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+            {/* PR c95-B-4b: クロス比較表は 5 業態横並びのためバッジを行ごとに付けず、
+                表キャプション 1 行で水道列の控除済表示を補足 (Q6 推奨)。
+                viewYear*100+viewMonth >= 202605 のときのみ表示 (過去月閲覧時は非表示)。 */}
+            {viewYear * 100 + viewMonth >= 202605 && (
+              <div style={{ fontSize: 10, color: "#9ca3af", padding: "6px 16px", borderTop: "1px solid #f0faf0", background: "#fafafa" }}>
+                ※ 水道は 2026年5月以降コンサル費 7.7% 控除後の粗利を表示
+              </div>
+            )}
             <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, padding: 16, borderTop: "1px solid #f0faf0" }}>
               {[
                 { label: "グループ売上", value: yen(gt.revenue) },

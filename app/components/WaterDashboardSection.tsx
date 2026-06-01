@@ -32,6 +32,7 @@ import { resolveTotalProfit } from "../lib/profit";
 import { MetricBadge, type GroupType } from "./ui";
 import { getGroupBorderColor } from "./dashboard/metric-groups";
 import { SECTION } from "./sectionStyles";
+import ConsultantFeeBadge from "./ConsultantFeeBadge";
 
 type Props = {
   monthlySummary: Record<string, unknown> | null;
@@ -114,6 +115,11 @@ export default function WaterDashboardSection({ monthlySummary, targets }: Props
   return (
     <section style={{ marginBottom: SECTION.MARGIN }}>
       <SectionLabel>水道業態 — フォーム連動 KPI 一覧 (5 セクション、業態統一)</SectionLabel>
+      {/* PR c95-B-4b: コンサル費控除注記。yyyymm >= 202605 のみ表示 (過去月閲覧時は非表示)。
+          monthlySummary.year/month を内部参照し、親 Dashboard.tsx の props 追加を回避。 */}
+      <div style={{ marginBottom: SECTION.GAP }}>
+        <ConsultantFeeBadge category="water" year={monthlySummary?.year as number | string | null | undefined} month={monthlySummary?.month as number | string | null | undefined} />
+      </div>
       <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SECTION.GAP, gridAutoRows: "min-content" }}>
         {/* ① 新規対応・コスト・粗利 (Electric 完全踏襲) */}
         <Card title="① 新規対応・コスト・粗利" group="rev">
