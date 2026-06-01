@@ -18,6 +18,7 @@ export function NavBar() {
 const items = [
     { href: "/",          label: "ダッシュボード" },
     { href: "/entry",     label: "データ入力" },
+    { href: "/daily-report", label: "日報" },
     { href: "/ranking",   label: "ランキング" },
     { href: "/trends",    label: "推移" },
     { href: "/matrix",    label: "マトリクス" },

@@ -40,6 +40,7 @@ export type BusinessCategory =
 export type Page =
   | "dashboard"
   | "entry"
+  | "daily-report"
   | "import"
   | "data-io"
   | "admin"
@@ -109,6 +110,19 @@ const PAGE_ACCESS_MATRIX: Record<Page, Record<Role, PermissionLevel>> = {
     chief: "edit",
     staff: "edit",
     clerk: "edit",
+  },
+  // (新設 PR c95-C-2) 日報 - 全ロール閲覧 (= entry edit と同じ「現場全員アクセス」階層
+  //   の閲覧版)。日報は edit 機能なし (表示・撮影・共有のみ) なので view 一律。
+  //   担当外エリアの閲覧制限は hasDataAccess (A-1 ルール) で別途判定、本マトリクスは
+  //   ページアクセスの可否のみ規定する。trends/ranking の「clerk=none」パターンは
+  //   分析画面用なので採用せず、entry と同様に clerk も含める (現場業務密接のため)。
+  "daily-report": {
+    executive: "view",
+    vice: "view",
+    manager: "view",
+    chief: "view",
+    staff: "view",
+    clerk: "view",
   },
   // 2. インポート - executive のみ
   import: {
