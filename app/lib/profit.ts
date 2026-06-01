@@ -16,6 +16,19 @@
 //
 // 影響範囲 (Phase 1 hotfix では): Dashboard.tsx / /meeting / /trends / /breakeven
 // API 側 SQL 集計 (cross-matrix / export) は別途検討 (PR #51.3 候補)
+//
+// PR c95-B-4a: water 業態の 2026/5 以降に 7.7% コンサル費控除を追加。
+//   monthlyAggregation (c95-B-2) / day-level (c95-B-3) と同じ semantics で
+//   read fallback 経路でも控除後値を返すよう揃える。
+//   設計判断 (number-verifier 検証済):
+//     1. SummaryLike に year/month を optional 追加。月境界 (yyyymm >= 202605)
+//        は consultantFee() helper 内ガードを利用 (二重保護)。
+//     2. dbProfit > 0 早期 return はそのまま。c95-B-2 で aggregation 経由保存
+//        された行は既に控除後値が入っている前提。
+//     3. /import-monthly 経由で water 5月以降を Excel 投入すると、控除前 profit
+//        が DB に書かれ dbProfit > 0 早期 return がそれをそのまま返す → 約 7.7%
+//        over-report が発生する潜在問題あり (KNOWN_ISSUES.md #8 参照)。
+//        対応は c95-B-5 で検討。本 PR では legacy 0 値行 fallback 経路のみカバー。
 
 type SummaryLike = {
   total_profit?: number | string | null;
@@ -28,7 +41,15 @@ type SummaryLike = {
   card_processing_fee?: number | string | null;
   locksmith_construction_cost?: number | string | null;
   locksmith_commission_fee?: number | string | null;
+  // PR c95-B-4a: water control 7.7% 控除の月境界判定に使用 (yyyymm >= 202605)。
+  //   monthly_summaries は year/month NOT NULL カラム持ち + API は SELECT * のため
+  //   実運用 caller は自動で値が乗る。テスト等で省略された場合は consultantFee()
+  //   helper 内で yyyymm=0 < 202605 → 控除 0 にフォールバック (= 既存挙動維持)。
+  year?: number | string | null;
+  month?: number | string | null;
 };
+
+import { consultantFee, toYyyyMm } from "./consultantFee";
 
 const numOf = (v: unknown): number => {
   if (v == null) return 0;
@@ -76,5 +97,14 @@ export function resolveTotalProfit(summary: SummaryLike | null | undefined): num
       - numOf(summary.sales_outsourcing_cost)
       - numOf(summary.card_processing_fee);
   }
-  return Math.max(0, derived);
+  // PR c95-B-4a: water + 2026/5 以降のみ 7.7% コンサル費を末尾控除。
+  //   consultantFee() helper が二重ガード (rate > 0 / yyyymm >= 202605 / revenue > 0)
+  //   を持つため、year/month 欠落・過去月は控除 0 で既存挙動を保つ。
+  //   SUM(日次) / 月次 SQL aggregation と整数粒度で一致させるため Math.round で揃える
+  //   (monthlyAggregation 側は ROUND(...)::BIGINT)。
+  if (category === "water") {
+    const yyyymm = toYyyyMm(numOf(summary.year), numOf(summary.month));
+    derived -= consultantFee("water", revenue, yyyymm);
+  }
+  return Math.max(0, Math.round(derived));
 }

@@ -146,6 +146,167 @@ const cases: Case[] = [
     expected: 10000000,
     note: "business_category 未指定 → water 扱い、コスト全 0 で profit = revenue",
   },
+
+  // ===== PR c95-B-4a: water コンサル費 7.7% 控除 (2026/5 以降) =====
+  // kansai/water/2026/5 想定: revenue=35,443,020 → fee=35,443,020 * 0.077 = 2,729,112.54
+  //   derived_before_fee = 14,712,578、derived_after_fee = 11,983,465.46
+  //   Math.round → 11,983,465 (SQL 経路 ROUND(...)::BIGINT と整数粒度一致)
+  {
+    input: {
+      total_profit: 0,
+      total_revenue: 35443020,
+      business_category: "water",
+      total_labor_cost: 6408500,
+      material_cost: 3256865,
+      ad_cost: 6193244,
+      sales_outsourcing_cost: 4871833,
+      card_processing_fee: 0,
+      year: 2026,
+      month: 5,
+    },
+    expected: 11983465,
+    note: "c95-B-4a: water 2026/5 → 7.7% 控除適用 (kansai 実データ想定、Math.round 後)",
+  },
+  {
+    input: {
+      total_profit: 0,
+      total_revenue: 35443020,
+      business_category: "water",
+      total_labor_cost: 6408500,
+      material_cost: 3256865,
+      ad_cost: 6193244,
+      sales_outsourcing_cost: 4871833,
+      card_processing_fee: 0,
+      year: 2026,
+      month: 4,
+    },
+    expected: 14712578,
+    note: "c95-B-4a: water 2026/4 (境界月、控除なし、過去データ保護)",
+  },
+  {
+    input: {
+      total_profit: 0,
+      total_revenue: 35443020,
+      business_category: "water",
+      total_labor_cost: 6408500,
+      material_cost: 3256865,
+      ad_cost: 6193244,
+      sales_outsourcing_cost: 4871833,
+      card_processing_fee: 0,
+      year: 2025,
+      month: 12,
+    },
+    expected: 14712578,
+    note: "c95-B-4a: water 2025/12 (過去年、控除なし、過去データ遡及変動ガード)",
+  },
+  {
+    input: {
+      total_profit: 0,
+      total_revenue: 35443020,
+      business_category: "water",
+      total_labor_cost: 6408500,
+      material_cost: 3256865,
+      ad_cost: 6193244,
+      sales_outsourcing_cost: 4871833,
+      card_processing_fee: 0,
+      year: "2026",
+      month: "5",
+    },
+    expected: 11983465,
+    note: "c95-B-4a: water 2026/5 + string year/month → numOf で number 化、控除適用",
+  },
+  {
+    input: {
+      total_profit: 0,
+      total_revenue: 10000000,
+      business_category: "electric",
+      total_labor_cost: 2000000,
+      material_cost: 1000000,
+      ad_cost: 1500000,
+      sales_outsourcing_cost: 500000,
+      year: 2026,
+      month: 5,
+    },
+    expected: 5000000,
+    note: "c95-B-4a: electric 2026/5 → 控除なし (water 限定の二重ガード)",
+  },
+  {
+    input: {
+      total_profit: 0,
+      total_revenue: 5000000,
+      business_category: "locksmith",
+      locksmith_construction_cost: 1500000,
+      material_cost: 800000,
+      ad_cost: 600000,
+      locksmith_commission_fee: 200000,
+      year: 2026,
+      month: 5,
+    },
+    expected: 1900000,
+    note: "c95-B-4a: locksmith 2026/5 → 控除なし (water 限定)",
+  },
+  {
+    input: {
+      total_profit: 0,
+      total_revenue: 10000000,
+      business_category: "road",
+      ad_cost: 1500000,
+      sales_outsourcing_cost: 500000,
+      year: 2026,
+      month: 5,
+    },
+    expected: 8000000,
+    note: "c95-B-4a: road 2026/5 → 控除なし (water 限定)",
+  },
+  {
+    input: {
+      total_profit: 0,
+      total_revenue: 19651107,
+      business_category: "detective",
+      ad_cost: 8239341,
+      year: 2026,
+      month: 5,
+    },
+    expected: 11411766,
+    note: "c95-B-4a: detective 2026/5 → 控除なし (water 限定)",
+  },
+  {
+    // 100 - 100*0.077 = 100 - 7.7 = 92.3 → Math.round = 92
+    input: {
+      total_profit: 0,
+      total_revenue: 100,
+      business_category: "water",
+      year: 2026,
+      month: 5,
+    },
+    expected: 92,
+    note: "c95-B-4a: water Math.round 小数検算 (100 - 7.7 = 92.3 → 92)",
+  },
+  {
+    // file_import bypass シナリオ証跡: dbProfit > 0 で水道 5月 → 早期 return
+    //   控除前 profit が DB に書かれていると over-report が発生する。
+    //   c95-B-4a スコープ外、c95-B-5 で対応 (KNOWN_ISSUES.md #8 参照)。
+    input: {
+      total_profit: 30460693,
+      total_revenue: 88857300,
+      business_category: "water",
+      year: 2026,
+      month: 5,
+    },
+    expected: 30460693,
+    note: "c95-B-4a: water 2026/5 + dbProfit > 0 → 早期 return (c95-B-5 bypass 証跡)",
+  },
+  {
+    input: {
+      total_profit: 0,
+      total_revenue: 0,
+      business_category: "water",
+      year: 2026,
+      month: 5,
+    },
+    expected: 0,
+    note: "c95-B-4a: water 2026/5 + revenue=0 → revenue ガードで 0",
+  },
 ];
 
 let passed = 0;
