@@ -209,8 +209,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 6. git / PR 運用
 
-- **CC が実装〜PR 作成まで完結、マージは反さんの明示ゴー後に CC が実行**（gh 認証が切れていたら §6 末尾の再ログイン手順に従って最優先で復旧）。
-- マージ = 経営数字の本番リリース。最終ゲートは反さんが必ず押す（c93 事故の再発防止）。
+- **CC が実装〜PR 作成まで完結、マージは番人通過後に担当者（3 人いずれか）が実行**（gh 認証が切れていたら §6 末尾の再ログイン手順に従って最優先で復旧）。
+- マージ = 経営数字の本番リリース。番人が通っても「今これを本番に出していいか」は人間の判断（c93 事故の教訓）。3 人体制では最終リリース判断もチーム共有（§0「チームに一報してから実行する操作」+ §10「並行作業ルール」参照）。
 - PR は機能境界で分割。cutover（入口切り替え・既存廃止）は最後の独立 PR に。
 - 大規模リファクタは段階分割: 1 コミット = 1 テーマに絞る。
 - ブランチは `feature/` プレフィックス（hotfix は `fix/`、運用補助は `chore/`、マイグレ補助 script は `scripts/migrations/`）。
@@ -219,33 +219,34 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 認証なし API ルートが既存（後で一括対応予定）。新規 API も同様で OK（後で揃える）。
 - エラー時は迷ったら git reset: 推測修正で深掘りせず、迷ったら一度戻す。
 
-### 標準 PR フロー（gh CLI 認証済前提、2026-06-01 以降）
+### 標準 PR フロー（gh CLI 認証済前提、2026-06-01〜 3 人体制版）
 
 | # | ステップ | 主体 | ブロッカー |
 |---|---|---|---|
-| 1 | 実装（Edit/Write）→ `npx tsc --noEmit` / `npm run build` / 対象テスト green まで自己検証 | CC | 自己検証 NG なら commit せず原因究明 |
-| 2 | 番人招集（金額変更 → number-verifier、不変項目 → invariant-guard）。両者の指摘を全て解消するまで Step 1〜2 反復 | CC | **番人が「バグあり / 違反あり」と判定したら commit/push しない**。修正して再招集。 |
-| 3 | commit（HEREDOC で日本語 message、Co-Authored-By 付き）+ push（`-u origin <branch>`） | CC | hooks 失敗時は `--no-verify` ではなく根本対応 |
-| 4 | `gh pr create --title "<日本語タイトル>" --body "$(cat <<'EOF' ... EOF)"` で PR 作成、本文は §5 報告フォーマット準拠（概要 / 変更点 / 検証 / 数値証跡 / 後続予定） | CC | `gh auth status` が NG なら §6 末尾の再ログイン手順 |
-| 5 | 反さん PR 本文確認 → **「マージ OK」発話** → CC が `gh pr merge <PR#> --squash --delete-branch` | 反さん承認 + CC 実行 | 明示 OK なしでマージしない（CLAUDE.md §1 / §6 の最終ゲート） |
-| 6 | `git checkout main && git pull --ff-only origin main && git branch -d <branch>` でローカル同期 | CC | ローカル main が遅れていたら必ず先に同期 |
+| 1 | 実装（Edit/Write）→ `npx tsc --noEmit` / `npm run build` / 対象テスト green まで自己検証 | 担当者 + CC | 自己検証 NG なら commit せず原因究明 |
+| 2 | 番人招集（金額変更 → number-verifier、不変項目 → invariant-guard）。両者の指摘を全て解消するまで Step 1〜2 反復 | 担当者 + CC | **番人が「バグあり / 違反あり」と判定したら commit/push しない**。修正して再招集。 |
+| 3 | commit（HEREDOC で日本語 message、Co-Authored-By 付き）+ push（`-u origin <branch>`） | 担当者 + CC | hooks 失敗時は `--no-verify` ではなく根本対応 |
+| 4 | `gh pr create --title "<日本語タイトル>" --body "$(cat <<'EOF' ... EOF)"` で PR 作成、本文は §5 報告フォーマット準拠（概要 / 変更点 / 検証 / 数値証跡 / 後続予定） | 担当者 + CC | `gh auth status` が NG なら §6 末尾の再ログイン手順 |
+| 5 | 番人通過確認 → §0「チームに一報してから実行する操作」該当の重大変更なら 3 人中 1 人（**PR 著者以外**）がレビュー → 担当者が `gh pr merge <PR#> --squash --delete-branch` | 担当者 + (重大変更時) チーム 1 人 | 番人 NG / 重大変更でレビュー未了 / 著者本人レビュー（= 実質ノーチェック） |
+| 6 | `git checkout main && git pull --ff-only origin main && git branch -d <branch>` でローカル同期 | 担当者 + CC | ローカル main が遅れていたら必ず先に同期 |
 
 **禁則**:
 - 番人 NG のまま commit/push する
-- 反さんの明示ゴー前にマージする
-- 自動マージ拡張（chore/docs だけでも例外を作らない、案 B 却下済 = c93 事故再発防止）
+- 番人通過前にマージする
+- §0「チーム一報」該当の重大変更を、3 人中 1 人（PR 著者以外）のレビュー前にマージする
+- 自動マージ拡張（番人通過 + 人間ゲートは省略不可。案 A 全権限版でも維持、c93 事故再発防止の教訓継承）
 - `--no-verify` / `--no-gpg-sign` を勝手に付ける
 - main 直 commit（小さい設定ファイルでも PR 経由）
 
 ### gh CLI 認証が切れた場合の再ログイン手順
 
 1. `gh auth status` で確認。`not logged in` または token expired なら以下へ。
-2. ターミナルで `gh auth login` を反さんが実行（CC は対話プロンプトを扱えないため依頼）。
+2. ターミナルで `gh auth login` を担当者が実行（CC は対話プロンプトを扱えないため依頼。3 人それぞれが自分の GitHub アカウントで認証する）。
 3. 対話プロンプト回答:
    - `GitHub.com` → `HTTPS` → `Yes (Git 認証同期)` → `Login with a web browser`
 4. 表示される 8 桁ワンタイムコードをコピー → Enter でブラウザ開く（開かなければ手動で https://github.com/login/device）。
 5. コード貼付 → GitHub 認証 → `Authorize github`。
-6. `gh auth status` で `✓ Logged in to github.com account skenyu-hash` を確認。
+6. `gh auth status` で `✓ Logged in to github.com account <自分の username>` を確認。
 7. CC は認証復旧後、保留中の `gh pr create` から再開。
 
 ---
