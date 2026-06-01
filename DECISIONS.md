@@ -8,6 +8,22 @@
 
 ---
 
+## D-009: 「マージ済」の記録は記録者が git log/gh pr view で実マージを確認してから書く
+- 日付: 2026-06-01
+- 決めたこと: §7 進行状況 / DECISIONS / KNOWN_ISSUES / ONBOARDING 等に「マージ済」「実装済」と記録する前に、記録者(人/AI を問わず)が必ず `gh pr view <PR#> --json mergedAt,state` または `git log --merges --grep="<branch名>"` で実マージ commit の存在を確認する。他者(user/Web Claude/CC)から渡された「マージ済」情報も、写す前に同じ手順で検証する。
+- なぜ: 2026-06-01 c95-C Step 1 調査で、c95-A-3 hotfix (commit b168830、3段fallback) が CLAUDE.md §7 / DECISIONS D-004 / ONBOARDING / KNOWN_ISSUES の 4 箇所で「✅ マージ済」と記録されていたが、実際は stale branch `fix/c95-a-3-share-intent-line-fallback` に commit が残っているだけで **PR 未作成・main 未マージ**だった。実コード grep で `navigator.share` / `line.me` が hit ゼロで発覚 (DailyReportModal.tsx onShare は `mailto:` 一本のまま)。
+- 根本原因 (二重伝播):
+  1. Web Claude (claude.ai、当時 CC とのコピペ中継役) が、反さんの「マージしておいて」報告を受けて実マージを確認せず「マージ済」としてドキュメントに書いた
+  2. 本セッション (2026-06-01) で CC が CLAUDE.md 統合 (commit 659f7f8) する際、user 提供の §7 内容を git log で検証せず写した
+  3. 結果: 1 か月後に c95-C Step 1 の実コード grep で初めて乖離発覚
+- 一般化: 人/AI を問わず、マージ済の記録は記録者が git log で実マージを確認してから書く。他者から渡された「マージ済」を写すときも、写す前に検証責任がある。検証なしで写すのは、誤りの伝播に加担すること。
+- 却下した代替案: CI で「§7 の ✅ 項目を git log と照合」自動化 → 仕組み複雑、手動ルール + invariant-guard で十分。将来必要なら導入検討。
+- 対応:
+  - CLAUDE.md §5 末尾に検証ルール追記 (本 PR で実施)
+  - 教訓を本 D-009 として記録 (本 PR で実施)
+  - 当該 c95-A-3 hotfix は PR #128 で b168830 を正式マージ (2026-06-01)、実態とドキュメントが一致
+- 学び: ドキュメント更新は「コミット行為」と同じ責任を持つ。書く前に grep / git log を回す癖をつける。
+
 ## D-008: 開発体制をマルチエージェント(implementer + 2番人)に移行
 - 日付: 2026-06-01
 - 決めたこと: Web Claude(claude.ai)を経由する3層コピペ運用をやめ、VSコード内の Claude Code 一本 + サブエージェント(number-verifier / invariant-guard)で回す体制に移行。
