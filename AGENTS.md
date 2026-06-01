@@ -1,3 +1,5 @@
+> **※ 最新の作業ルールは [CLAUDE.md](./CLAUDE.md) を参照。本ファイルは背景情報のアーカイブ（2026-06-01 以降、CLAUDE.md に統合済み）。**
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
