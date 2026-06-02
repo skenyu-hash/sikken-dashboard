@@ -197,6 +197,13 @@ export function ensureSchema(): Promise<void> {
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS material_cost NUMERIC NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS sales_outsourcing_cost NUMERIC NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS card_processing_fee NUMERIC NOT NULL DEFAULT 0`);
+      // PR c95-D-1 (Step 1+2 セット): water 業態のコンサル費 手入力フィールド。
+      //   旧 c95-B の自動 (売上 × 7.7%) 計算は本 PR では untouch (= slice 1+2 完了時点
+      //   では粗利計算には反映されない)。手入力された値は entries.data.consultant_fee と
+      //   monthly_summaries.consultant_fee に保存されるのみ。slice 3-5 で計算経路を
+      //   手入力ベースに切替予定。water 以外の業態は常に 0 (UI 非表示、値も触らない)。
+      //   既存 4 月以前 109 行 + 5 月以降 7 行は DEFAULT 0 で埋まる → 過去データ遡及変動なし。
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS consultant_fee NUMERIC NOT NULL DEFAULT 0`);
       // ④ 施工 (4列)
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS outsourced_construction_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS internal_construction_count INTEGER NOT NULL DEFAULT 0`);

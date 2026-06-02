@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
           outsourced_response_count, internal_staff_response_count,
           repeat_count, revisit_count, review_count,
           total_labor_cost, material_cost, sales_outsourcing_cost, card_processing_fee,
+          consultant_fee, -- PR c95-D-1 (slice 1+2): water 専用手入力。import でも 6 レイヤー揃える。
           outsourced_construction_count, internal_construction_count,
           outsourced_construction_cost, internal_construction_profit,
           switchboard_count,
@@ -132,6 +133,7 @@ export async function POST(req: NextRequest) {
           ${num(pick(row, "repeat_count"))}, ${num(pick(row, "revisit_count"))}, ${num(pick(row, "review_count"))},
           ${num(pick(row, "total_labor_cost"))}, ${num(pick(row, "material_cost"))},
           ${num(pick(row, "sales_outsourcing_cost"))}, ${num(pick(row, "card_processing_fee"))},
+          ${num(pick(row, "consultant_fee"))}, -- PR c95-D-1 (slice 1+2)
           ${num(pick(row, "outsourced_construction_count"))}, ${num(pick(row, "internal_construction_count"))},
           ${num(pick(row, "outsourced_construction_cost"))}, ${num(pick(row, "internal_construction_profit"))},
           ${num(pick(row, "switchboard_count"))},
@@ -175,6 +177,7 @@ export async function POST(req: NextRequest) {
           material_cost=EXCLUDED.material_cost,
           sales_outsourcing_cost=EXCLUDED.sales_outsourcing_cost,
           card_processing_fee=EXCLUDED.card_processing_fee,
+          consultant_fee=EXCLUDED.consultant_fee, -- PR c95-D-1 (slice 1+2)
           outsourced_construction_count=EXCLUDED.outsourced_construction_count,
           internal_construction_count=EXCLUDED.internal_construction_count,
           outsourced_construction_cost=EXCLUDED.outsourced_construction_cost,

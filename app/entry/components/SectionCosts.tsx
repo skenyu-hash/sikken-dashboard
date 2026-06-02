@@ -1,5 +1,8 @@
 "use client";
 // ② コスト セクション: 入力 4 (f11/f12/f13/f14)
+// PR c95-D-1 (slice 1+2): water のみ 5 項目目「コンサル費」(consultant_fee) を追加。
+//   category === "water" のみ NumberField を表示、subtitle / count も 5 に切替。
+//   他業態 (electric/locksmith/road/detective) は従来通り 4 項目で変化なし。
 
 import type { EntryFormState, ValidationErrors, InputFieldKey, InputValue } from "../types";
 import type { FieldLabels } from "../../lib/business-labels";
@@ -17,8 +20,10 @@ type Props = {
 };
 
 export default function SectionCosts({ state, setField, validateField, errors, labels, defaultOpen }: Props) {
+  const isWater = state.category === "water";
+  const itemCount = isWater ? 5 : 4;
   return (
-    <SectionShell title={labels.section_costs} subtitle="入力 4項目" group="cost" count={4} defaultOpen={defaultOpen}>
+    <SectionShell title={labels.section_costs} subtitle={`入力 ${itemCount}項目`} group="cost" count={itemCount} defaultOpen={defaultOpen}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         <NumberField field="total_labor_cost" label={labels.total_labor_cost} unit="円"
           value={state.total_labor_cost} onChange={(v) => setField("total_labor_cost", v)}
@@ -32,6 +37,11 @@ export default function SectionCosts({ state, setField, validateField, errors, l
         <NumberField field="card_processing_fee" label={labels.card_processing_fee} unit="円"
           value={state.card_processing_fee} onChange={(v) => setField("card_processing_fee", v)}
           onBlur={validateField} state={state} error={errors.card_processing_fee} />
+        {isWater && (
+          <NumberField field="consultant_fee" label={labels.consultant_fee} unit="円"
+            value={state.consultant_fee} onChange={(v) => setField("consultant_fee", v)}
+            onBlur={validateField} state={state} error={errors.consultant_fee} />
+        )}
       </div>
     </SectionShell>
   );

@@ -36,11 +36,13 @@ export interface FieldLabels {
   revisit_count: string;
   review_count: string;
 
-  // ② コスト (入力 4)
+  // ② コスト (入力 4 + PR c95-D-1 で water のみ 5 項目目 consultant_fee)
   total_labor_cost: string;
   material_cost: string;
   sales_outsourcing_cost: string;
   card_processing_fee: string;
+  // PR c95-D-1 (slice 1+2): water のみ表示。SectionCosts 内 category === "water" で出し分け。
+  consultant_fee: string;
 
   // ③ 広告費 (入力 3 + auto 3)
   ad_cost: string; // = total_ad_spend
@@ -99,6 +101,7 @@ const WATER_LABELS: FieldLabels = {
   material_cost: "材料費",
   sales_outsourcing_cost: "営業外注費（業務委託費）",
   card_processing_fee: "カード決済手数料",
+  consultant_fee: "コンサル費", // PR c95-D-1: water のみ手入力 (他業態 ラベル定義は持つが画面に出さない)
 
   ad_cost: "総広告費",
   call_count: "入電件数",
