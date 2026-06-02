@@ -304,56 +304,30 @@ PR #38 → #41 → #42 で「**新列追加 → 投入経路追加忘れ → 表
 
 ---
 
-## 8. ⚠️ `/import-monthly` (Excel 取込) で water 2026年5月以降の投入禁止 (c95-B-5 で対応)
+## 8. ✅ [解消] `/import-monthly` (Excel 取込) water 5月以降の controle 抜け (c95-D で構造的解消)
 
-### 概要
-**water 業態の 2026年5月以降のデータを `/import-monthly` (Excel) 経由で投入すると、コンサル費 7.7% 控除が抜け、ダッシュボード粗利が約 7.7% 過大表示される。** c95-B-5 で根本対応するまで、water + 2026/5 以降の Excel 取込は **絶対に行わないこと**。
+### 結論 (2026-06-02 時点)
+c95-D (PR #143 / #145 / #146 / #147 / 本 slice 6) で水道コンサル費を「自動 7.7%」から「実額の手入力」に完全移行したことで、本問題は **構造的に解消**。
 
-### 構造的原因
-c95-B-2 (PR #118) で `monthlyAggregation` 経路に water コンサル費 7.7% 控除を組み込んだが、`/api/import-monthly` (Excel 取込) は aggregation を経由せず Excel から `total_profit` を直接 INSERT する別経路 (`source='file_import'`)。
+- c95-D-1 (PR #143) で `monthly_summaries.consultant_fee` 列追加 + import-monthly の 6 レイヤー対応 (INSERT 列 / VALUES / ON CONFLICT 3 セクション全てに `consultant_fee` 配線済)
+- c95-D-4 (PR #146) で aggregation の water 分岐を「revenue × 0.077」から「SUM(entries.data.consultant_fee)」直接控除に切替
+- c95-D-5 (PR #147) で read fallback (profit.ts) も `summary.consultant_fee` 直接控除に切替
+- c95-D-6 (本 PR) で旧 7.7% 自動計算ロジック (`CONSULTANT_FEE_RATE` / `consultantFee()` 関数) を完全撤去
 
-- aggregation 経路 (`source='entries_aggregation'`): 控除後 profit が DB に保存される → 正しい
-- import-monthly 経路 (`source='file_import'`): 控除前 profit が DB に保存される → 過大
+### 新仕様での Excel 取込手順 (water 5月以降)
+1. Excel テンプレートに `consultant_fee` 列を追加 (各エリア・各月の実額を記入、契約なしの月は 0)
+2. `/import-monthly` で投入 → DB の `monthly_summaries.consultant_fee` に手入力値が直接保存される
+3. ダッシュボード表示 (`profit.ts` read fallback) は `dbProfit > 0` で早期 return しても、Excel 側に `total_profit` を「revenue - costs - consultant_fee」で計算済の値を含めれば一致する
+4. または、`total_profit` 列を空欄にすれば read fallback が構成要素 (`total_revenue` / 各コスト / `consultant_fee`) から再計算して整合する
 
-さらに c95-B-4a (PR `feature/c95-b-4a-...`) の `resolveTotalProfit` 読み込み fallback は `dbProfit > 0` を尊重する設計のため、Excel 経由で書かれた控除前 profit が早期 return でそのまま画面に出る。
-
-### 影響規模
-- 例: water/2026/5/kansai で revenue 88,857,300 → 控除額 6,842,012 円 → **粗利 +6,842,012 円過大表示**
-- 経営判断の数字が静かに狂う (UI には警告が出ない)
-
-### 現状の本番 DB (2026-06-01 時点、c95-B-4a 着手時 number-verifier 確認)
-- water + ym >= 202605 は 7 行、全て `source='entries_aggregation'` (file_import なし)
-- legacy `total_profit = 0` 行は 0 件
-- → **現時点で本問題は未発火**。ただし新メンバー / 将来運用変更で容易に踏む。
-
-### やってはいけないこと (やる前にこのドキュメントを読むこと)
-- ❌ water 業態の 2026年5月以降の月次データを `/import-monthly` (Excel) で投入する
-- ❌ water 業態の 2026年5月以降を import-monthly テンプレートに含めて流す
-- ❌ 「dbProfit に値が入っているから正しいだろう」と仮定する (経路によって控除前/後が混在)
-
-### やって良いこと
-- ✅ water 業態の 2026年4月以前の Excel 取込 (consultantFee helper が 0 を返すため影響なし)
-- ✅ water 業態の 2026年5月以降を day 単位で entries 経由 (`/entry` 画面) で入力 → aggregation 経由で控除後 profit が保存される
-- ✅ electric / locksmith / road / detective は全期間 Excel 取込可 (現時点で water 以外の控除率は 0)
-
-### c95-B-5 で予定する対応 (どれか or 組み合わせ)
-1. `/api/import-monthly` で water + yyyymm >= 202605 のとき、書き込み前に 7.7% 控除を適用する
-2. または、`source='file_import'` 行を `resolveTotalProfit` の早期 return から除外し、構成要素から再計算する
-3. または、`/import-monthly` テンプレートから water 5月以降を除外し、Excel 取込自体を遮断する
+### 歴史的経緯 (archive、当時の問題説明、c95-B 時点の状態)
+> 旧 c95-B-2 (PR #118) で `monthlyAggregation` 経路に water コンサル費 7.7% 自動控除を組み込んだが、`/api/import-monthly` (Excel 取込) は aggregation を経由せず Excel から `total_profit` を直接 INSERT する別経路 (`source='file_import'`) のため、水道 5月以降を Excel で投入すると控除前 profit が DB に保存され、約 7.7% 過大表示が発生する潜在問題があった。c95-B-5 で対応予定としていた。
+>
+> c95-D 方針転換 (2026-06-02、D-010 参照) で「自動 7.7%」から「実額手入力」に完全移行したことで、率による自動計算が消滅し、Excel 側で手入力値を含めれば自動的に整合する設計になり、本問題は構造的に解消した。
 
 ### 関連
-- ロジック層: [app/lib/profit.ts](app/lib/profit.ts) (c95-B-4a で控除追加、ただし dbProfit > 0 は早期 return)
-- 投入経路: [app/api/import-monthly/route.ts:118](app/api/import-monthly/route.ts#L118)
-- ヘルパー: [app/lib/consultantFee.ts](app/lib/consultantFee.ts) (c95-B-1)
-
-### 検出方法 (発火確認)
-```sql
-SELECT area_id, year, month, source, total_revenue, total_profit,
-       (total_revenue * 0.077)::INT AS expected_fee
-  FROM monthly_summaries
- WHERE business_category = 'water'
-   AND (year * 100 + month) >= 202605
-   AND source = 'file_import';
-```
-このクエリで 1 行でも返れば本問題が発火している。number-verifier を再招集し、当該行の `total_profit` を控除後値に修正する手順を確立すること。
+- 仕様変更の根拠: [DECISIONS.md D-010](./DECISIONS.md)
+- c95-D 全 slice の実装: PR #143 / #145 / #146 / #147 / 本 slice 6 (c95-D-6)
+- 投入経路 (consultant_fee 配線済): [app/api/import-monthly/route.ts](app/api/import-monthly/route.ts) (c95-D-1 で 6 レイヤー対応)
+- 残った定数: `CONSULTANT_FEE_APPLIED_FROM_YYYYMM = 202605` (4 月以前データ絶対不変ガード、手入力ベースでも継続使用)
 

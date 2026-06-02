@@ -35,14 +35,13 @@
 
 import { Pool } from "@neondatabase/serverless";
 import { aggregateMonthlySummary } from "../../app/lib/monthlyAggregation";
-import {
-  CONSULTANT_FEE_RATE,
-  CONSULTANT_FEE_APPLIED_FROM_YYYYMM,
-} from "../../app/lib/consultantFee";
+import { CONSULTANT_FEE_APPLIED_FROM_YYYYMM } from "../../app/lib/consultantFee";
 
+// PR c95-D-6: CONSULTANT_FEE_RATE 撤去のため直値化 (本スクリプトは slice 4 で 1 回 apply 済
+//   archive、再走時の予測式 (旧 7.7% → 新手入力 SUM 差分) 計算のため当時の率を保持)。
 const APPLY = process.argv.includes("--apply");
 const TARGET_CATEGORY = "water";
-const WATER_RATE = CONSULTANT_FEE_RATE.water; // 0.077 (slice 6 で撤去予定、本 PR では予測式に使用)
+const WATER_RATE = 0.077; // archive: c95-B 当時の率 (slice 4 予測式の入力、新規再 apply は不要)
 const APPLY_FROM_YM = CONSULTANT_FEE_APPLIED_FROM_YYYYMM; // 202605
 const TOLERANCE_YEN = 1; // Math.round 小数部由来の誤差許容
 

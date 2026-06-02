@@ -8,6 +8,28 @@
 
 ---
 
+## D-010: 水道コンサル費は「売上 × 7.7% 自動計算」から「実額の手入力」に切替 (c95-D で完全移行)
+- 日付: 2026-06-02
+- 決めたこと: 水道業態のコンサル費控除を、c95-B シリーズで実装した「売上 × 0.077 自動計算」から「monthly_summaries.consultant_fee / entries.data.consultant_fee に実額を手入力」する方式に完全変更。c95-D で 6 slice に分けて段階的に切替えた。
+- なぜ: 実運用要件は「実額の手入力」であって 7.7% の固定率ではなかった (c95-B 着手時の要件取り違え)。月毎 / 拠点毎にコンサル契約金額が異なる + 契約なしの月もあるため、固定率では現実と乖離する。「いつ・いくら・誰のコンサル契約か」を現場が直接記録できる UI が必要。
+- スコープ (water 業態のみ、他 4 業態 untouch):
+  - **slice 1+2** (PR #143): `monthly_summaries.consultant_fee NUMERIC NOT NULL DEFAULT 0` 列追加 + water ②コストに「コンサル費」手入力欄追加 (5 項目目、subtitle「入力 5項目」)。粗利計算経路は untouch、過去データ表示変動 0 円
+  - **slice 3** (PR #145): form-level (`useFormCalculations.ts`) を `state.consultant_fee` 直接控除に切替
+  - **slice 4** (PR #146 + re-aggregate apply 実行済): aggregation SQL の water 分岐を 3 段 CASE に再構成、`- b.sum_consultant_fee` 直接控除。slice 4 リリース時点で本番 DB の 5/6 月 water 12 行を再集計、約 +2,790 万円 跳ね上がり (現場入力ほぼゼロのため旧 7.7% 自動分が外れた)
+  - **slice 5** (PR #147): day-level (`kpiCompute.ts` / `WaterDailyReportSection.tsx`) + read fallback (`profit.ts`) を手入力ベースに切替。`CONSULTANT_FEE_RATE.water` を 0.077 → 0 に無効化
+  - **slice 6** (本 PR): UI バッジ文言「コンサル費 7.7% 控除済」→「コンサル費 (手入力) 控除済」に置換、`AutoCalcDisplay` subtitle 文言修正、`consultantFee.ts` の `CONSULTANT_FEE_RATE` / `consultantFee()` 関数を完全撤去 (月境界定数 `CONSULTANT_FEE_APPLIED_FROM_YYYYMM = 202605` と `toYyyyMm` のみ残置)。docs 更新 (D-001 / D-002 / D-003 / D-006 / D-007 archive 保持、本 D-010 を最新方針として記録)
+- 絶対不変保護: 4 月以前 water 109 行は 6 配線全てで `yyyymm >= 202605` ガード、表示値変動 0 円を維持。他業態 (electric/locksmith/road/detective) の粗利式は完全 untouch
+- 却下した代替案:
+  - 自動 7.7% 維持 + 手入力 override: UI が複雑化、ユーザーが「7.7% が default か手入力か」混乱する。完全手入力に統一する方が明快
+  - 月境界 (202605) も撤廃: 4 月以前 monthly_summaries 109 行の絶対不変項目を保護する必要があるため、月境界ガードは手入力ベースでも維持
+  - re-aggregate 実行を slice 4 で先送りせず slice 6 まで遅延: 入力中の form 粗利 (slice 3) と本番ダッシュボード粗利 (旧 7.7%) が長期乖離 → 現場混乱。slice 4 で即 apply し乖離期間を最小化
+- 関連 archive (旧設計の歴史記録、後続セッションが背景理解のため参照):
+  - D-001 (2026-05): コンサル費を粗利前に変動費として引く判断 → c95-D でも維持 (sum_consultant_fee も粗利前)
+  - D-002 (2026-05): 基数 = 全体売上、率を中央マスター管理 → c95-D で「率」概念は撤廃、「実額」を中央 DB 列に。中央マスター = `monthly_summaries.consultant_fee` / `entries.data.consultant_fee`
+  - D-003 (2026-05): 2026年5月以降のみ適用 → c95-D でも維持 (`CONSULTANT_FEE_APPLIED_FROM_YYYYMM = 202605` の月境界ガード)
+  - D-007 (2026-05): import-monthly 経路を保留 (KNOWN_ISSUES #8) → c95-D-1 で 6 レイヤー対応により Excel 側に consultant_fee 列を含めれば構造的に解消、保留解除
+- 学び: 「率を仕様化」してから実装すると、要件取り違えに気づきにくい (率は数字として確定して見える)。「数字を入力する場所」を仕様化していれば早期に気付けた。次回からは「ユーザーが何を入力するか」を最初に決める。
+
 ## D-009: 「マージ済」の記録は記録者が git log/gh pr view で実マージを確認してから書く
 - 日付: 2026-06-01
 - 決めたこと: §7 進行状況 / DECISIONS / KNOWN_ISSUES / ONBOARDING 等に「マージ済」「実装済」と記録する前に、記録者(人/AI を問わず)が必ず `gh pr view <PR#> --json mergedAt,state` または `git log --merges --grep="<branch名>"` で実マージ commit の存在を確認する。他者(user/Web Claude/CC)から渡された「マージ済」情報も、写す前に同じ手順で検証する。
