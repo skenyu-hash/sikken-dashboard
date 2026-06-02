@@ -13,4 +13,5 @@
 （例)
 - [いつか] 休眠顧客24万人の再活性化機能(DECISIONS/戦略目標より)
 - [いつか] 広告依存からの脱却を支える指標ダッシュボード
+- [中] /entry 入力欄スピナー消し: type=number の上下矢印 + マウスホイール増減を無効化、直接入力のみ。経営数字の誤改変防止 (昨日「確定送信で数字がズレる」現場クレームの再発予防)。CSS (-webkit-appearance:none / -moz-appearance:textfield) + onWheel preventDefault。入力・保存・計算ロジック untouch、見た目とホイール挙動のみ。番人: invariant-guard 必須 (計算式 untouch 確認) + 念のため number-verifier で入力値不変を確認。c95-C 完了後に着手予定
 ※ここは反さんが思いついたら随時追加
