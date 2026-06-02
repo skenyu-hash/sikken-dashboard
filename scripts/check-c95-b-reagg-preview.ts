@@ -11,7 +11,9 @@
 //   - 控除額 (= revenue * 0.077)
 
 import { Pool } from "@neondatabase/serverless";
-import { CONSULTANT_FEE_RATE } from "../app/lib/consultantFee";
+// PR c95-D-6: CONSULTANT_FEE_RATE 撤去のため直値化 (本スクリプトは旧 c95-B 検証用 archive、
+//   歴史記録として残置するが consultantFee.ts への依存は外す)。
+const CONSULTANT_FEE_RATE = { water: 0.077 } as const; // archive: c95-B 当時の率
 
 async function main() {
   if (!process.env.DATABASE_URL) {

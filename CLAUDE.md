@@ -158,7 +158,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **全体売上** = `outsourced_sales_revenue + internal_staff_revenue`（業務委託売上 + 内勤社員売上）
 - **粗利（water/electric/road/detective）** = 売上 − 職人費 − 材料費 − 広告費 − 営業外注費 − カード手数料
 - **粗利（locksmith）** = 売上 − 工事費 − 材料費 − 広告費 − 手数料（別経路。internal_construction_profit 加算なし、SectionConstruction 非表示）
-- **コンサル費控除（c95-B、water のみ）**: 粗利からさらに `売上 × 0.077` を控除。**2026年5月以降（yyyymm >= 202605）のみ**適用。4月以前は控除 0。率・月境界は `app/lib/consultantFee.ts` の定数を使い、ハードコード禁止。
+- **コンサル費控除（c95-D、water のみ）**: 粗利からさらに **手入力 `consultant_fee`** (monthly_summaries.consultant_fee / entries.data.consultant_fee) を直接控除。**2026年5月以降（yyyymm >= 202605）のみ**適用、4月以前は控除 0。月境界は `app/lib/consultantFee.ts` の定数 `CONSULTANT_FEE_APPLIED_FROM_YYYYMM = 202605` のみ参照 (旧 c95-B の自動 7.7% 率は c95-D-6 で完全撤去、[DECISIONS.md D-010](./DECISIONS.md) 参照)。
 - **当日粗利率** = 当日粗利 ÷ 当日売上（当日ベース。月累計÷ではない）
 - **HELP**: 顧客先での上位スタッフによるアップセル/クロスセル。water/electric/locksmith のみ（road/detective は非表示）。単価は通常案件の 7〜17 倍。
 - **landing/着地予測** = actual ÷ daysElapsed × daysInMonth、**達成率** = landing ÷ target
@@ -273,17 +273,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **c95-B-4a**（2026-06-01）✅ PR #121 マージ済 — profit.ts read fallback への water 7.7% 控除 + Math.round 整数粒度一致 + test-profit.ts 11 case 追加 (合計 26/26 pass)
 - **c95-B-4b**（2026-06-01）✅ 本 PR マージ済 — `<ConsultantFeeBadge>` 共通コンポーネント新設 + WaterDashboardSection / Dashboard グループクロス表 / trends / breakeven の 4 配線。yyyymm>=202605 ガードで過去月閲覧時は非表示 (4 月以前データへの誤認回避)
 - **c95-C-1**（2026-06-01）✅ PR #133 マージ済 — 日報モーダルの内部構造を `<DailyReportContent>` (Content 層) + `useDailyReportData` (データ取得 hook) に分割、`DailyReportModal.tsx` を 379 → 71 行に縮小。純リファクタ (動作・見た目 1 ピクセル不変)、撮影 ref は Modal 側に残し captureRef props 経由で渡すことで boxShadow + 白背景 + borderRadius 含む撮影範囲を完全保持。EntryForm.tsx 無修正、Props 不変。第三者レビュー (反さん) 完了。c95-C-2 (/daily-report 独立ページ) 着手可能
-- **c95-D 方針転換決定**（2026-06-02）✅ 反さん承認済 — コンサル費を「売上×7.7%自動計算」から「実額の手入力」に変更。water のみ。c95-B 全機能を slice 単位で手入力ベースに切替予定。
-- **c95-D-1（slice 1+2: スキーマ + UI 追加、粗利不変）**（2026-06-02）✅ PR #143 マージ済 (commit 23d8ee9) — `monthly_summaries.consultant_fee NUMERIC NOT NULL DEFAULT 0` 列追加 + water ②コスト 5 項目目「コンサル費」手入力欄を新設 (water のみ、subtitle 入力 5項目)。粗利計算経路は untouch (旧 c95-B 7.7% 自動控除が生きたまま、consultant_fee は列に保存するだけで profit 式に未組込)。water 5月以降 7 行 / 4 月以前 109 行 / 他業態すべて差分 0 円。number-verifier + invariant-guard 両方 ✅。マイグレ SQL: `scripts/migrations/c95-d-1_add_consultant_fee_column.sql` を Neon Console で要実行 (冪等 IF NOT EXISTS)。
+- **c95-D 方針転換決定**（2026-06-02）✅ 反さん承認済 — コンサル費を「売上×7.7%自動計算」から「実額の手入力」に変更。water のみ。c95-B 全機能を slice 単位で手入力ベースに切替完了。[DECISIONS.md D-010](./DECISIONS.md) 参照
+- **c95-D-1（slice 1+2: スキーマ + UI 追加、粗利不変）**（2026-06-02）✅ PR #143 マージ済 (commit 23d8ee9) — `monthly_summaries.consultant_fee NUMERIC NOT NULL DEFAULT 0` 列追加 + water ②コスト 5 項目目「コンサル費」手入力欄を新設 (water のみ、subtitle 入力 5項目)。粗利計算経路は untouch。water 5月以降 / 4 月以前 109 行 / 他業態すべて差分 0 円
+- **c95-D-3（slice 3: form-level 切替）**（2026-06-02）✅ PR #145 マージ済 (commit e3eb932) — `useFormCalculations.ts` の water 分岐を旧 `consultantFee("water", f1, yyyymm)` から `state.consultant_fee` 直接控除に切替 (yyyymm >= 202605 のみ)。AutoCalcDisplay 粗利表示が手入力ベースに
+- **c95-D-4（slice 4: aggregation 切替 + re-aggregate）**（2026-06-02）✅ PR #146 マージ済 (commit 98b0502) + re-aggregate apply 実行済 — `monthlyAggregation.ts` の water 分岐を 3 段 CASE に再構成 (water+applyConsult / water+4月以前 / その他)、`- b.sum_consultant_fee` 直接控除。本番 DB の water 5/6 月 12 行を再集計、合計 delta **+27,927,048 円** (現場入力ほぼ未完了で旧 7.7% 自動分が外れた)。4 月以前 water 109 行 untouch 確認済 (`updated_at` 不変)
+- **c95-D-5（slice 5: day-level + read fallback + 日報 切替 + consultantFee 無効化）**（2026-06-02）✅ PR #147 マージ済 (commit 3728084) — `profit.ts` / `kpiCompute.ts` / `WaterDailyReportSection.tsx` を手入力 `consultant_fee` 直接控除に切替 + `CONSULTANT_FEE_RATE.water: 0.077 → 0` 無効化。番人 ✅、テスト 71/71 ✅
+- **c95-D-6（slice 6: UI バッジ + consultantFee.ts 完全撤去 + docs）**（2026-06-02）⏳ 本 PR 進行中 — UI バッジ文言を「コンサル費 (手入力) 控除済」に置換、AutoCalcDisplay subtitle 修正、`consultantFee.ts` の `CONSULTANT_FEE_RATE` / `consultantFee()` 関数を完全撤去 (月境界定数 `CONSULTANT_FEE_APPLIED_FROM_YYYYMM = 202605` + `toYyyyMm` のみ残置)。`DECISIONS.md D-010` / `KNOWN_ISSUES.md §8` (c95-B-5 → 構造解消で closed) / 本 §7 更新
 
 ### 保留中
-- **c95-D 後続 slice 3-6（water 粗利を手入力ベースに切替）**:
-  - **c95-D-2 (現場運用)**: water 5月以降 7 行 (kanto/kyushu/関西/北海道) で現場が `consultant_fee` 実額入力を完了する。slice 3 マージ前に必須 (全 0 のまま slice 3 マージで粗利が +7.7% 跳ね上がるため)
-  - **c95-D-3 (aggregation 切替)**: `monthlyAggregation.ts` の water 分岐 `d_total_profit` を `revenue × 0.077` 控除から `sum_consultant_fee` 直接控除に変更。同時に `re-aggregate water 5月以降` 実行
-  - **c95-D-4 (day-level 切替)**: `useFormCalculations.ts` f30 + `kpiCompute.ts` の `consultantFee(category, sales, yyyymm)` 呼び出しを `state.consultant_fee` 直接控除に変更
-  - **c95-D-5 (read fallback 切替)**: `profit.ts` の `derived -= consultantFee(...)` を `derived -= summary.consultant_fee` に変更
-  - **c95-D-6 (旧 7.7% 撤去)**: `consultantFee.ts` 削除 (CONSULTANT_FEE_RATE 定数も) + `<ConsultantFeeBadge>` の自動計算文言を「手入力」に更新 + docs / CLAUDE.md §4 更新
-- ⚠️ **c95-B-5（最優先・経営数字の静かな破綻リスク）**: water 2026年5月以降データを `/import-monthly` (Excel) 経由で投入するとコンサル費 7.7% 控除が抜け、ダッシュボード粗利が **+7.7% 過大表示** になる。`/api/import-monthly` は `monthlyAggregation` 経路を経由せず `total_profit` を直接 INSERT する独立経路 (`source='file_import'`) のため。c95-B-2 / B-3 / B-4a / B-4b は entries 経由のみカバー。**対応完了まで water 5月以降の Excel import は禁止**（[KNOWN_ISSUES.md §8](./KNOWN_ISSUES.md) に詳細・検出 SQL・運用ガード明記）。現状本番 DB は entries_aggregation のみで未発火、ただし新メンバー / 将来運用変更で容易に踏む。**注**: c95-D-3〜D-6 で手入力ベースに移行すれば本問題は構造的に解消する (Excel import 時も consultant_fee 列を Excel から読み込む 6 レイヤー対応は c95-D-1 で既に完了済)。
+- ⚠️ **water 5/6 月コンサル費の実額入力 (現場運用)**: 2026-06-02 c95-D-4 apply 時点で water 5月の entries.data.consultant_fee は 217 行中 3 行 (chugoku 5/1-5/3) のみ has_key 状態。slice 4 マージで profit が約 +2,790 万円 跳ね上がっており、現場 (各エリアマネージャー) が実額入力を進めて初めて正しい粗利に収束する。**現場周知 + 入力催促が運用上の最優先課題**
 - **c95-C** 残作業（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— C-1 完了、C-2〜C-5 着手可能
   - **c95-C-2**: `/daily-report` 独立ページ + ナビ追加 (NavBar.tsx / MobileHeader.tsx の `/entry` 直後に「日報」)。URL クエリ `?area=&category=&date=`。PC layout、`<DailyReportContent>` 再利用 (C-1 で抽出済)。Modal と並走 (cutover は C-5)
   - **c95-C-3**: モバイル B 案（セクション折りたたみ、①と⑤展開・③④⑥折りたたみ、見出しに要約値）。`<CollapsibleReportSection>` ラッパー方式（既存 Section 改修なし）

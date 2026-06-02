@@ -1,18 +1,20 @@
-// PR c95-B-4b: 水道コンサル費 7.7% 控除済の注記バッジ (共通コンポーネント)。
+// PR c95-D-6 (slice 6): 水道コンサル費「手入力」控除済の注記バッジ (共通コンポーネント)。
 //
-// 用途: Dashboard / 推移 / 損益分岐 で「この粗利は 7.7% 控除後」をユーザーに告知。
-//   c95-B-2 (月次 aggregation) / B-3 (day-level) / B-4a (read fallback) で控除済の
-//   値が画面に出ているため、UI 側で「いつから・なぜ下がっているか」を 1 行で示す。
+// 旧 c95-B-4b: 「コンサル費 7.7% 控除済」表記 (自動計算前提)
+// 新 c95-D-6 : 「コンサル費 (手入力) 控除済」表記 (実額手入力に方針転換)
 //
-// 表示条件 (Q3 推奨に従い厳格):
-//   - category === "water" のみ (他業態は CONSULTANT_FEE_RATE が 0、バッジ不要)
+// 用途: Dashboard / 推移 / 損益分岐 で「この粗利は 手入力 コンサル費 控除後」をユーザーに告知。
+//   c95-D-3 (form-level) / D-4 (aggregation) / D-5 (day-level + read fallback) で
+//   手入力ベース controle 済の値が画面に出ているため、UI 側で「コンサル費が控除されている」旨を告知。
+//
+// 表示条件:
+//   - category === "water" のみ (他業態はコンサル費概念なし)
 //   - month > 0 (month view): yyyymm >= 202605 のみ
 //   - month = 0 (year-only view、trends 用): year >= 2026 のみ (年内に控除月を含む)
 //   - year = 0 / 欠落: バッジ非表示 (安全側、誤誘導回避)
 //
-// 過去月閲覧時 (yyyymm < 202605) には表示しない設計。invariant-guard 観点で、
-// 過去データを見ているのに「控除済」バッジが出ると 4 月以前データへの遡及適用と
-// 誤認されるリスクを排除。
+// 過去月閲覧時 (yyyymm < 202605) には表示しない設計。4 月以前データへの遡及適用と
+// 誤認されるリスクを排除 (絶対不変項目保護)。
 
 import type { CSSProperties } from "react";
 import { CONSULTANT_FEE_APPLIED_FROM_YYYYMM, toYyyyMm } from "../lib/consultantFee";
@@ -53,7 +55,7 @@ export default function ConsultantFeeBadge({ category, year, month, style }: Pro
       whiteSpace: "nowrap",
       ...style,
     }}>
-      ⓘ コンサル費 7.7% 控除済（2026年5月〜）
+      ⓘ コンサル費（手入力）控除済（2026年5月〜）
     </span>
   );
 }

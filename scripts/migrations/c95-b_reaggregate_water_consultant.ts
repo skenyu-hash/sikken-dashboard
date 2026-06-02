@@ -31,14 +31,13 @@
 
 import { Pool } from "@neondatabase/serverless";
 import { aggregateMonthlySummary } from "../../app/lib/monthlyAggregation";
-import {
-  CONSULTANT_FEE_RATE,
-  CONSULTANT_FEE_APPLIED_FROM_YYYYMM,
-} from "../../app/lib/consultantFee";
+import { CONSULTANT_FEE_APPLIED_FROM_YYYYMM } from "../../app/lib/consultantFee";
 
+// PR c95-D-6: CONSULTANT_FEE_RATE 撤去のため直値化 (本スクリプトは旧 c95-B 移行用 archive、
+//   歴史記録として残置するが consultantFee.ts の rate 依存を外す。EXPECTED は当時の確定値)。
 const APPLY = process.argv.includes("--apply");
 const TARGET_CATEGORY = "water";
-const WATER_RATE = CONSULTANT_FEE_RATE.water; // 0.077
+const WATER_RATE = 0.077; // archive: c95-B 当時の率
 const APPLY_FROM_YM = CONSULTANT_FEE_APPLIED_FROM_YYYYMM; // 202605
 
 // Web Claude 確定の期待値 (B-2 SQL の出力、検算確認済 c95-B-2 hotfix-investigation 完了)。
