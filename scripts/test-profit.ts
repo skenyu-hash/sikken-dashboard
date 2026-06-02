@@ -147,10 +147,10 @@ const cases: Case[] = [
     note: "business_category 未指定 → water 扱い、コスト全 0 で profit = revenue",
   },
 
-  // ===== PR c95-B-4a: water コンサル費 7.7% 控除 (2026/5 以降) =====
-  // kansai/water/2026/5 想定: revenue=35,443,020 → fee=35,443,020 * 0.077 = 2,729,112.54
-  //   derived_before_fee = 14,712,578、derived_after_fee = 11,983,465.46
-  //   Math.round → 11,983,465 (SQL 経路 ROUND(...)::BIGINT と整数粒度一致)
+  // ===== PR c95-D-5 (slice 5): water コンサル費 手入力ベース直接控除 (2026/5 以降) =====
+  // 旧 c95-B-4a (自動 7.7%) は廃止、新仕様は summary.consultant_fee を直接控除。
+  // kansai/water/2026/5 想定: revenue=35,443,020、consultant_fee 手入力=2,729,113
+  //   derived_before_fee = 14,712,578、derived_after_fee = 14,712,578 - 2,729,113 = 11,983,465
   {
     input: {
       total_profit: 0,
@@ -163,9 +163,10 @@ const cases: Case[] = [
       card_processing_fee: 0,
       year: 2026,
       month: 5,
+      consultant_fee: 2729113, // c95-D-5: 手入力ベース、旧 7.7% 相当を実額指定
     },
     expected: 11983465,
-    note: "c95-B-4a: water 2026/5 → 7.7% 控除適用 (kansai 実データ想定、Math.round 後)",
+    note: "c95-D-5: water 2026/5 + consultant_fee 手入力 → 直接控除 (旧 7.7% 相当)",
   },
   {
     input: {
@@ -179,9 +180,10 @@ const cases: Case[] = [
       card_processing_fee: 0,
       year: 2026,
       month: 4,
+      consultant_fee: 9999999, // 4 月以前は月境界ガードで控除されない (絶対不変)
     },
     expected: 14712578,
-    note: "c95-B-4a: water 2026/4 (境界月、控除なし、過去データ保護)",
+    note: "c95-D-5: water 2026/4 (境界月、月境界ガード発火、手入力値無視 - 絶対不変)",
   },
   {
     input: {
@@ -195,9 +197,10 @@ const cases: Case[] = [
       card_processing_fee: 0,
       year: 2025,
       month: 12,
+      consultant_fee: 9999999, // 過去年は月境界ガードで控除されない (絶対不変)
     },
     expected: 14712578,
-    note: "c95-B-4a: water 2025/12 (過去年、控除なし、過去データ遡及変動ガード)",
+    note: "c95-D-5: water 2025/12 (過去年、月境界ガード、手入力値無視 - 絶対不変)",
   },
   {
     input: {
@@ -211,9 +214,10 @@ const cases: Case[] = [
       card_processing_fee: 0,
       year: "2026",
       month: "5",
+      consultant_fee: "2729113", // string も numOf で number 化
     },
     expected: 11983465,
-    note: "c95-B-4a: water 2026/5 + string year/month → numOf で number 化、控除適用",
+    note: "c95-D-5: water 2026/5 + string year/month/consultant_fee → numOf 経由で控除",
   },
   {
     input: {
@@ -226,9 +230,10 @@ const cases: Case[] = [
       sales_outsourcing_cost: 500000,
       year: 2026,
       month: 5,
+      consultant_fee: 770000, // electric は water 以外 → 控除なし (手入力値無視)
     },
     expected: 5000000,
-    note: "c95-B-4a: electric 2026/5 → 控除なし (water 限定の二重ガード)",
+    note: "c95-D-5: electric 2026/5 + 手入力 → 控除なし (water 限定ガード)",
   },
   {
     input: {
@@ -271,16 +276,17 @@ const cases: Case[] = [
     note: "c95-B-4a: detective 2026/5 → 控除なし (water 限定)",
   },
   {
-    // 100 - 100*0.077 = 100 - 7.7 = 92.3 → Math.round = 92
+    // c95-D-5: 100 - 手入力 8 = 92 (旧 7.7% 自動 100×0.077=7.7→8 相当を実額指定)
     input: {
       total_profit: 0,
       total_revenue: 100,
       business_category: "water",
       year: 2026,
       month: 5,
+      consultant_fee: 8,
     },
     expected: 92,
-    note: "c95-B-4a: water Math.round 小数検算 (100 - 7.7 = 92.3 → 92)",
+    note: "c95-D-5: water + consultant_fee 手入力 8 → 100 - 8 = 92 (Math.round 一致)",
   },
   {
     // file_import bypass シナリオ証跡: dbProfit > 0 で水道 5月 → 早期 return
