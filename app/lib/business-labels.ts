@@ -95,7 +95,7 @@ const WATER_LABELS: FieldLabels = {
   revisit_count: "再訪問件数",
   review_count: "口コミ件数",
 
-  total_labor_cost: "職人費（外注＋自社施工）",
+  total_labor_cost: "職人費（外注のみ）",
   material_cost: "材料費",
   sales_outsourcing_cost: "営業外注費（業務委託費）",
   card_processing_fee: "カード決済手数料",

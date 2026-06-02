@@ -120,7 +120,7 @@
 
 | # | フィールド | 単位 | 入力種別 | DB列名（提案） |
 |---|---|---|---|---|
-| 11 | 職人費（外注＋自社施工） | 円 | 入力 | total_labor_cost |
+| 11 | 職人費（外注のみ） | 円 | 入力 | total_labor_cost |
 | 12 | 材料費 | 円 | 入力 | material_cost |
 | 13 | 営業外注費（業務委託費） | 円 | 入力 | sales_outsourcing_cost |
 | 14 | カード決済手数料 | 円 | 入力 | card_processing_fee |
