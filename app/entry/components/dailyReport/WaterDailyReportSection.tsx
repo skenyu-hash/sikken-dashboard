@@ -4,7 +4,9 @@
 
 import type { DailyEntry } from "../../../lib/calculations";
 import { Panel, Row, HighlightProfitRow, TaiseiPanel, yen, cnt, pct } from "./reportPrimitives";
-import { consultantFee } from "../../../lib/consultantFee";
+// PR c95-D-5 (slice 5): 日報 water 粗利を「自動 7.7%」から「手入力 e.consultant_fee」直接控除に切替。
+//   月境界定数のみ流用 (slice 6 で consultantFee.ts 撤去予定)。
+import { CONSULTANT_FEE_APPLIED_FROM_YYYYMM } from "../../../lib/consultantFee";
 
 const num = (v: number | undefined | null): number => Number(v ?? 0) || 0;
 const safePct = (a: number, b: number): number | null => (b === 0 ? null : (a / b) * 100);
@@ -26,10 +28,12 @@ export default function WaterDailyReportSection({ todayEntry: e }: Props) {
   const card = num(e.card_processing_fee);
   const ad = num(e.ad_cost);
 
-  // PR c95-B-3: day-level コンサル費控除 (water + 5月以降のみ非 0)。
-  //   e.date (YYYY-MM-DD) から yyyymm 算出 → 4 月以前の当日表示は自動で控除 0。
+  // PR c95-D-5 (slice 5): 日報 water 粗利は手入力 e.consultant_fee 直接控除。
+  //   旧 c95-B-3: consultFee = consultantFee("water", totalSales, yyyymm) (= totalSales × 0.077)
+  //   新 c95-D-5: water + yyyymm >= 202605 で e.consultant_fee を控除。
+  //   月境界 (yyyymm >= 202605) は維持 → 4 月以前の当日表示は控除 0 で従来通り (絶対不変)。
   const yyyymm = Number(e.date.slice(0, 4)) * 100 + Number(e.date.slice(5, 7));
-  const consultFee = consultantFee("water", totalSales, yyyymm);
+  const consultFee = yyyymm >= CONSULTANT_FEE_APPLIED_FROM_YYYYMM ? num(e.consultant_fee) : 0;
   const profit = totalSales - labor - material - ad - outsource - card - consultFee;
   const profitRate = safePct(profit, totalSales);
   const unitPrice = totalResp === 0 ? 0 : Math.round(totalSales / totalResp);

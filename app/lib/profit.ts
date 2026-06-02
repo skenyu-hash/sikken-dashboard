@@ -17,18 +17,14 @@
 // 影響範囲 (Phase 1 hotfix では): Dashboard.tsx / /meeting / /trends / /breakeven
 // API 側 SQL 集計 (cross-matrix / export) は別途検討 (PR #51.3 候補)
 //
-// PR c95-B-4a: water 業態の 2026/5 以降に 7.7% コンサル費控除を追加。
-//   monthlyAggregation (c95-B-2) / day-level (c95-B-3) と同じ semantics で
-//   read fallback 経路でも控除後値を返すよう揃える。
-//   設計判断 (number-verifier 検証済):
-//     1. SummaryLike に year/month を optional 追加。月境界 (yyyymm >= 202605)
-//        は consultantFee() helper 内ガードを利用 (二重保護)。
-//     2. dbProfit > 0 早期 return はそのまま。c95-B-2 で aggregation 経由保存
-//        された行は既に控除後値が入っている前提。
-//     3. /import-monthly 経由で water 5月以降を Excel 投入すると、控除前 profit
-//        が DB に書かれ dbProfit > 0 早期 return がそれをそのまま返す → 約 7.7%
-//        over-report が発生する潜在問題あり (KNOWN_ISSUES.md #8 参照)。
-//        対応は c95-B-5 で検討。本 PR では legacy 0 値行 fallback 経路のみカバー。
+// PR c95-D-5 (slice 5): water 業態の read fallback 控除を「自動 7.7%」から
+//   「手入力 summary.consultant_fee 直接控除」に切替。
+//   旧 c95-B-4a: derived -= consultantFee("water", revenue, yyyymm) (= revenue × 0.077)
+//   新 c95-D-5: derived -= summary.consultant_fee (手入力値、SummaryLike に追加)
+//   月境界ガード (yyyymm >= 202605) は維持 → 4 月以前 legacy 行は控除 0 で従来通り (絶対不変)。
+//   /import-monthly 経路の懸念 (KNOWN_ISSUES.md #8) は c95-D-1 で consultant_fee 列が
+//   6 レイヤー対応済のため、Excel 投入も新仕様で正しく動く構造へ移行済 (実運用では Excel 側に
+//   consultant_fee 列を含めることで揃う)。
 
 type SummaryLike = {
   total_profit?: number | string | null;
@@ -43,13 +39,16 @@ type SummaryLike = {
   locksmith_commission_fee?: number | string | null;
   // PR c95-B-4a: water control 7.7% 控除の月境界判定に使用 (yyyymm >= 202605)。
   //   monthly_summaries は year/month NOT NULL カラム持ち + API は SELECT * のため
-  //   実運用 caller は自動で値が乗る。テスト等で省略された場合は consultantFee()
-  //   helper 内で yyyymm=0 < 202605 → 控除 0 にフォールバック (= 既存挙動維持)。
+  //   実運用 caller は自動で値が乗る。テスト等で省略された場合は yyyymm=0 < 202605 で
+  //   控除 0 にフォールバック (= 既存挙動維持)。
   year?: number | string | null;
   month?: number | string | null;
+  // PR c95-D-5 (slice 5): water 手入力コンサル費 (monthly_summaries.consultant_fee)。
+  //   slice 1 で列追加済、slice 4 で aggregation SUM 保存済。本 PR で fallback 読出。
+  consultant_fee?: number | string | null;
 };
 
-import { consultantFee, toYyyyMm } from "./consultantFee";
+import { CONSULTANT_FEE_APPLIED_FROM_YYYYMM, toYyyyMm } from "./consultantFee";
 
 const numOf = (v: unknown): number => {
   if (v == null) return 0;
@@ -97,14 +96,17 @@ export function resolveTotalProfit(summary: SummaryLike | null | undefined): num
       - numOf(summary.sales_outsourcing_cost)
       - numOf(summary.card_processing_fee);
   }
-  // PR c95-B-4a: water + 2026/5 以降のみ 7.7% コンサル費を末尾控除。
-  //   consultantFee() helper が二重ガード (rate > 0 / yyyymm >= 202605 / revenue > 0)
-  //   を持つため、year/month 欠落・過去月は控除 0 で既存挙動を保つ。
-  //   SUM(日次) / 月次 SQL aggregation と整数粒度で一致させるため Math.round で揃える
-  //   (monthlyAggregation 側は ROUND(...)::BIGINT)。
+  // PR c95-D-5 (slice 5): water + 2026/5 以降のみ 手入力コンサル費を末尾控除。
+  //   旧: derived -= consultantFee("water", revenue, yyyymm) (= revenue × 0.077)
+  //   新: derived -= summary.consultant_fee (手入力値)
+  //   月境界ガード (yyyymm >= 202605) は維持。year/month 欠落時は yyyymm=0 < 202605 で
+  //     控除 0 にフォールバック (= 既存挙動維持、テスト経路保護)。
+  //   monthlyAggregation 側は ROUND(...)::BIGINT で整数化、本関数も Math.round で揃える。
   if (category === "water") {
     const yyyymm = toYyyyMm(numOf(summary.year), numOf(summary.month));
-    derived -= consultantFee("water", revenue, yyyymm);
+    if (yyyymm >= CONSULTANT_FEE_APPLIED_FROM_YYYYMM) {
+      derived -= numOf(summary.consultant_fee);
+    }
   }
   return Math.max(0, Math.round(derived));
 }

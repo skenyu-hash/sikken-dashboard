@@ -24,12 +24,18 @@
 import type { BusinessCategory } from "./businesses";
 
 /**
- * 業態別コンサル費率 (売上に対する割合、0.077 = 7.7%)。
- *   - water:     0.077 (確定、c95-B 仕様)
- *   - 他業態 :    0 (将来必要なら個別更新可)
+ * 業態別コンサル費率 (売上に対する割合)。
+ *   ⚠️ PR c95-D-5 (slice 5) で water 自動 7.7% を無効化 (0 に変更)。
+ *   c95-D で「実額の手入力」(monthly_summaries.consultant_fee / entries.data.consultant_fee)
+ *   ベースに完全移行したため、本定数による自動 % 計算は使われない。
+ *   関数本体 consultantFee() は残置するが、全業態 rate=0 のため戻り値は常に 0。
+ *   slice 6 で本ファイル / 関連テスト / CONSULTANT_FEE_APPLIED_FROM_YYYYMM 利用箇所を
+ *   全体整理予定 (定数は呼び出し側に inline か別 lib に移動)。
+ *
+ * 旧値 (c95-B 当時): water = 0.077
  */
 export const CONSULTANT_FEE_RATE: Record<BusinessCategory, number> = {
-  water:     0.077,
+  water:     0, // c95-D-5: 0.077 → 0 (自動計算無効化)
   electric:  0,
   locksmith: 0,
   road:      0,

@@ -8,7 +8,9 @@
 
 import type { DailyEntry } from "../../../lib/calculations";
 import type { BusinessCategory } from "../../../lib/businesses";
-import { consultantFee } from "../../../lib/consultantFee";
+// PR c95-D-5 (slice 5): water day-level 控除を「自動 7.7%」から「手入力 e.consultant_fee」直接控除に切替。
+//   月境界定数 CONSULTANT_FEE_APPLIED_FROM_YYYYMM のみ流用 (slice 6 で consultantFee.ts 撤去予定)。
+import { CONSULTANT_FEE_APPLIED_FROM_YYYYMM } from "../../../lib/consultantFee";
 
 export type KpiToday = {
   sales: number;
@@ -40,10 +42,17 @@ export function computeKpiToday(category: BusinessCategory, e: DailyEntry | null
     profit = sales
       - num(e.total_labor_cost) - num(e.material_cost)
       - num(e.ad_cost) - num(e.sales_outsourcing_cost) - num(e.card_processing_fee);
-    // PR c95-B-3: day-level コンサル費控除 (water + 5月以降のみ非 0、electric は 0)。
-    //   e.date (YYYY-MM-DD) から yyyymm 算出 → 4 月以前の当日表示は自動で控除 0。
-    const yyyymm = Number(e.date.slice(0, 4)) * 100 + Number(e.date.slice(5, 7));
-    profit -= consultantFee(category, sales, yyyymm);
+    // PR c95-D-5 (slice 5): water 当日粗利は手入力 e.consultant_fee を直接控除。
+    //   旧 c95-B-3: profit -= consultantFee(category, sales, yyyymm) (= sales × 0.077)
+    //   新 c95-D-5: water + yyyymm >= 202605 で e.consultant_fee を控除。
+    //   月境界 (yyyymm >= 202605) は維持 → 4 月以前の当日表示は控除 0 で従来通り (絶対不変)。
+    //   electric は water 以外なので控除 0 (従来通り、e.consultant_fee は 0 送信されている)。
+    if (category === "water") {
+      const yyyymm = Number(e.date.slice(0, 4)) * 100 + Number(e.date.slice(5, 7));
+      if (yyyymm >= CONSULTANT_FEE_APPLIED_FROM_YYYYMM) {
+        profit -= num(e.consultant_fee);
+      }
+    }
   } else if (category === "locksmith") {
     sales = num(e.outsourced_sales_revenue);
     count = num(e.acquisition_count);
