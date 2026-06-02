@@ -273,9 +273,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **c95-B-4a**（2026-06-01）✅ PR #121 マージ済 — profit.ts read fallback への water 7.7% 控除 + Math.round 整数粒度一致 + test-profit.ts 11 case 追加 (合計 26/26 pass)
 - **c95-B-4b**（2026-06-01）✅ 本 PR マージ済 — `<ConsultantFeeBadge>` 共通コンポーネント新設 + WaterDashboardSection / Dashboard グループクロス表 / trends / breakeven の 4 配線。yyyymm>=202605 ガードで過去月閲覧時は非表示 (4 月以前データへの誤認回避)
 - **c95-C-1**（2026-06-01）✅ PR #133 マージ済 — 日報モーダルの内部構造を `<DailyReportContent>` (Content 層) + `useDailyReportData` (データ取得 hook) に分割、`DailyReportModal.tsx` を 379 → 71 行に縮小。純リファクタ (動作・見た目 1 ピクセル不変)、撮影 ref は Modal 側に残し captureRef props 経由で渡すことで boxShadow + 白背景 + borderRadius 含む撮影範囲を完全保持。EntryForm.tsx 無修正、Props 不変。第三者レビュー (反さん) 完了。c95-C-2 (/daily-report 独立ページ) 着手可能
+- **c95-D 方針転換決定**（2026-06-02）✅ 反さん承認済 — コンサル費を「売上×7.7%自動計算」から「実額の手入力」に変更。water のみ。c95-B 全機能を slice 単位で手入力ベースに切替予定。
+- **c95-D-1（slice 1+2: スキーマ + UI 追加、粗利不変）**（2026-06-02）✅ PR #143 マージ済 (commit 23d8ee9) — `monthly_summaries.consultant_fee NUMERIC NOT NULL DEFAULT 0` 列追加 + water ②コスト 5 項目目「コンサル費」手入力欄を新設 (water のみ、subtitle 入力 5項目)。粗利計算経路は untouch (旧 c95-B 7.7% 自動控除が生きたまま、consultant_fee は列に保存するだけで profit 式に未組込)。water 5月以降 7 行 / 4 月以前 109 行 / 他業態すべて差分 0 円。number-verifier + invariant-guard 両方 ✅。マイグレ SQL: `scripts/migrations/c95-d-1_add_consultant_fee_column.sql` を Neon Console で要実行 (冪等 IF NOT EXISTS)。
 
 ### 保留中
-- ⚠️ **c95-B-5（最優先・経営数字の静かな破綻リスク）**: water 2026年5月以降データを `/import-monthly` (Excel) 経由で投入するとコンサル費 7.7% 控除が抜け、ダッシュボード粗利が **+7.7% 過大表示** になる。`/api/import-monthly` は `monthlyAggregation` 経路を経由せず `total_profit` を直接 INSERT する独立経路 (`source='file_import'`) のため。c95-B-2 / B-3 / B-4a / B-4b は entries 経由のみカバー。**対応完了まで water 5月以降の Excel import は禁止**（[KNOWN_ISSUES.md §8](./KNOWN_ISSUES.md) に詳細・検出 SQL・運用ガード明記）。現状本番 DB は entries_aggregation のみで未発火、ただし新メンバー / 将来運用変更で容易に踏む。
+- **c95-D 後続 slice 3-6（water 粗利を手入力ベースに切替）**:
+  - **c95-D-2 (現場運用)**: water 5月以降 7 行 (kanto/kyushu/関西/北海道) で現場が `consultant_fee` 実額入力を完了する。slice 3 マージ前に必須 (全 0 のまま slice 3 マージで粗利が +7.7% 跳ね上がるため)
+  - **c95-D-3 (aggregation 切替)**: `monthlyAggregation.ts` の water 分岐 `d_total_profit` を `revenue × 0.077` 控除から `sum_consultant_fee` 直接控除に変更。同時に `re-aggregate water 5月以降` 実行
+  - **c95-D-4 (day-level 切替)**: `useFormCalculations.ts` f30 + `kpiCompute.ts` の `consultantFee(category, sales, yyyymm)` 呼び出しを `state.consultant_fee` 直接控除に変更
+  - **c95-D-5 (read fallback 切替)**: `profit.ts` の `derived -= consultantFee(...)` を `derived -= summary.consultant_fee` に変更
+  - **c95-D-6 (旧 7.7% 撤去)**: `consultantFee.ts` 削除 (CONSULTANT_FEE_RATE 定数も) + `<ConsultantFeeBadge>` の自動計算文言を「手入力」に更新 + docs / CLAUDE.md §4 更新
+- ⚠️ **c95-B-5（最優先・経営数字の静かな破綻リスク）**: water 2026年5月以降データを `/import-monthly` (Excel) 経由で投入するとコンサル費 7.7% 控除が抜け、ダッシュボード粗利が **+7.7% 過大表示** になる。`/api/import-monthly` は `monthlyAggregation` 経路を経由せず `total_profit` を直接 INSERT する独立経路 (`source='file_import'`) のため。c95-B-2 / B-3 / B-4a / B-4b は entries 経由のみカバー。**対応完了まで water 5月以降の Excel import は禁止**（[KNOWN_ISSUES.md §8](./KNOWN_ISSUES.md) に詳細・検出 SQL・運用ガード明記）。現状本番 DB は entries_aggregation のみで未発火、ただし新メンバー / 将来運用変更で容易に踏む。**注**: c95-D-3〜D-6 で手入力ベースに移行すれば本問題は構造的に解消する (Excel import 時も consultant_fee 列を Excel から読み込む 6 レイヤー対応は c95-D-1 で既に完了済)。
 - **c95-C** 残作業（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— C-1 完了、C-2〜C-5 着手可能
   - **c95-C-2**: `/daily-report` 独立ページ + ナビ追加 (NavBar.tsx / MobileHeader.tsx の `/entry` 直後に「日報」)。URL クエリ `?area=&category=&date=`。PC layout、`<DailyReportContent>` 再利用 (C-1 で抽出済)。Modal と並走 (cutover は C-5)
   - **c95-C-3**: モバイル B 案（セクション折りたたみ、①と⑤展開・③④⑥折りたたみ、見出しに要約値）。`<CollapsibleReportSection>` ラッパー方式（既存 Section 改修なし）
