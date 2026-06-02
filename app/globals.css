@@ -45,6 +45,24 @@ textarea {
   font-size: 16px;
 }
 
+/* 経営数字の誤改変防止 — input[type=number] のスピナー (上下矢印) を全画面で非表示。
+   理由: マウスクリック / カーソルキーで気づかず値が変わるのを防ぐ。経営数字の入力は
+   直接タイプのみとする (反さん依頼、2026-06-02 / BACKLOG.md 既存項目より着手)。
+   - WebKit (Chrome / Safari / Edge): ::-webkit-inner-spin-button / ::-webkit-outer-spin-button を appearance: none で非表示
+   - Firefox: -moz-appearance: textfield で type=number 自体を text フィールド見た目に
+   - 標準 appearance: textfield も併記、現代ブラウザ完全カバー
+   ホイール無効化は別途 NoWheelOnNumberInput クライアントコンポーネント (JS で実装、
+   focus 中の input[type=number] のみ preventDefault)。 */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* 横スクロールタブ: スクロールバー非表示 + スワイプ最適化 */
 .no-scrollbar {
   -ms-overflow-style: none;
