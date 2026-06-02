@@ -6,7 +6,10 @@
 import { useMemo } from "react";
 import type { EntryFormState, AutoCalcResult, InputValue } from "../types";
 import { sumHelpSales, sumHelpCount } from "../lib/helpStaffUtils";
-import { consultantFee, toYyyyMm } from "../../lib/consultantFee";
+// PR c95-D-3 (slice 3): water の day-level 粗利を手入力 state.consultant_fee 直接控除に切替。
+//   旧 c95-B-3 で使用していた consultantFee() (自動 7.7%) はここから撤去。
+//   月境界定数 CONSULTANT_FEE_APPLIED_FROM_YYYYMM のみ流用 (slice 6 で consultantFee.ts ごと撤去予定)。
+import { CONSULTANT_FEE_APPLIED_FROM_YYYYMM, toYyyyMm } from "../../lib/consultantFee";
 
 const num = (v: InputValue): number => (v === "" ? 0 : v);
 const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
@@ -65,13 +68,21 @@ export function useFormCalculations(state: EntryFormState): AutoCalcResult {
     //   各社統計表で既に自社施工分を粗利に織り込み済 → bonus 加算は実態と乖離していた。
     //   f25 (internal_construction_profit / 自社工事利益) は入力 / 集計対象として残すが、
     //   粗利には加算しない (把握用、c93-2 で再設計予定)。
-    // PR c95-B-3: day-level コンサル費控除を組込 (consultantFee.ts の率・月境界を参照)。
-    //   water + (state.year * 100 + state.month) >= 202605 で f1 × 0.077 を控除。
-    //   electric/locksmith/road/detective は consultantFee が 0 を返すため副作用なし。
-    //   4 月以前の当日表示も自動で控除 0 (yyyymm 境界ガード)。
+    // PR c95-D-3 (slice 3): water 業態の day-level 粗利を手入力 state.consultant_fee 直接控除に切替。
+    //   旧 c95-B-3: consultantFee("water", f1, yyyymm) = f1 × 0.077 (yyyymm >= 202605 のみ)
+    //   新 c95-D-3: water + yyyymm >= 202605 のとき state.consultant_fee (手入力値) を直接控除。
+    //   - 月境界ガード (yyyymm >= 202605) は維持 → 4 月以前の表示は控除 0 で従来通り (絶対不変)
+    //   - 他業態 (electric/locksmith/road/detective): SectionCosts で UI 非表示 →
+    //     state.consultant_fee は emptyState で "" 初期化 + handleSave で numOrZero=0 送信
+    //     → ここでも 0 になる (副作用なし、従来通り)
+    //   注: slice 3 は form-level UI 計算 (= AutoCalcDisplay の粗利表示) のみ切替。
+    //       aggregation SQL は slice 4、read fallback (profit.ts) と kpiCompute は slice 5、
+    //       UI バッジ / docs は slice 6 で順次切替予定。
     const yyyymm = toYyyyMm(state.year, state.month);
-    const fee = consultantFee(state.category, f1, yyyymm);
-    const f30 = f1 - f12 - f11 - f15 - f13 - f14 - fee; // 粗利 (B-3 で - fee)
+    const fee = (state.category === "water" && yyyymm >= CONSULTANT_FEE_APPLIED_FROM_YYYYMM)
+      ? num(state.consultant_fee)
+      : 0;
+    const f30 = f1 - f12 - f11 - f15 - f13 - f14 - fee; // 粗利 (D-3 で 手入力 fee に切替)
 
     return {
       total_revenue: f1,
