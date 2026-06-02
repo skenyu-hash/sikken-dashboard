@@ -53,11 +53,16 @@ export interface EntryFormState {
   revisit_count: InputValue; // f9
   review_count: InputValue; // f10
 
-  // ② コスト (入力 4)
+  // ② コスト (入力 4 + PR c95-D-1 で water のみ 5 項目目 consultant_fee)
   total_labor_cost: InputValue; // f11
   material_cost: InputValue; // f12
   sales_outsourcing_cost: InputValue; // f13
   card_processing_fee: InputValue; // f14
+  // PR c95-D-1 (slice 1+2): water のみ UI 表示・入力対象 (SectionCosts 内 category 判定で出し分け)。
+  //   他業態 (electric/locksmith/road/detective) は emptyState で "" を持つが画面に出ない。
+  //   handleSave で water 以外も numOrZero("") = 0 で送信、aggregation で他業態 0 固定。
+  //   旧 c95-B 自動 (売上 × 7.7%) は本 PR untouch、slice 3-5 で粗利計算経路に切替予定。
+  consultant_fee: InputValue;
 
   // ③ 広告費 (入力 3)
   ad_cost: InputValue; // f15 (= total_ad_spend、DB は ad_cost)

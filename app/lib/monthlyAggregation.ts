@@ -90,6 +90,11 @@ export async function aggregateMonthlySummary(
         COALESCE(SUM(COALESCE((data->>'material_cost')::numeric, 0)), 0) AS sum_material_cost,
         COALESCE(SUM(COALESCE((data->>'sales_outsourcing_cost')::numeric, 0)), 0) AS sum_sales_outsourcing_cost,
         COALESCE(SUM(COALESCE((data->>'card_processing_fee')::numeric, 0)), 0) AS sum_card_processing_fee,
+        -- PR c95-D-1 (slice 1+2): water のみ手入力、他業態は entries.data に無 / 0 で集約も 0。
+        --   slice 1+2 では SUM のみ実行し monthly_summaries.consultant_fee に保存。
+        --   d_total_profit には未組込 (旧 c95-B-2 の 7.7% 自動控除が water 分には残ったまま)。
+        --   slice 3 で d_total_profit の water 分岐を sum_consultant_fee 直接控除に切替予定。
+        COALESCE(SUM(COALESCE((data->>'consultant_fee')::numeric, 0)), 0) AS sum_consultant_fee,
         COALESCE(SUM(COALESCE((data->>'ad_cost')::numeric, 0)), 0) AS sum_ad_cost,
         COALESCE(SUM(COALESCE((data->>'call_count')::numeric, 0)), 0) AS sum_call_count,
         COALESCE(SUM(COALESCE((data->>'acquisition_count')::numeric, 0)), 0) AS sum_acquisition_count,
@@ -222,6 +227,7 @@ export async function aggregateMonthlySummary(
       outsourced_response_count, internal_staff_response_count,
       repeat_count, revisit_count, review_count,
       total_labor_cost, material_cost, sales_outsourcing_cost, card_processing_fee,
+      consultant_fee, -- PR c95-D-1 (slice 1+2): water 専用手入力。他業態は SUM=0 で保存。
       outsourced_construction_count, internal_construction_count,
       outsourced_construction_cost, internal_construction_profit,
       construction_count, -- PR c93-2: 対応ベース工事件数
@@ -274,6 +280,7 @@ export async function aggregateMonthlySummary(
       d.sum_outsourced_response_count, d.sum_internal_staff_response_count,
       d.sum_repeat_count, d.sum_revisit_count, d.sum_review_count,
       d.sum_total_labor_cost, d.sum_material_cost, d.sum_sales_outsourcing_cost, d.sum_card_processing_fee,
+      d.sum_consultant_fee, -- PR c95-D-1 (slice 1+2)
       d.sum_outsourced_construction_count, d.sum_internal_construction_count,
       d.sum_outsourced_construction_cost, d.sum_internal_construction_profit,
       d.sum_construction_count, -- PR c93-2
@@ -326,6 +333,7 @@ export async function aggregateMonthlySummary(
       material_cost = EXCLUDED.material_cost,
       sales_outsourcing_cost = EXCLUDED.sales_outsourcing_cost,
       card_processing_fee = EXCLUDED.card_processing_fee,
+      consultant_fee = EXCLUDED.consultant_fee, -- PR c95-D-1 (slice 1+2)
       outsourced_construction_count = EXCLUDED.outsourced_construction_count,
       internal_construction_count = EXCLUDED.internal_construction_count,
       outsourced_construction_cost = EXCLUDED.outsourced_construction_cost,

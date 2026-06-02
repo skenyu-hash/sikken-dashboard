@@ -99,6 +99,8 @@ function emptyState(area: string, year: number, month: number, day: number, cate
     outsourced_response_count: "", internal_staff_response_count: "",
     repeat_count: "", revisit_count: "", review_count: "",
     total_labor_cost: "", material_cost: "", sales_outsourcing_cost: "", card_processing_fee: "",
+    // PR c95-D-1 (slice 1+2): water のみ UI 入力欄あり、他業態は "" のまま保存時 0
+    consultant_fee: "",
     ad_cost: "", call_count: "", acquisition_count: "",
     construction_count: "", // PR c93-2: 新規入力 (対応ベース)
     outsourced_construction_count: "", internal_construction_count: "",
@@ -341,6 +343,8 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           material_cost: numOrEmpty(entry.material_cost),
           sales_outsourcing_cost: numOrEmpty(entry.sales_outsourcing_cost),
           card_processing_fee: numOrEmpty(entry.card_processing_fee),
+          // PR c95-D-1 (slice 1+2): water のみ UI 表示、他業態の既存行は consultant_fee 未保存→ "" になる
+          consultant_fee: numOrEmpty(entry.consultant_fee),
           ad_cost: numOrEmpty(entry.ad_cost),
           call_count: numOrEmpty(entry.call_count),
           acquisition_count: numOrEmpty(entry.acquisition_count),
@@ -419,6 +423,8 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
           outsourced_response_count: "", internal_staff_response_count: "",
           repeat_count: "", revisit_count: "", review_count: "",
           total_labor_cost: "", material_cost: "", sales_outsourcing_cost: "", card_processing_fee: "",
+          // PR c95-D-1 (slice 1+2): water のみ UI 入力欄あり、他業態は "" のまま保存時 0
+          consultant_fee: "",
           ad_cost: "", call_count: "", acquisition_count: "",
           construction_count: "", // PR c93-2
           outsourced_construction_count: "", internal_construction_count: "",
@@ -521,6 +527,8 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         material_cost: numOrZero(state.material_cost),
         sales_outsourcing_cost: numOrZero(state.sales_outsourcing_cost),
         card_processing_fee: numOrZero(state.card_processing_fee),
+        // PR c95-D-1 (slice 1+2): water 以外も "" → 0 で送信 (aggregation で他業態 0 固定)
+        consultant_fee: numOrZero(state.consultant_fee),
         ad_cost: numOrZero(state.ad_cost),
         call_count: numOrZero(state.call_count),
         acquisition_count: numOrZero(state.acquisition_count),

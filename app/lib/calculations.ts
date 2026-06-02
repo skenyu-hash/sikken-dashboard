@@ -51,11 +51,14 @@ export type DailyEntry = {
   revisit_count?: number;
   review_count?: number;
 
-  // ② コスト (4)
+  // ② コスト (4 + PR c95-D-1 で 5 項目目 consultant_fee を water 専用追加、optional)
   total_labor_cost?: number;
   material_cost?: number;
   sales_outsourcing_cost?: number;
   card_processing_fee?: number;
+  // PR c95-D-1 (slice 1+2): water 業態 コンサル費 手入力。他業態は常に 0。
+  //   旧 c95-B 自動 (売上 × 7.7%) は本 PR untouch、slice 3-5 で計算経路を手入力ベースに切替予定。
+  consultant_fee?: number;
 
   // ③ 広告 (3)
   ad_cost?: number;
