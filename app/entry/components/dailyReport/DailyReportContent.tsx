@@ -30,6 +30,7 @@ import { aggregateHelpStaffByMonth } from "../../lib/helpStats";
 import { buildDailyReportText } from "../../lib/buildDailyReportText";
 import { yen, cnt, pct } from "./reportPrimitives";
 import { useDailyReportData } from "./useDailyReportData";
+import CollapsibleReportSection from "./CollapsibleReportSection";
 
 const categoryLabelOf = (c: BusinessCategory): string =>
   BUSINESSES.find((b) => b.id === c)?.label ?? c;
@@ -258,31 +259,41 @@ export default function DailyReportContent({
         />
       </div>
 
-      {/* 業態別 Section (抽出元: L263-277) */}
-      <div style={{ padding: "18px 36px 6px", fontSize: 14, fontWeight: 700, color: "#2a3d36" }}>
-        {categoryLabelOf(category)}業態 — 今日の内訳
-      </div>
-      {loading ? (
-        <div style={{ padding: 32, textAlign: "center", color: "#8a9c95" }}>読み込み中...</div>
-      ) : todayEntry === null ? (
-        <div style={{
-          padding: "16px 36px", margin: "0 36px",
-          background: "#f9fafb", border: "1px dashed #d1d5db", borderRadius: 12,
-          textAlign: "center", color: "#6b7280", fontSize: 13,
-        }}>{date} のデータなし</div>
-      ) : (
-        renderSection(category, todayEntry)
-      )}
+      {/* 業態別 Section (抽出元: L263-277、PR c95-C-3 で CollapsibleReportSection ラップ)
+          PC mode: <CollapsibleReportSection> が <><div title 旧と verbatim/>{children}</> で展開、DOM 構造完全同一
+          Mobile mode: toggle button + 折りたたみ */}
+      <CollapsibleReportSection
+        title={`${categoryLabelOf(category)}業態 — 今日の内訳`}
+        summary={kpiToday ? yen(kpiToday.sales) : undefined}
+        defaultOpenMobile={true}
+      >
+        {loading ? (
+          <div style={{ padding: 32, textAlign: "center", color: "#8a9c95" }}>読み込み中...</div>
+        ) : todayEntry === null ? (
+          <div style={{
+            padding: "16px 36px", margin: "0 36px",
+            background: "#f9fafb", border: "1px dashed #d1d5db", borderRadius: 12,
+            textAlign: "center", color: "#6b7280", fontSize: 13,
+          }}>{date} のデータなし</div>
+        ) : (
+          renderSection(category, todayEntry)
+        )}
+      </CollapsibleReportSection>
 
-      {/* ⑤ HELP セクション (抽出元: L279-296) */}
+      {/* ⑤ HELP セクション (抽出元: L279-296、PR c95-C-3 で CollapsibleReportSection ラップ) */}
       {hasHelp && !loading && (
-        <>
-          <div style={{ padding: "18px 36px 6px", fontSize: 14, fontWeight: 700, color: "#2a3d36" }}>
-            ⑤ HELP 統計
-            <span style={{ fontWeight: 500, fontSize: 11, color: "#8a9c95", marginLeft: 8 }}>
-              水道・電気・鍵のみ / 担当者別 ・ 月初〜{month}/{day} 累積
-            </span>
-          </div>
+        <CollapsibleReportSection
+          title={
+            <>
+              ⑤ HELP 統計
+              <span style={{ fontWeight: 500, fontSize: 11, color: "#8a9c95", marginLeft: 8 }}>
+                水道・電気・鍵のみ / 担当者別 ・ 月初〜{month}/{day} 累積
+              </span>
+            </>
+          }
+          summary={helpStaffMonthly.length > 0 ? `${helpStaffMonthly.length}名` : undefined}
+          defaultOpenMobile={true}
+        >
           <div style={{ padding: "6px 36px 0" }}>
             <HelpStaffMonthlyTable
               helpStaffMonthly={helpStaffMonthly}
@@ -290,7 +301,7 @@ export default function DailyReportContent({
               periodLabel={`${month}/1〜${month}/${day}`}
             />
           </div>
-        </>
+        </CollapsibleReportSection>
       )}
 
       {/* アクション (抽出元: L298-305) — onClose があれば「閉じる」表示、なければ 3 種のみ */}
