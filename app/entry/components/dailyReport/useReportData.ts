@@ -56,6 +56,39 @@ export type ReportRow = {
   trainee_count: number;
 };
 
+/** Neon serverless driver は BIGINT / NUMERIC を string で返す (JS の number 範囲超過防止)。
+ *  本 normalize で全数値フィールドを number 化し、NaN は 0 にフォールバック。
+ *  これがないと `Math.round("125000".toLocaleString())` 等で NaN 表示 / `.toFixed()` クラッシュが起きる
+ *  (PR #150 本番障害の根本原因、b66883c 後ロールバック)。 */
+function normalizeRow(raw: unknown): ReportRow | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const numOr0 = (v: unknown): number => {
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  return {
+    business_category: typeof r.business_category === "string" ? r.business_category : "",
+    area_id: typeof r.area_id === "string" ? r.area_id : "",
+    total_revenue: numOr0(r.total_revenue),
+    total_profit: numOr0(r.total_profit),
+    total_count: numOr0(r.total_count),
+    unit_price: numOr0(r.unit_price),
+    ad_cost: numOr0(r.ad_cost),
+    acquisition_count: numOr0(r.acquisition_count),
+    call_count: numOr0(r.call_count),
+    profit_rate: numOr0(r.profit_rate),
+    help_revenue: numOr0(r.help_revenue),
+    help_count: numOr0(r.help_count),
+    consultant_fee: numOr0(r.consultant_fee),
+    vehicle_count: numOr0(r.vehicle_count),
+    trainee_count: numOr0(r.trainee_count),
+  };
+}
+
+// テストから直接呼べるよう export (純関数、API レスポンス型ガード)
+export { normalizeRow };
+
 export type ReportData = {
   /** 期間内集計 (mode=single なら当日、mode=range なら期間 SUM)、merged row 1 件 */
   rangeRow: ReportRow | null;
@@ -192,8 +225,10 @@ export function useReportData(
 
     Promise.all([fetchRange, fetchMonth, fetchEntries]).then(([rg, mo, ent]) => {
       if (cancelled) return;
-      setRangeRow(rg.rows?.[0] ?? null);
-      setMonthRow(mo.rows?.[0] ?? null);
+      // PR c96-2-hotfix: API レスポンスは Neon driver の string 型を含む → normalize で number 化
+      //   (b66883c rollback の根本原因: profit_rate string → `.toFixed()` クラッシュ)
+      setRangeRow(normalizeRow(rg.rows?.[0]));
+      setMonthRow(normalizeRow(mo.rows?.[0]));
       setEntries(ent.entries ?? []);
       setLoading(false);
     }).catch(() => {
