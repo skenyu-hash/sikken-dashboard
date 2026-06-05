@@ -3,6 +3,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "./RoleProvider";
 import { hasPageAccess, pathToPage, ROLE_LABELS } from "../lib/permissions";
+// PR c97-2: 未読バッジ
+import { useUnreadCount } from "./useUnreadCount";
+import UnreadBadge from "./UnreadBadge";
 
 export function NavBar() {
   const pathname = usePathname();
@@ -14,6 +17,9 @@ export function NavBar() {
   if (!session) return null;
 
   const role = session.role;
+
+  // PR c97-2: 未読バッジ count fetch (session あれば有効、なければ no-op)
+  const { count: unreadCount } = useUnreadCount(true);
 
 const items = [
     { href: "/",          label: "ダッシュボード" },
@@ -58,6 +64,8 @@ const items = [
       <div style={{ display: "flex" }}>
         {items.map((i) => {
           const isActive = pathname === i.href;
+          // PR c97-2: 「日報」のみ未読バッジ表示
+          const showUnreadBadge = i.href === "/daily-report";
           return (
             <Link
               key={i.href}
@@ -70,9 +78,11 @@ const items = [
                 borderBottom: isActive ? "2px solid #1B5E3F" : "2px solid transparent",
                 textDecoration: "none",
                 whiteSpace: "nowrap",
+                position: "relative", // c97-2: UnreadBadge の absolute 基準
               }}
             >
               {i.label}
+              {showUnreadBadge && <UnreadBadge count={unreadCount} />}
             </Link>
           );
         })}

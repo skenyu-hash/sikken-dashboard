@@ -13,7 +13,7 @@
 //   - **モーダル/独立ページ両用**: onClose props を optional に。undefined なら「閉じる」
 //     ボタン非表示 (c95-C-2 独立ページから使うとき用)。モーダル版 (DailyReportModal) は必ず渡す。
 
-import { useCallback, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { toPng } from "html-to-image";
 import type { DailyEntry } from "../../../lib/calculations";
 import type { BusinessCategory } from "../../../lib/businesses";
@@ -35,6 +35,8 @@ import CollapsibleReportSection from "./CollapsibleReportSection";
 import FilterBar, { type ViewMode, type DateMode } from "./FilterBar";
 import { useReportData, describeView } from "./useReportData";
 import { COLOR_BRAND_DARK, COLOR_TEXT_SECONDARY } from "../../../lib/theme";
+// PR c97-2: 自動既読化 (単一拠点時のみ)
+import { getSingleMarkReadPair } from "../../../lib/unreadStats";
 
 const categoryLabelOf = (c: BusinessCategory): string =>
   BUSINESSES.find((b) => b.id === c)?.label ?? c;
@@ -102,6 +104,11 @@ export default function DailyReportContent(props: Props) {
 
   const { entries, summary, loading, hasDataDays } = useDailyReportData(areaId, year, month, category);
 
+  // PR c97-2: 自動既読化トラッキング (二重発火 / 同一ペア連続発火 防止)。
+  //   useEffect が依存変化で発火するたび、最後に mark-read したペアを覚えておき、
+  //   同じペアを再度叩かない (API 側でも 30 秒スロットルあるが、無駄リクエスト削減)。
+  const lastMarkedRef = useRef<string | null>(null);
+
   // PR c96-3: 拡張モードのデータを早期に取得 (helpStaffMonthly / companyReference より前に)
   const extData = useReportData(
     view ?? "company",
@@ -114,6 +121,32 @@ export default function DailyReportContent(props: Props) {
     to ?? date,
     isExtendedMode, // PR c96-2: Modal 経路は fetch 抑制
   );
+
+  // PR c97-2: 自動既読化 (単一拠点 表示時のみ)。
+  //   反さん指示: effectiveCategories.length===1 && effectiveAreas.length===1 のときだけ mark-read。
+  //   合算ビュー (事業別/グループ全体/会社別で複数拠点) では呼ばない。
+  //   発火条件: 拡張モード + loading 完了 + 単一ペア + 前回マーク済ペアと異なる。
+  //   try-catch でロバスト化 (反さん指示: ページ本体を絶対に落とさない、c96-2 教訓)。
+  useEffect(() => {
+    if (!isExtendedMode) return;
+    if (extData.loading) return; // データ取得完了まで待つ
+    const pair = getSingleMarkReadPair(extData.effectiveCategories, extData.effectiveAreas);
+    if (pair === null) return; // 合算ビューは mark-read 呼ばない
+    const key = `${pair.areaId}|${pair.category}`;
+    if (lastMarkedRef.current === key) return; // 同一ペア再発火を抑制
+    lastMarkedRef.current = key;
+    fetch("/api/unread-mark-read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ areaId: pair.areaId, category: pair.category }),
+    }).catch((e) => {
+      // 失敗してもページ表示には影響させない (反さん指示)
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[c97-2] unread-mark-read failed (silently ignored):", e);
+      }
+    });
+    // 注: バッジ count の即時更新は NavBar 側の 5 分タイマーで自然に反映 (refetch 呼出は本 PR では割愛)。
+  }, [isExtendedMode, extData.loading, extData.effectiveCategories, extData.effectiveAreas]);
 
   // 当日 entry (抽出元: DailyReportModal L82-86)
   const todayEntry = useMemo<DailyEntry | null>(

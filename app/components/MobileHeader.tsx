@@ -4,6 +4,9 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useRole } from "./RoleProvider";
 import { hasPageAccess, pathToPage, ROLE_LABELS } from "../lib/permissions";
+// PR c97-2: 未読バッジ
+import { useUnreadCount } from "./useUnreadCount";
+import UnreadBadge from "./UnreadBadge";
 
 const NAV_ITEMS = [
   { href: "/", label: "ダッシュボード" },
@@ -25,6 +28,8 @@ export function MobileHeader() {
   const path = usePathname();
   const role = useRole();
   const [open, setOpen] = useState(false);
+  // PR c97-2: 未読バッジ count fetch (role あれば有効)
+  const { count: unreadCount } = useUnreadCount(role !== null);
 
   useEffect(() => {
     setOpen(false);
@@ -162,6 +167,8 @@ export function MobileHeader() {
           {items.map((item) => {
             const active =
               item.href === "/" ? path === "/" : path.startsWith(item.href);
+            // PR c97-2: 「日報」のみ未読バッジ表示
+            const showUnreadBadge = item.href === "/daily-report";
             return (
               <Link
                 key={item.href}
@@ -175,9 +182,11 @@ export function MobileHeader() {
                   background: active ? "#E8F0EA" : "transparent",
                   borderLeft: active ? "3px solid #1B5E3F" : "3px solid transparent",
                   textDecoration: "none",
+                  position: "relative", // c97-2: UnreadBadge の absolute 基準
                 }}
               >
                 {item.label}
+                {showUnreadBadge && <UnreadBadge count={unreadCount} style={{ top: 8, right: 12 }} />}
               </Link>
             );
           })}
