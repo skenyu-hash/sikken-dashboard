@@ -26,6 +26,7 @@
     "test:integration:companies": "tsx scripts/test-companies.ts",
     "test:integration:range-aggregate": "tsx scripts/test-range-aggregate.ts",
     "test:integration:c96-2-hotfix-normalize": "tsx scripts/test-c96-2-hotfix-normalize.ts",
+    "test:integration:c96-3-build-text-extended": "tsx scripts/test-c96-3-build-text-extended.ts",
     "test:integration:c95-b-3-day-level-deduction": "tsx scripts/test-c95-b-3-day-level-deduction.ts",
     "migrate:c93-1-may2026": "tsx scripts/migrations/c93-1_reaggregate_may2026.ts",
     "migrate:c93-2-may2026": "tsx scripts/migrations/c93-2_init_construction_count_may2026.ts",

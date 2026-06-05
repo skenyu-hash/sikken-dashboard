@@ -216,12 +216,38 @@ export function useReportData(
       `/api/range-aggregate?from=${monthFromTo.mFrom}&to=${monthFromTo.mTo}&categories=${catsParam}&areas=${areasParam}&group_by=none`,
     ).then((r) => (r.ok ? r.json() : { rows: [] }));
 
-    // 単一 (cat, area) かつ HELP 対応業態のときのみ entries fetch (HELP 個人別用)
-    // 合算 view では HELP 個人別は c96-3 で実装予定 (本 PR では空配列)
-    const fetchEntries = isSingle && singleCategory && singleArea && ["water", "electric", "locksmith"].includes(singleCategory)
-      ? fetch(`/api/entries?area=${singleArea}&year=${queryFrom.slice(0, 4)}&month=${Number(queryFrom.slice(5, 7))}&category=${singleCategory}`)
-          .then((r) => (r.ok ? r.json() : { entries: [] }))
-      : Promise.resolve({ entries: [] });
+    // PR c96-3: HELP 個人別を視点別集約に拡張。
+    //   HELP 対応業態 (water/electric/locksmith) × effectiveAreas を並列 fetch、連結して 1 つの entries 配列に。
+    //   呼び出し側 (DailyReportContent) で aggregateHelpStaffByMonth で staff_name SUM。
+    //   最大 11 ペア (water 8 + electric 2 + locksmith 1) なので並列 fetch OK。
+    //   ロード/探偵 (HAS_HELP=false) は対象外、effectiveCategories に含まれていても skip。
+    //   反さん指示: HELP 個人別は常に月累計 (期間モードでも選択月の月初〜月末)。
+    const HELP_CATS = new Set(["water", "electric", "locksmith"]);
+    const yearStr = queryFrom.slice(0, 4);
+    const monthNum = Number(queryFrom.slice(5, 7));
+    const helpPairs: Array<{ cat: BusinessCategory; area: string }> = [];
+    for (const c of effectiveCategories) {
+      if (!HELP_CATS.has(c)) continue;
+      for (const a of effectiveAreas) {
+        // BUSINESSES の各 category.areas を厳密フィルタしないと存在しないペアも fetch される。
+        // BUSINESSES から該当 area のみ fetch 対象に
+        const b = BUSINESSES.find((bb) => bb.id === c);
+        if (b && b.areas.includes(a)) {
+          helpPairs.push({ cat: c, area: a });
+        }
+      }
+    }
+    const fetchEntries: Promise<{ entries: DailyEntry[] }> = helpPairs.length === 0
+      ? Promise.resolve({ entries: [] })
+      : Promise.all(
+          helpPairs.map((p) =>
+            fetch(`/api/entries?area=${p.area}&year=${yearStr}&month=${monthNum}&category=${p.cat}`)
+              .then((r) => (r.ok ? r.json() : { entries: [] }))
+              .catch(() => ({ entries: [] })),
+          ),
+        ).then((results) => ({
+          entries: results.flatMap((r) => (Array.isArray(r.entries) ? r.entries : [])),
+        }));
 
     Promise.all([fetchRange, fetchMonth, fetchEntries]).then(([rg, mo, ent]) => {
       if (cancelled) return;

@@ -102,6 +102,19 @@ export default function DailyReportContent(props: Props) {
 
   const { entries, summary, loading, hasDataDays } = useDailyReportData(areaId, year, month, category);
 
+  // PR c96-3: 拡張モードのデータを早期に取得 (helpStaffMonthly / companyReference より前に)
+  const extData = useReportData(
+    view ?? "company",
+    company ?? "",
+    category,
+    isExtendedMode ? area ?? "" : "",
+    mode ?? "single",
+    date,
+    from ?? date,
+    to ?? date,
+    isExtendedMode, // PR c96-2: Modal 経路は fetch 抑制
+  );
+
   // 当日 entry (抽出元: DailyReportModal L82-86)
   const todayEntry = useMemo<DailyEntry | null>(
     () => entries.find((e) => e.date === date) ?? null,
@@ -113,21 +126,43 @@ export default function DailyReportContent(props: Props) {
   const kpiMonthly = computeKpiMonthly(summary);
 
   // 月累計 HELP 担当者別 (抽出元: L92-96)
-  const helpStaffMonthly = useMemo(
-    () => aggregateHelpStaffByMonth(entries, year, month, day),
-    [entries, year, month, day],
-  );
-  const hasHelp = HAS_HELP[category];
+  //   PR c96-3: 拡張モードでは extData.entries (HELP 対応業態×effectiveAreas の連結) を使う。
+  //   実際の date.day は extData side で fix されないため、本表示は「月末日」までを対象 = 月全体累計。
+  //   反さん指示「常に月累計」(Step 2 確定、HELP 個人別は期間モードでも選択月の月初〜月末で集約)。
+  const helpStaffMonthly = useMemo(() => {
+    if (isExtendedMode) {
+      const lastDay = new Date(year, month, 0).getDate();
+      return aggregateHelpStaffByMonth(extData.entries, year, month, lastDay);
+    }
+    return aggregateHelpStaffByMonth(entries, year, month, day);
+  }, [isExtendedMode, extData.entries, entries, year, month, day]);
+
+  // HELP 表示判定:
+  //   既存モード: HAS_HELP[category] (water/electric/locksmith = true)
+  //   拡張モード: effectiveCategories に HELP 対応業態が含まれる場合 true (混在/単一どちらでも)
+  const hasHelp = isExtendedMode
+    ? extData.effectiveCategories.some((c) => HAS_HELP[c])
+    : HAS_HELP[category];
 
   // 会社参照値 (抽出元: L99-107)
+  //   PR c96-3: 拡張モードでは extData.monthRow (range-aggregate 経由の月累計) を使う。
+  //   monthly_summaries ベースから entries SUM ベースに変わるが、HELP 引継率の分母としての semantics は同じ。
   const companyReference = useMemo(() => {
+    if (isExtendedMode) {
+      if (!extData.monthRow) return null;
+      return {
+        totalRevenue: extData.monthRow.total_revenue,
+        totalCount: extData.monthRow.total_count,
+        constructionCount: 0, // range-aggregate には construction_count 未含、当面 0 で引継率 % 表示は "-"
+      };
+    }
     if (!summary) return null;
     return {
       totalRevenue: Number(summary.total_revenue ?? 0),
       totalCount: Number(summary.total_count ?? 0),
       constructionCount: Number(summary.construction_count ?? 0),
     };
-  }, [summary]);
+  }, [isExtendedMode, extData.monthRow, summary]);
 
   // カレンダー開閉 (抽出元: L59)
   const [showCalendar, setShowCalendar] = useState(false);
@@ -162,9 +197,45 @@ export default function DailyReportContent(props: Props) {
     setTimeout(() => setActionMsg(null), 2500);
   }, [date, areaId, category, effectiveCaptureRef]);
 
-  // アクション: テキストコピー (抽出元: L141-159)
-  const onCopyText = useCallback(async () => {
-    const text = buildDailyReportText({
+  // PR c96-3: buildDailyReportText 入力組み立て (拡張モードでは rangeRow / monthRow を kpi 値に換装)
+  //   既存モード (Modal 経由) は kpiToday/kpiMonthly そのまま。
+  //   反さん指示「壊れない担保 + 視点/期間ラベル追加」の最小修正方針。
+  const buildTextInput = useCallback(() => {
+    if (isExtendedMode) {
+      const viewLabel = describeView(view ?? "company", company ?? "", category, area ?? "");
+      const periodLabel = mode === "range" && from && to && from !== to
+        ? `${from.slice(5).replace("-", "/")}〜${to.slice(5).replace("-", "/")}`
+        : undefined;
+      const rangeKpi = extData.rangeRow
+        ? {
+            sales: extData.rangeRow.total_revenue,
+            profit: extData.rangeRow.total_profit,
+            count: extData.rangeRow.total_count,
+            unitPrice: extData.rangeRow.unit_price,
+            profitRate: extData.rangeRow.profit_rate || null,
+          }
+        : null;
+      const monthlyKpi = extData.monthRow
+        ? {
+            sales: extData.monthRow.total_revenue,
+            profit: extData.monthRow.total_profit,
+            count: extData.monthRow.total_count,
+          }
+        : { sales: 0, profit: 0, count: 0 };
+      return {
+        date,
+        areaName: AREA_NAMES[areaId] ?? areaId,
+        categoryLabel: categoryLabelOf(category),
+        hasHelp,
+        kpi: { today: rangeKpi, monthly: monthlyKpi },
+        helpStaffMonthly,
+        companyReference: companyReference ?? undefined,
+        viewLabel,
+        periodLabel,
+        isExtended: true,
+      } as const;
+    }
+    return {
       date,
       areaName: AREA_NAMES[areaId] ?? areaId,
       categoryLabel: categoryLabelOf(category),
@@ -172,7 +243,13 @@ export default function DailyReportContent(props: Props) {
       kpi: { today: kpiToday, monthly: kpiMonthly },
       helpStaffMonthly,
       companyReference: companyReference ?? undefined,
-    });
+    } as const;
+  }, [isExtendedMode, view, company, category, area, mode, from, to, extData.rangeRow, extData.monthRow,
+      date, areaId, hasHelp, kpiToday, kpiMonthly, helpStaffMonthly, companyReference]);
+
+  // アクション: テキストコピー (抽出元: L141-159)
+  const onCopyText = useCallback(async () => {
+    const text = buildDailyReportText(buildTextInput());
     try {
       await navigator.clipboard.writeText(text);
       setActionMsg("📋 テキストをコピーしました");
@@ -180,21 +257,16 @@ export default function DailyReportContent(props: Props) {
       setActionMsg("コピー失敗 (ブラウザが clipboard 不対応の可能性)");
     }
     setTimeout(() => setActionMsg(null), 2500);
-  }, [date, areaId, category, hasHelp, kpiToday, kpiMonthly, helpStaffMonthly, companyReference]);
+  }, [buildTextInput]);
 
   // アクション: LINE・メール (c95-A-3 hotfix の 3 段 fallback、PR #128 でマージ済の現行ロジック)
   // 抽出元: L162-198 (PR #128 hotfix 適用後の DailyReportModal)
   const onShare = useCallback(async () => {
-    const text = buildDailyReportText({
-      date,
-      areaName: AREA_NAMES[areaId] ?? areaId,
-      categoryLabel: categoryLabelOf(category),
-      hasHelp,
-      kpi: { today: kpiToday, monthly: kpiMonthly },
-      helpStaffMonthly,
-      companyReference: companyReference ?? undefined,
-    });
-    const subject = `日報 ${date} ${AREA_NAMES[areaId] ?? areaId} ${categoryLabelOf(category)}`;
+    const text = buildDailyReportText(buildTextInput());
+    const subjectExt = isExtendedMode
+      ? `日報 ${describeView(view ?? "company", company ?? "", category, area ?? "")} ${date}`
+      : `日報 ${date} ${AREA_NAMES[areaId] ?? areaId} ${categoryLabelOf(category)}`;
+    const subject = subjectExt;
 
     // (1) Web Share API
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
@@ -212,28 +284,15 @@ export default function DailyReportContent(props: Props) {
     // (3) mailto: 最終 fallback
     const mailUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
     window.location.href = mailUrl;
-  }, [date, areaId, category, hasHelp, kpiToday, kpiMonthly, helpStaffMonthly, companyReference]);
+  }, [buildTextInput, isExtendedMode, view, company, category, area, date, areaId]);
 
   // captureRef を fallback (localRef) で使うとき、ref に直接コンテナ DOM を付ける必要がある。
   // Modal 経由なら captureRef は Modal 側で container shell に bind 済み。
   // 本 component の最上位 div の ref は localRef を fallback として使う (= 独立ページ版の保険)。
   // Modal 経由のとき localRef は無視される (effectiveCaptureRef === captureRef)。
 
-  // PR c96-2: 拡張モード = view 指定あり時、上部に FilterBar + 視点バッジ表示。
-  //   既存ヘッダー (categoryLabel/areaId/date ナビ) はそのまま表示するが、
-  //   isSingle=false (合算/事業混在) のときは業態固有セクションを非表示にしプレースホルダーを出す。
-  //   c96-3 で完成形 (合算セクション + HELP 個人別合算範囲) に拡張予定。
-  const extData = useReportData(
-    view ?? "company",
-    company ?? "",
-    category,
-    isExtendedMode ? area ?? "" : "",
-    mode ?? "single",
-    date,
-    from ?? date,
-    to ?? date,
-    isExtendedMode, // PR c96-2: Modal 経路 (isExtendedMode=false) は fetch 抑制 (冗長リクエスト回避、番人指摘)
-  );
+  // PR c96-2/3: 拡張モード = view 指定あり時、上部に FilterBar + 視点バッジ + 合算 KPI + HELP 個人別表示。
+  //   extData は上方で取得済 (helpStaffMonthly / companyReference より早く必要)。
 
   return (
     <div ref={captureRef ? undefined : localRef}>
@@ -361,7 +420,7 @@ export default function DailyReportContent(props: Props) {
       </div>
 
       {/* PR c96-2: 拡張モード + 業態混在/合算時のプレースホルダー (詳細内訳セクションは
-          単一 (cat, area) のみ既存セクションを流用、合算/期間モードは c96-3 で完成形に拡張予定) */}
+          単一 (cat, area) のみ既存セクションを流用、合算/期間モードは KPI + HELP 個人別のみ) */}
       {isExtendedMode && !extData.isSingle && (
         <div style={{
           margin: "16px 36px", padding: "16px 24px",
@@ -372,32 +431,36 @@ export default function DailyReportContent(props: Props) {
           対象: {extData.effectiveCategories.length} 業態 × {extData.effectiveAreas.length} エリア
           {mode === "range" && from && to && ` ／ 期間 ${from} 〜 ${to}`}
           <br />
-          詳細内訳 (新規対応・コスト・施工等の業態固有項目) は単一業態 × 単一エリア選択時のみ表示します
-          (合算時は KPI 4 枚のみ、詳細セクションは c96-3 で完成形に拡張予定)。
+          詳細内訳 (業態固有の新規対応・コスト・施工等) は単一業態 × 単一エリア選択時のみ表示します
+          (混在時は KPI 4 枚 + HELP 個人別のみ表示)。
           {extData.loading && <span style={{ marginLeft: 8, color: COLOR_BRAND_DARK }}>読み込み中...</span>}
         </div>
       )}
 
       {/* 業態別 Section (抽出元: L263-277、PR c95-C-3 で CollapsibleReportSection ラップ)
           PC mode: <CollapsibleReportSection> が <><div title 旧と verbatim/>{children}</> で展開、DOM 構造完全同一
-          Mobile mode: toggle button + 折りたたみ */}
-      <CollapsibleReportSection
-        title={`${categoryLabelOf(category)}業態 — 今日の内訳`}
-        summary={kpiToday ? yen(kpiToday.sales) : undefined}
-        defaultOpenMobile={true}
-      >
-        {loading ? (
-          <div style={{ padding: 32, textAlign: "center", color: "#8a9c95" }}>読み込み中...</div>
-        ) : todayEntry === null ? (
-          <div style={{
-            padding: "16px 36px", margin: "0 36px",
-            background: "#f9fafb", border: "1px dashed #d1d5db", borderRadius: 12,
-            textAlign: "center", color: "#6b7280", fontSize: 13,
-          }}>{date} のデータなし</div>
-        ) : (
-          renderSection(category, todayEntry)
-        )}
-      </CollapsibleReportSection>
+          Mobile mode: toggle button + 折りたたみ
+          PR c96-3: 拡張モード + 業態混在時 (isSingle=false) は本 Section 自体を非表示
+            (c96-2 で受容した「title バー二重表示」UX 問題を解消、プレースホルダーのみ残る) */}
+      {!(isExtendedMode && !extData.isSingle) && (
+        <CollapsibleReportSection
+          title={`${categoryLabelOf(category)}業態 — 今日の内訳`}
+          summary={kpiToday ? yen(kpiToday.sales) : undefined}
+          defaultOpenMobile={true}
+        >
+          {loading ? (
+            <div style={{ padding: 32, textAlign: "center", color: "#8a9c95" }}>読み込み中...</div>
+          ) : todayEntry === null ? (
+            <div style={{
+              padding: "16px 36px", margin: "0 36px",
+              background: "#f9fafb", border: "1px dashed #d1d5db", borderRadius: 12,
+              textAlign: "center", color: "#6b7280", fontSize: 13,
+            }}>{date} のデータなし</div>
+          ) : (
+            renderSection(category, todayEntry)
+          )}
+        </CollapsibleReportSection>
+      )}
 
       {/* ⑤ HELP セクション (抽出元: L279-296、PR c95-C-3 で CollapsibleReportSection ラップ) */}
       {hasHelp && !loading && (
