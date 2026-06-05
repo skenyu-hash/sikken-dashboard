@@ -38,26 +38,41 @@ type Input = {
   helpStaffMonthly: HelpStaffMonthly[];
   /** HELP の引継率・売上高率分母 (月累計)。hasHelp=true 時のみ参照。 */
   companyReference?: { totalRevenue: number; totalCount: number; constructionCount: number };
+  // PR c96-3: 拡張モード (3 視点 + 期間) 用の追加メタデータ。すべて optional、未指定なら既存の単日/単一視点出力。
+  /** 視点ラベル (例: "Mavericks (水道+ロード)" / "水道事業 (全エリア)" / "グループ全体")。指定時はヘッダーに併記。 */
+  viewLabel?: string;
+  /** 期間ラベル (例: "5/1〜5/15")。指定時はヘッダーに併記、未指定なら単日扱い。 */
+  periodLabel?: string;
+  /** 拡張モードフラグ。true なら kpi.today を「当日」ではなく「期間集計」として出力 (ラベルだけ変更)。 */
+  isExtended?: boolean;
 };
 
 export function buildDailyReportText(input: Input): string {
   const lines: string[] = [];
 
   // ── ヘッダ ────────────────────────────────
-  lines.push(`【日報】${input.date} / ${input.areaName} / ${input.categoryLabel}`);
+  //   c96-3: 拡張モードの場合、視点ラベル + 期間ラベルをヘッダーに追加 (areaName/categoryLabel は呼出側が合算ラベルを渡す)。
+  if (input.isExtended && input.viewLabel) {
+    const periodPart = input.periodLabel ? ` / ${input.periodLabel}` : ` / ${input.date}`;
+    lines.push(`【日報】${input.viewLabel}${periodPart}`);
+  } else {
+    lines.push(`【日報】${input.date} / ${input.areaName} / ${input.categoryLabel}`);
+  }
   lines.push("");
 
   // ── KPI 帯 ───────────────────────────────
+  //   c96-3: 拡張モード+期間の場合、ラベルを「今日」→「期間」に置換。単日拡張モードは「当日」維持。
+  const rangeLabel = input.isExtended && input.periodLabel ? "期間" : "今日";
   lines.push("▼ KPI");
   if (input.kpi.today === null) {
     lines.push("  当日 データなし");
   } else {
     const t = input.kpi.today;
-    lines.push(`  今日 売上    ${yen(t.sales)}    (現在地 ${yen(input.kpi.monthly.sales)})`);
-    const profitLine = `  今日 粗利    ${yen(t.profit)}    (現在地 ${yen(input.kpi.monthly.profit)})`;
-    lines.push(t.profitRate !== null ? `${profitLine} ※当日粗利率 ${pct(t.profitRate)}` : profitLine);
-    lines.push(`  今日 件数    ${cnt(t.count)}    (現在地 ${cnt(input.kpi.monthly.count)})`);
-    lines.push(`  今日 客単価  ${yen(t.unitPrice)}`);
+    lines.push(`  ${rangeLabel} 売上    ${yen(t.sales)}    (現在地 ${yen(input.kpi.monthly.sales)})`);
+    const profitLine = `  ${rangeLabel} 粗利    ${yen(t.profit)}    (現在地 ${yen(input.kpi.monthly.profit)})`;
+    lines.push(t.profitRate !== null ? `${profitLine} ※${rangeLabel}粗利率 ${pct(t.profitRate)}` : profitLine);
+    lines.push(`  ${rangeLabel} 件数    ${cnt(t.count)}    (現在地 ${cnt(input.kpi.monthly.count)})`);
+    lines.push(`  ${rangeLabel} 客単価  ${yen(t.unitPrice)}`);
   }
   // データなし時も月累計を見せる (spec)
   if (input.kpi.today === null) {
