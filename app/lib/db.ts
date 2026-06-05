@@ -362,6 +362,23 @@ export function ensureSchema(): Promise<void> {
           created_at TIMESTAMPTZ DEFAULT NOW()
         )
       `);
+
+      // PR c97-1: 未読バッジ機能 (個人別)。
+      //   /daily-report ナビバッジの「未読拠点数」算出用。
+      //   未読 = entries.updated_at > read_states.last_seen_at かつ user が担当する (area, category)。
+      //   PK = (user_id, area_id, business_category) で 1 ユーザー × 1 拠点 = 1 行。
+      //   最大行数 = 46 ユーザー × 8 area × 5 cat = 1,840 行 (実運用は担当範囲のみ書込でさらに少)。
+      //   既存 entries / monthly_summaries には一切 書き込まない・更新しない・削除しない (read-only)。
+      await safe(sql`
+        CREATE TABLE IF NOT EXISTS read_states (
+          user_id INT NOT NULL,
+          area_id TEXT NOT NULL,
+          business_category VARCHAR(20) NOT NULL,
+          last_seen_at TIMESTAMPTZ NOT NULL,
+          PRIMARY KEY (user_id, area_id, business_category)
+        )
+      `);
+      await safe(sql`CREATE INDEX IF NOT EXISTS idx_read_states_user ON read_states (user_id)`);
     })().catch((e) => {
       schemaReady = null;
       throw e;
