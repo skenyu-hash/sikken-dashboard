@@ -29,6 +29,7 @@
     "test:integration:c96-3-build-text-extended": "tsx scripts/test-c96-3-build-text-extended.ts",
     "test:integration:c97-1-unread-stats": "tsx scripts/test-c97-1-unread-stats.ts",
     "test:integration:c97-1-unread-api": "tsx scripts/test-c97-1-unread-api.ts",
+    "test:integration:c97-2-badge-ui": "tsx scripts/test-c97-2-badge-ui.ts",
     "test:integration:c95-b-3-day-level-deduction": "tsx scripts/test-c95-b-3-day-level-deduction.ts",
     "migrate:c93-1-may2026": "tsx scripts/migrations/c93-1_reaggregate_may2026.ts",
     "migrate:c93-2-may2026": "tsx scripts/migrations/c93-2_init_construction_count_may2026.ts",

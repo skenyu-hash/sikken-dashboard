@@ -61,6 +61,25 @@ export function getUserScopePairs(
 }
 
 /**
+ * PR c97-2: /daily-report 自動既読化の発火条件判定 (純関数、テスト容易化)。
+ *   反さん指示: 「単一拠点表示時のみ既読化、合算ビューでは呼ばない」
+ *   = effectiveCategories.length === 1 && effectiveAreas.length === 1
+ *
+ * @param effectiveCategories  useReportData の派生結果
+ * @param effectiveAreas       useReportData の派生結果
+ * @returns 単一 (cat, area) ペアならそのペアを返す、それ以外は null
+ */
+export function getSingleMarkReadPair(
+  effectiveCategories: readonly string[],
+  effectiveAreas: readonly string[],
+): { areaId: string; category: string } | null {
+  if (effectiveCategories.length === 1 && effectiveAreas.length === 1) {
+    return { areaId: effectiveAreas[0], category: effectiveCategories[0] };
+  }
+  return null;
+}
+
+/**
  * スロットル判定: 同一 (user, area, category) の既読更新を skip すべきか。
  *
  * @param lastSeenAt  read_states 既存行の last_seen_at (= 前回既読時刻)、null なら初回
