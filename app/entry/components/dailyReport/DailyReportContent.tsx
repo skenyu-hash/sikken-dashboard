@@ -31,6 +31,10 @@ import { buildDailyReportText } from "../../lib/buildDailyReportText";
 import { yen, cnt, pct } from "./reportPrimitives";
 import { useDailyReportData } from "./useDailyReportData";
 import CollapsibleReportSection from "./CollapsibleReportSection";
+// PR c96-2: 視点 / 期間 拡張
+import FilterBar, { type ViewMode, type DateMode } from "./FilterBar";
+import { useReportData, describeView } from "./useReportData";
+import { COLOR_BRAND_DARK, COLOR_TEXT_SECONDARY } from "../../../lib/theme";
 
 const categoryLabelOf = (c: BusinessCategory): string =>
   BUSINESSES.find((b) => b.id === c)?.label ?? c;
@@ -60,11 +64,38 @@ type Props = {
    * 省略時は本コンポーネント内部の ref を使う (= 中身のみ撮影、boxShadow なし)。
    */
   captureRef?: RefObject<HTMLDivElement | null>;
+
+  // PR c96-2: 視点 + 期間 拡張 (全 optional、未指定なら既存 Modal/旧 page 互換挙動)
+  /** 視点モード (会社別 / 事業別 / グループ全体)、指定あり = c96-2 拡張モード起動 */
+  view?: ViewMode;
+  /** view=company のときのアクティブ会社 ID */
+  company?: string;
+  /** 会社別 1 エリア絞り込み (空文字 = 未絞り込み)。areaId とは独立。 */
+  area?: string;
+  /** 日付モード */
+  mode?: DateMode;
+  from?: string;
+  to?: string;
+  /** 視点 + 期間切替 callbacks (FilterBar 内で使用)、view 指定時のみ必須 */
+  onViewChange?: (v: ViewMode) => void;
+  onCompanyChange?: (id: string) => void;
+  onCategoryChange?: (c: BusinessCategory | "") => void;
+  onAreaChange?: (a: string) => void;
+  onModeChange?: (m: DateMode) => void;
+  onFromChange?: (d: string) => void;
+  onToChange?: (d: string) => void;
 };
 
-export default function DailyReportContent({
-  date, areaId, category, staffLabel, onDateChange, onClose, captureRef,
-}: Props) {
+export default function DailyReportContent(props: Props) {
+  const {
+    date, areaId, category, staffLabel, onDateChange, onClose, captureRef,
+    view, company, area, mode, from, to,
+    onViewChange, onCompanyChange, onCategoryChange, onAreaChange,
+    onModeChange, onFromChange, onToChange,
+  } = props;
+
+  // c96-2: view 指定あり = 新拡張モード起動。view 未指定 = 既存 Modal/旧 page 互換挙動。
+  const isExtendedMode = view !== undefined && onViewChange !== undefined;
   const year = Number(date.slice(0, 4));
   const month = Number(date.slice(5, 7));
   const day = Number(date.slice(8, 10));
@@ -187,14 +218,61 @@ export default function DailyReportContent({
   // Modal 経由なら captureRef は Modal 側で container shell に bind 済み。
   // 本 component の最上位 div の ref は localRef を fallback として使う (= 独立ページ版の保険)。
   // Modal 経由のとき localRef は無視される (effectiveCaptureRef === captureRef)。
+
+  // PR c96-2: 拡張モード = view 指定あり時、上部に FilterBar + 視点バッジ表示。
+  //   既存ヘッダー (categoryLabel/areaId/date ナビ) はそのまま表示するが、
+  //   isSingle=false (合算/事業混在) のときは業態固有セクションを非表示にしプレースホルダーを出す。
+  //   c96-3 で完成形 (合算セクション + HELP 個人別合算範囲) に拡張予定。
+  const extData = useReportData(
+    view ?? "company",
+    company ?? "",
+    category,
+    isExtendedMode ? area ?? "" : "",
+    mode ?? "single",
+    date,
+    from ?? date,
+    to ?? date,
+    isExtendedMode, // PR c96-2: Modal 経路 (isExtendedMode=false) は fetch 抑制 (冗長リクエスト回避、番人指摘)
+  );
+
   return (
     <div ref={captureRef ? undefined : localRef}>
+      {/* PR c96-2: 視点 + 期間 フィルター帯 (拡張モードのみ) */}
+      {isExtendedMode && view && company && mode && from && to &&
+       onViewChange && onCompanyChange && onCategoryChange && onAreaChange &&
+       onModeChange && onFromChange && onToChange && (
+        <FilterBar
+          view={view}
+          company={company}
+          category={category}
+          area={area ?? ""}
+          mode={mode}
+          date={date}
+          from={from}
+          to={to}
+          onViewChange={onViewChange}
+          onCompanyChange={onCompanyChange}
+          onCategoryChange={onCategoryChange}
+          onAreaChange={onAreaChange}
+          onModeChange={onModeChange}
+          onDateChange={onDateChange}
+          onFromChange={onFromChange}
+          onToChange={onToChange}
+        />
+      )}
+
       {/* ヘッダー (抽出元: L195-240) */}
       <div style={{ background: "#2e8b62", color: "#fff", padding: "20px 36px 0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 21, fontWeight: 700, letterSpacing: 0.5 }}>📋 日報</span>
-          <Badge>{categoryLabelOf(category)}</Badge>
-          <Badge>{AREA_NAMES[areaId] ?? areaId}エリア</Badge>
+          {isExtendedMode ? (
+            <Badge>{describeView(view ?? "company", company ?? "", category, area ?? "")}</Badge>
+          ) : (
+            <>
+              <Badge>{categoryLabelOf(category)}</Badge>
+              <Badge>{AREA_NAMES[areaId] ?? areaId}エリア</Badge>
+            </>
+          )}
           <Badge>{staffLabel ?? "担当 -"}</Badge>
           {/* 日付ナビ ◀▶ + カレンダートグル */}
           <div style={{ marginLeft: 16, display: "flex", alignItems: "center", gap: 6 }}>
@@ -238,26 +316,67 @@ export default function DailyReportContent({
         )}
       </div>
 
-      {/* KPI 帯 (抽出元: L242-261) */}
+      {/* KPI 帯 (抽出元: L242-261)
+          PR c96-2: 拡張モード時は useReportData (range-aggregate 経由) の値で上書き。
+            range = 選択期間 SUM (mode=single なら単日)、month = 月累計 (現在地)。 */}
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0,
         background: "#2e8b62", padding: "18px 36px 24px",
       }}>
-        <KpiCell k="売上" todayValue={kpiToday ? yen(kpiToday.sales) : "—"} nowValue={yen(kpiMonthly.sales)} />
-        <KpiCell
-          k="粗利"
-          todayValue={kpiToday ? yen(kpiToday.profit) : "—"}
-          nowValue={yen(kpiMonthly.profit)}
-          extraLabel="粗利率"
-          extraValue={kpiToday ? pct(kpiToday.profitRate) : "—"}
-        />
-        <KpiCell k="対応件数" todayValue={kpiToday ? cnt(kpiToday.count) : "—"} nowValue={cnt(kpiMonthly.count)} />
-        <KpiCell
-          k="客単価"
-          todayValue={kpiToday ? yen(kpiToday.unitPrice) : "—"}
-          nowValue={kpiMonthly.unitPrice > 0 ? yen(kpiMonthly.unitPrice) : "—"}
-        />
+        {isExtendedMode ? (
+          <>
+            <KpiCell k="売上"
+              todayValue={extData.rangeRow ? yen(extData.rangeRow.total_revenue) : "—"}
+              nowValue={extData.monthRow ? yen(extData.monthRow.total_revenue) : "—"} />
+            <KpiCell k="粗利"
+              todayValue={extData.rangeRow ? yen(extData.rangeRow.total_profit) : "—"}
+              nowValue={extData.monthRow ? yen(extData.monthRow.total_profit) : "—"}
+              extraLabel="粗利率"
+              extraValue={extData.rangeRow ? `${extData.rangeRow.profit_rate.toFixed(1)}%` : "—"} />
+            <KpiCell k="対応件数"
+              todayValue={extData.rangeRow ? cnt(extData.rangeRow.total_count) : "—"}
+              nowValue={extData.monthRow ? cnt(extData.monthRow.total_count) : "—"} />
+            <KpiCell k="客単価"
+              todayValue={extData.rangeRow && extData.rangeRow.unit_price > 0 ? yen(extData.rangeRow.unit_price) : "—"}
+              nowValue={extData.monthRow && extData.monthRow.unit_price > 0 ? yen(extData.monthRow.unit_price) : "—"} />
+          </>
+        ) : (
+          <>
+            <KpiCell k="売上" todayValue={kpiToday ? yen(kpiToday.sales) : "—"} nowValue={yen(kpiMonthly.sales)} />
+            <KpiCell
+              k="粗利"
+              todayValue={kpiToday ? yen(kpiToday.profit) : "—"}
+              nowValue={yen(kpiMonthly.profit)}
+              extraLabel="粗利率"
+              extraValue={kpiToday ? pct(kpiToday.profitRate) : "—"}
+            />
+            <KpiCell k="対応件数" todayValue={kpiToday ? cnt(kpiToday.count) : "—"} nowValue={cnt(kpiMonthly.count)} />
+            <KpiCell
+              k="客単価"
+              todayValue={kpiToday ? yen(kpiToday.unitPrice) : "—"}
+              nowValue={kpiMonthly.unitPrice > 0 ? yen(kpiMonthly.unitPrice) : "—"}
+            />
+          </>
+        )}
       </div>
+
+      {/* PR c96-2: 拡張モード + 業態混在/合算時のプレースホルダー (詳細内訳セクションは
+          単一 (cat, area) のみ既存セクションを流用、合算/期間モードは c96-3 で完成形に拡張予定) */}
+      {isExtendedMode && !extData.isSingle && (
+        <div style={{
+          margin: "16px 36px", padding: "16px 24px",
+          background: COLOR_BRAND_DARK + "10", border: `1px dashed ${COLOR_BRAND_DARK}40`,
+          borderRadius: 8, color: COLOR_TEXT_SECONDARY, fontSize: 12.5, lineHeight: 1.7,
+        }}>
+          <div style={{ fontWeight: 700, color: COLOR_BRAND_DARK, marginBottom: 6 }}>合算ダッシュボード</div>
+          対象: {extData.effectiveCategories.length} 業態 × {extData.effectiveAreas.length} エリア
+          {mode === "range" && from && to && ` ／ 期間 ${from} 〜 ${to}`}
+          <br />
+          詳細内訳 (新規対応・コスト・施工等の業態固有項目) は単一業態 × 単一エリア選択時のみ表示します
+          (合算時は KPI 4 枚のみ、詳細セクションは c96-3 で完成形に拡張予定)。
+          {extData.loading && <span style={{ marginLeft: 8, color: COLOR_BRAND_DARK }}>読み込み中...</span>}
+        </div>
+      )}
 
       {/* 業態別 Section (抽出元: L263-277、PR c95-C-3 で CollapsibleReportSection ラップ)
           PC mode: <CollapsibleReportSection> が <><div title 旧と verbatim/>{children}</> で展開、DOM 構造完全同一
