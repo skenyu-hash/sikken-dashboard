@@ -40,10 +40,18 @@ type ViewMode = typeof VALID_VIEWS[number];
 const VALID_MODES = ["single", "range"] as const;
 type DateMode = typeof VALID_MODES[number];
 
+// c96-2-hotfix: 拡張モードは entries 直 SUM (range-aggregate) を使うため、4 月以前 entries 不在 →
+//   monthly_summaries との乖離を構造的に防ぐため UI 全体で 2026-05-01 以降のみ選択可。
+//   FilterBar 側だけでなく URL 直叩き / ブラウザ履歴経由でも 4 月以前が入らないよう本ファイルでもガード。
+const MIN_DATE_C96 = "2026-05-01";
+
 const todayISO = (): string => new Date().toISOString().slice(0, 10);
 
 const isValidDate = (s: string): boolean =>
   /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(`${s}T00:00:00`).getTime());
+
+/** URL クエリ経由の日付を 2026-05-01 以降に制約 (c96-2-hotfix)。 */
+const clampDate = (s: string): string => (s < MIN_DATE_C96 ? MIN_DATE_C96 : s);
 
 const sameMonth = (a: string, b: string): boolean =>
   a.slice(0, 7) === b.slice(0, 7);
@@ -80,9 +88,10 @@ function DailyReportPageContent() {
     ? urlCategory as BusinessCategory
     : "water";
   const mode: DateMode = VALID_MODES.includes(urlMode) ? urlMode : "single";
-  const initialDate = (urlDate && isValidDate(urlDate)) ? urlDate : todayISO();
-  const initialFrom = (urlFrom && isValidDate(urlFrom)) ? urlFrom : initialDate;
-  const initialTo = (urlTo && isValidDate(urlTo) && sameMonth(initialFrom, urlTo)) ? urlTo : initialFrom;
+  // c96-2-hotfix: 全ての URL date / from / to を MIN_DATE_C96 以降に clamp (URL 直叩き対策)
+  const initialDate = clampDate((urlDate && isValidDate(urlDate)) ? urlDate : todayISO());
+  const initialFrom = clampDate((urlFrom && isValidDate(urlFrom)) ? urlFrom : initialDate);
+  const initialTo = clampDate((urlTo && isValidDate(urlTo) && sameMonth(initialFrom, urlTo)) ? urlTo : initialFrom);
 
   // state (URL 追従)
   const [date, setDate] = useState(initialDate);

@@ -85,6 +85,12 @@ export default function FilterBar(props: Props) {
     return `${from.slice(0, 7)}-${String(lastDay).padStart(2, "0")}`;
   }, [from]);
 
+  // PR c96-2-hotfix: 不変条件 3 緊張対応 — 拡張モードは range-aggregate (entries 直 SUM) を使うため、
+  //   2026/4 以前は entries 不在 → 月累計が 0 表示 / monthly_summaries (water 109 行) と乖離する。
+  //   ピッカーの min を 2026-05-01 に制約し、4 月以前は選べないようガード。
+  //   注: 過去月閲覧自体は将来 monthly_summaries fallback で対応予定 (c96-3 以降の検討事項)。
+  const MIN_DATE_C96 = "2026-05-01";
+
   return (
     <div style={containerStyle}>
       {/* 段 1: 視点セグメント */}
@@ -200,21 +206,32 @@ export default function FilterBar(props: Props) {
 
         {mode === "single" ? (
           <div style={dateInputGroupStyle}>
-            <button onClick={() => shiftDate(date, -1, onDateChange)} style={navBtnStyle} aria-label="前日">◀</button>
+            <button
+              onClick={() => shiftDate(date, -1, onDateChange, MIN_DATE_C96)}
+              style={navBtnStyle}
+              aria-label="前日"
+              disabled={date <= MIN_DATE_C96}
+            >◀</button>
             <input
               type="date"
               value={date}
-              onChange={(e) => onDateChange(e.target.value)}
+              min={MIN_DATE_C96}
+              onChange={(e) => {
+                if (e.target.value >= MIN_DATE_C96) onDateChange(e.target.value);
+              }}
               style={dateInputStyle}
             />
-            <button onClick={() => shiftDate(date, +1, onDateChange)} style={navBtnStyle} aria-label="翌日">▶</button>
+            <button onClick={() => shiftDate(date, +1, onDateChange, MIN_DATE_C96)} style={navBtnStyle} aria-label="翌日">▶</button>
           </div>
         ) : (
           <div style={dateInputGroupStyle}>
             <input
               type="date"
               value={from}
-              onChange={(e) => onFromChange(e.target.value)}
+              min={MIN_DATE_C96}
+              onChange={(e) => {
+                if (e.target.value >= MIN_DATE_C96) onFromChange(e.target.value);
+              }}
               style={dateInputStyle}
               aria-label="開始日"
             />
@@ -223,12 +240,12 @@ export default function FilterBar(props: Props) {
               type="date"
               value={to}
               onChange={(e) => onToChange(e.target.value)}
-              min={fromMonthFirst}
+              min={fromMonthFirst > MIN_DATE_C96 ? fromMonthFirst : MIN_DATE_C96}
               max={fromMonthLast}
               style={dateInputStyle}
               aria-label="終了日"
             />
-            <span style={hintStyle}>同一月内のみ</span>
+            <span style={hintStyle}>同一月内・2026/5 以降のみ</span>
           </div>
         )}
       </div>
@@ -236,11 +253,13 @@ export default function FilterBar(props: Props) {
   );
 }
 
-function shiftDate(current: string, deltaDays: number, onChange: (d: string) => void) {
+function shiftDate(current: string, deltaDays: number, onChange: (d: string) => void, minDate?: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(current)) return;
   const d = new Date(`${current}T00:00:00`);
   d.setDate(d.getDate() + deltaDays);
-  onChange(d.toISOString().slice(0, 10));
+  const next = d.toISOString().slice(0, 10);
+  if (minDate && next < minDate) return; // c96-2-hotfix: 4 月以前ガード
+  onChange(next);
 }
 
 // ── スタイル (theme.ts 経由、ハードコード回避) ──────────

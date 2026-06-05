@@ -332,7 +332,7 @@ export default function DailyReportContent(props: Props) {
               todayValue={extData.rangeRow ? yen(extData.rangeRow.total_profit) : "—"}
               nowValue={extData.monthRow ? yen(extData.monthRow.total_profit) : "—"}
               extraLabel="粗利率"
-              extraValue={extData.rangeRow ? `${extData.rangeRow.profit_rate.toFixed(1)}%` : "—"} />
+              extraValue={extData.rangeRow ? pct(extData.rangeRow.profit_rate) : "—"} />
             <KpiCell k="対応件数"
               todayValue={extData.rangeRow ? cnt(extData.rangeRow.total_count) : "—"}
               nowValue={extData.monthRow ? cnt(extData.monthRow.total_count) : "—"} />
