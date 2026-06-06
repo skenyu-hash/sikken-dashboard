@@ -84,6 +84,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **マイグレーション・aggregation・DB書き込みに触れた** → number-verifier + invariant-guard 必須
 - **5行以上のコード変更、または絶対不変項目の周辺ファイルに触れた** → invariant-guard 必須
 - **既存テストの期待値を変更した** → number-verifier 必須（新期待値を独立検算）
+- **API レスポンスを fmt 関数 (`.toFixed`/`.toLocaleString`/`Math.round` 等) に渡す経路を追加した** → number-verifier 必須 (型ガード = Neon driver が NUMERIC/BIGINT を string で返すケース、c96-2 hotfix 教訓 2026-06-05)
 
 ### 第三者レビュー（Web Claude 等）を呼ぶ条件
 番人で完結せず、人間（反さん）が claude.ai 等で第三者の目を通すべき重大局面:
@@ -228,7 +229,18 @@ This version has breaking changes — APIs, conventions, and file structure may 
 | 3 | commit（HEREDOC で日本語 message、Co-Authored-By 付き）+ push（`-u origin <branch>`） | 担当者 + CC | hooks 失敗時は `--no-verify` ではなく根本対応 |
 | 4 | `gh pr create --title "<日本語タイトル>" --body "$(cat <<'EOF' ... EOF)"` で PR 作成、本文は §5 報告フォーマット準拠（概要 / 変更点 / 検証 / 数値証跡 / 後続予定） | 担当者 + CC | `gh auth status` が NG なら §6 末尾の再ログイン手順 |
 | 5 | 番人通過確認 → §0「チームに一報してから実行する操作」該当の重大変更なら 3 人中 1 人（**PR 著者以外**）がレビュー → 担当者が `gh pr merge <PR#> --squash --delete-branch` | 担当者 + (重大変更時) チーム 1 人 | 番人 NG / 重大変更でレビュー未了 / 著者本人レビュー（= 実質ノーチェック） |
-| 6 | `git checkout main && git pull --ff-only origin main && git branch -d <branch>` でローカル同期 | 担当者 + CC | ローカル main が遅れていたら必ず先に同期 |
+| 6 | **Preview 環境で検証 → 本番 Promote/反映 → 本番 Chrome `?nocache` 検証** (UI / フロント変更時必須) | 担当者 | Preview スキップで本番デプロイ → 本番障害リスク (c96-2 事故再発防止) |
+| 7 | `git checkout main && git pull --ff-only origin main && git branch -d <branch>` でローカル同期 | 担当者 + CC | ローカル main が遅れていたら必ず先に同期 |
+
+#### Step 6 詳細 (c96-2 hotfix 教訓で 2026-06-05 標準化)
+UI / フロント変更 PR (= ユーザー画面に影響する変更) は本番デプロイ前に必ず Preview 検証:
+1. **Preview 環境 (Vercel Preview URL)** で対象画面を Chrome で開き、機能動作 + DOM 座標 + デフォルト以外の選択肢 (全 7 社等) も実際に切り替えて中身を確認
+   - **要素の「見た目」だけでなく DOM 座標 / 実在を確認** (ナビ消失の誤判定が教訓、2026-06-05)
+   - **デフォルトのみ確認で済まさない** (c96-2 で Mavericks 以外を試さずに本番障害を見逃した教訓、2026-06-05)
+2. Preview で問題なければ Vercel で **本番 Promote** (mainマージ後は自動 Production デプロイ、Promote 不要なケースもあり)
+3. **本番 Chrome で `?nocache=<timestamp>` 付き URL で最終確認** (Vercel CDN キャッシュ回避、CLAUDE.md §3 既出)
+
+スキーマ変更 / DB マイグレーション系は Preview 検証後に Neon Console で手動 SQL 実行が必要 (db.ts ensureSchema で冪等運用)。
 
 **禁則**:
 - 番人 NG のまま commit/push する
@@ -278,7 +290,22 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **c95-D-3（slice 3: form-level 切替）**（2026-06-02）✅ PR #145 マージ済 (commit e3eb932) — `useFormCalculations.ts` の water 分岐を旧 `consultantFee("water", f1, yyyymm)` から `state.consultant_fee` 直接控除に切替 (yyyymm >= 202605 のみ)。AutoCalcDisplay 粗利表示が手入力ベースに
 - **c95-D-4（slice 4: aggregation 切替 + re-aggregate）**（2026-06-02）✅ PR #146 マージ済 (commit 98b0502) + re-aggregate apply 実行済 — `monthlyAggregation.ts` の water 分岐を 3 段 CASE に再構成 (water+applyConsult / water+4月以前 / その他)、`- b.sum_consultant_fee` 直接控除。本番 DB の water 5/6 月 12 行を再集計、合計 delta **+27,927,048 円** (現場入力ほぼ未完了で旧 7.7% 自動分が外れた)。4 月以前 water 109 行 untouch 確認済 (`updated_at` 不変)
 - **c95-D-5（slice 5: day-level + read fallback + 日報 切替 + consultantFee 無効化）**（2026-06-02）✅ PR #147 マージ済 (commit 3728084) — `profit.ts` / `kpiCompute.ts` / `WaterDailyReportSection.tsx` を手入力 `consultant_fee` 直接控除に切替 + `CONSULTANT_FEE_RATE.water: 0.077 → 0` 無効化。番人 ✅、テスト 71/71 ✅
-- **c95-D-6（slice 6: UI バッジ + consultantFee.ts 完全撤去 + docs）**（2026-06-02）⏳ 本 PR 進行中 — UI バッジ文言を「コンサル費 (手入力) 控除済」に置換、AutoCalcDisplay subtitle 修正、`consultantFee.ts` の `CONSULTANT_FEE_RATE` / `consultantFee()` 関数を完全撤去 (月境界定数 `CONSULTANT_FEE_APPLIED_FROM_YYYYMM = 202605` + `toYyyyMm` のみ残置)。`DECISIONS.md D-010` / `KNOWN_ISSUES.md §8` (c95-B-5 → 構造解消で closed) / 本 §7 更新
+- **c95-D-6（slice 6: UI バッジ + consultantFee.ts 完全撤去 + docs）**（2026-06-02）✅ PR #148 マージ済 (commit 778bb1c) — UI バッジ文言を「コンサル費 (手入力) 控除済」に置換、AutoCalcDisplay subtitle 修正、`consultantFee.ts` の `CONSULTANT_FEE_RATE` / `consultantFee()` 関数を完全撤去 (月境界定数 + `toYyyyMm` のみ残置)。c95-D シリーズ全 6 slice 完了。
+
+### c96 シリーズ: /daily-report 2 軸拡張 (3 視点 + 期間集計、2026-06-05/06)
+- **c96-1 (API + lib 基盤)** ✅ PR #149 マージ済 (commit 17290bf) — companies.ts (会社マッピング 7 社 + 未割当) + theme.ts (色定数) + `/api/range-aggregate` (READ ONLY、groupBy=none/category_area、water 3 段 CASE)。131 テスト pass、4 月以前 watercontrole 3 重ガード
+- **c96-2 (フロント 3 視点 + 期間)** ✅ PR #150 マージ → **本番障害発生** (rangeRow.profit_rate.toFixed クラッシュ) → Vercel で c96-1 にロールバック → c96-2 hotfix で復旧
+- **c96-2 hotfix** ✅ PR #151 マージ済 (commit 26a22aa) — Neon driver の string 型レスポンスを normalize 関数で number 化、`.toFixed()` 呼出を pct() ヘルパー経由に統一、MIN_DATE_C96="2026-05-01" で 4 月以前選択不可ガード (不変条件 3 緊張を構造的封殺)。29/29 regression test 追加
+- **c96-3 (HELP 個人別 + UI 整理 + buildDailyReportText)** ✅ PR #152 マージ済 (commit 28c8fce) — HELP 対応業態 (water/electric/locksmith) × effectiveAreas の最大 11 ペア並列 fetch + aggregateHelpStaffByMonth 集約、業態混在時の title バー二重表示解消、buildDailyReportText に視点/期間ラベル拡張 (Modal 経路完全互換)
+
+### c97 シリーズ: 未読バッジ機能 (LINE 型、案 B 拠点数、2026-06-05/06)
+- **c97-1 (DB schema + API)** ✅ PR #153 マージ済 (commit 87cb4bc) — `read_states` テーブル新規 (user_id × area × cat、PK 3 列、最大 1,840 行) + `GET /api/unread-count` + `POST /api/unread-mark-read` (担当範囲外 403、30 秒スロットル) + 純関数 lib (getUserScopePairs / throttleSkip)。31 テスト pass
+- **c97-2 (UI 配線)** ✅ PR #154 マージ済 (commit 324d061) — useUnreadCount hook (mount + 5 分タイマー + try-catch でロバスト化) + UnreadBadge (LINE 型: 赤丸 + 白文字、99+ cap) + NavBar/MobileHeader「日報」label 右上配置 + /daily-report 単一拠点表示時の自動既読化 (4 段 early-return ガード: !isExtendedMode / loading / 非単一 / 重複)。25 テスト pass
+- **c97-3 (会社タブ切替不能バグ修正)** ✅ PR #155 マージ済 (commit f14b2f0) — c96-2 由来の 3 連続 updateUrl race condition (各 updateUrl 内の `searchParams.toString()` が同一 render サイクル内で古い値を返し、最後の呼出が前の更新を上書きで消す) を 1 patch 集約で解消。updateUrl JSDoc に設計原則「1 アクション = 1 updateUrl 呼出」明記
+- **c97-4 (会社切替時 category 自動更新バグ修正)** ✅ PR #156 マージ済 (commit 9f0cff9) — c97-3 積み残し: ULUA/GriT's/SIKKEN で「ULUA / water」誤表示 (page.tsx 初期化 fallback "water" 固定が原因)。companies.ts に deriveCompanySwitchPatch 純関数追加 (単一事業会社はその事業を category にセット)、page.tsx 初期化 fallback を会社の categories[0] に変更。20 テストケース追加
+
+### c98: 軽量 3 点 (単位注記 + 未割当タブ空メッセージ + KNOWN_ISSUES §1 解消マーク、2026-06-06)
+- **c98** ✅ PR #157 マージ済 (commit 97961a8) — TargetsMatrix/MobileTargetCard に unitLabel 関数 + 入力欄ヘッダーに単位注記 (万円/円/件/%、目標管理異常値 645.6% 等の桁ミス再発防止)、/targets 未割当タブの空 assignments 時の空メッセージ追加 (UX 向上)、KNOWN_ISSUES.md §1 (entries PK 後勝ち上書き) を「✅ [解消] Phase 9.5 で対応済」マーク化 + /data-io の警告文撤去
 
 ### 保留中
 - ⚠️ **water 5/6 月コンサル費の実額入力 (現場運用)**: 2026-06-02 c95-D-4 apply 時点で water 5月の entries.data.consultant_fee は 217 行中 3 行 (chugoku 5/1-5/3) のみ has_key 状態。slice 4 マージで profit が約 +2,790 万円 跳ね上がっており、現場 (各エリアマネージャー) が実額入力を進めて初めて正しい粗利に収束する。**現場周知 + 入力催促が運用上の最優先課題**
