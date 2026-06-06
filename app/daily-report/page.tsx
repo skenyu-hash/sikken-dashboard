@@ -111,6 +111,13 @@ function DailyReportPageContent() {
 
   // 同一月内ガード: from を変更したとき to が別月なら from の月末 (= from と同日) に補正
   // FilterBar からは setFrom/setTo を経由するので、ここで補正ロジックを集約しておく。
+  //
+  // ⚠️ 設計原則 (c97-3 race condition 修正、2026-06-06 反さん bug 報告対応):
+  //   updateUrl は同一 render サイクル内で `searchParams.toString()` を closure で読むため、
+  //   **1 アクションにつき 1 回の updateUrl 呼出** に揃えること。同一サイクル内で連続呼出すると
+  //   2 回目以降の `searchParams.toString()` は 1 回目の更新を反映しない古い値を返し、最終的に
+  //   後の呼出が前の更新を上書きで消す race condition が発生する (c96-2 由来の会社タブ切替不能バグ)。
+  //   複数キー更新が必要な場合は patch オブジェクトに全キーをまとめて 1 回で呼出すこと。
   const updateUrl = useCallback((patch: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
     for (const [k, v] of Object.entries(patch)) {
@@ -133,8 +140,14 @@ function DailyReportPageContent() {
   }, [updateUrl]);
 
   // 会社切替 (view=company 時)
+  // ⚠️ BUGFIX (2026-06-06): 旧実装は FilterBar 側で onCompanyChange → onCategoryChange("") → onAreaChange("")
+  //   の 3 連続呼出だったが、各 updateUrl 内で `searchParams.toString()` が同一 render サイクル内で
+  //   同じ古い値を返すため、最後の呼出 (onAreaChange) で書く URL が古い company で上書きされ、
+  //   結果として会社が切り替わらないバグになっていた (race condition)。
+  //   修正: 1 回の updateUrl で company + category + area の patch をまとめて送り、race を回避。
+  //   FilterBar 側は onClick から onCategoryChange("")/onAreaChange("") の呼出を削除。
   const handleCompanyChange = useCallback((newCompanyId: string) => {
-    updateUrl({ company: newCompanyId });
+    updateUrl({ company: newCompanyId, category: null, area: null });
   }, [updateUrl]);
 
   // 業態切替 (view=business or 会社別 1 業態絞り込み)
