@@ -115,12 +115,10 @@ export default function FilterBar(props: Props) {
           {COMPANIES.map((c) => (
             <button
               key={c.id}
-              onClick={() => {
-                onCompanyChange(c.id);
-                // 会社変更時、絞り込みもリセット (= 会社全 SUM へ)
-                onCategoryChange("");
-                onAreaChange("");
-              }}
+              // ⚠️ BUGFIX (2026-06-06): 旧 3 連続 onClick (onCompanyChange + onCategoryChange("") + onAreaChange(""))
+              //   は updateUrl の race condition で会社が切り替わらないバグの原因。
+              //   page.tsx の handleCompanyChange 側で category/area の同時リセットを 1 回の updateUrl に集約。
+              onClick={() => onCompanyChange(c.id)}
               style={c.id === company ? tabActiveStyle : tabStyle}
               aria-pressed={c.id === company}
             >
