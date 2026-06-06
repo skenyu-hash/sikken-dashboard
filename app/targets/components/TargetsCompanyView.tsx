@@ -90,6 +90,25 @@ export default function TargetsCompanyView({ activeCompanyId, year, month, onCha
     );
   }
 
+  // PR c98: 未割当 (assignments 空) など担当範囲なしの会社向け空メッセージ。
+  //   /daily-report との挙動統一 (c96-1 で COMPANIES に unassigned 追加済、本タブも既に表示されている)。
+  //   現状「未割当」は assignments 0 件 (全 (cat, area) が 7 社のいずれかに所属) のため、本分岐に入る。
+  if (company.areas.length === 0) {
+    return (
+      <div style={{
+        padding: 32, textAlign: "center", color: "#6b7280", fontSize: 13,
+        background: "#f9fafb", borderRadius: 8, border: "1px dashed #d1d5db", margin: "16px 0",
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>{company.name}</div>
+        担当範囲なし (assignments 0 件)
+        <div style={{ marginTop: 6, fontSize: 11, color: "#9ca3af" }}>
+          BUSINESSES に新規 (業態, エリア) が追加され、かつ COMPANIES の 7 社いずれにも属さない場合のみ
+          ここに表示されます。
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* 会社サマリーバナー */}

@@ -159,6 +159,22 @@ function formatByUnit(unit: MetricUnit, v: number): string {
   }
 }
 
+/** PR c98: 入力単位の補助ラベル (桁ミス再発防止、反さん指示 2026-06-06)。
+ *   - yen_man → "万円" (入力 100 → ¥1,000,000、TargetsSections.tsx の補足文 L199 と整合)
+ *   - yen_raw → "円" (入力 30000 → ¥30,000)
+ *   - count   → "件"
+ *   - percent → "%"
+ *   header および MobileTargetCard で input 欄の近くに表示。 */
+export function unitLabel(unit: MetricUnit): string {
+  switch (unit) {
+    case "yen_man":
+    case "yen":      return "万円";
+    case "yen_raw":  return "円";
+    case "count":    return "件";
+    case "percent":  return "%";
+  }
+}
+
 type Props = {
   areas: Area[];
   /** 表示・編集対象のメトリクスサブセット (SALES_METRICS / ADS_METRICS / HELP_METRICS など) */
@@ -212,6 +228,10 @@ export default function TargetsMatrix({ areas, metrics, areaTargets, setCell, ca
                   }}
                 >
                   {m.label}
+                  {/* PR c98: 単位注記 (桁ミス再発防止、反さん指示 2026-06-06) */}
+                  <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 500, color: "#6b7280" }}>
+                    ({unitLabel(m.unit)})
+                  </span>
                 </th>
               ))}
             </tr>

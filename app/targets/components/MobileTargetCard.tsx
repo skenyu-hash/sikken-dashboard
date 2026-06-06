@@ -29,7 +29,7 @@ import type { GroupType } from "../../components/ui";
 import { MetricBadge, getBadgeColor, formatAchievement } from "../../components/ui/metric-badge";
 import { getGroupBorderColor } from "../../components/dashboard/metric-groups";
 import type { Targets } from "../../lib/calculations";
-import { formatByUnit, type MetricDef, type MetricUnit } from "./TargetsMatrix";
+import { formatByUnit, unitLabel, type MetricDef, type MetricUnit } from "./TargetsMatrix";
 
 type Props = {
   metric: MetricDef;
@@ -73,6 +73,10 @@ export default function MobileTargetCard({ metric, value, areaId, group, canEdit
       }}>
         <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
           {metric.label}
+          {/* PR c98: 単位注記 (桁ミス再発防止、反さん指示 2026-06-06) */}
+          <span style={{ marginLeft: 4, fontSize: 10, color: "#6b7280", fontWeight: 400 }}>
+            ({unitLabel(metric.unit)})
+          </span>
         </span>
         {/* PR #76c: 達成率 badge — actualValue 未取得 / target 0 は gray "—"
             PR c87: cost-invert (metric.direction === "lower_is_better") を反映、
