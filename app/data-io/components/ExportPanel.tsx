@@ -361,9 +361,8 @@ export default function ExportPanel() {
             style={inputSmallStyle}
           />
         </div>
-        <div style={{ marginTop: 8, fontSize: 10, color: "#D97706", lineHeight: 1.5 }}>
-          ⚠ entries テーブルの PK 制約により、同日同エリアで複数業態の入力が重複した場合、後勝ちで上書きされている可能性があります（KNOWN_ISSUES.md セクション1）
-        </div>
+        {/* PR c98 (2026-06-06): KNOWN_ISSUES.md §1 (entries PK 後勝ち上書き) は Phase 9.5 で
+            3 列複合 PK (area_id, business_category, entry_date) 化により解消済。警告撤去。 */}
       </ExportCard>
 
       <ExportCard

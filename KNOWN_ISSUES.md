@@ -4,61 +4,31 @@
 
 ---
 
-## 1. entries テーブル PK 制約による複数業態同日登録不可問題
+## 1. ✅ [解消] entries テーブル PK 制約による複数業態同日登録不可問題 (Phase 9.5 で対応済)
 
-### 概要
-`entries` テーブルの主キーが `(area_id, entry_date)` のみで、`business_category` を含んでいないため、**同一エリア・同一日に複数業態（例: 水道 + 電気）の日次データを別レコードとして登録できない**構造になっている。
+### 結論 (2026-06-06 時点)
+本問題は **Phase 9.5 で構造的に解消済**。実証も完了:
+- entries テーブルの PK が `(area_id, business_category, entry_date)` の **3 列複合に拡張済** (db.ts:22-29、Phase 9.5 冪等マイグレで適用済)
+- 旧 PK `(area_id, entry_date)` および旧 INDEX は DROP 済
+- c96-1 (PR #149) で /api/range-aggregate 実装時、複数業態×複数日 SUM の影響なしを確認済 (test-range-aggregate.ts 18/18 ✅、merged モードで全業態合算が正常動作)
+- c96-2/3 で /daily-report 視点切替 (3 視点 + 期間) が水道+電気+鍵+ロード+探偵の混在 SUM で本番稼働中
 
-### 現状（実装位置）
-- 定義: [app/lib/db.ts](app/lib/db.ts) の `ensureSchema()` 内、entries テーブル DDL（22-29行付近）
-- スキーマ:
-  ```sql
-  CREATE TABLE IF NOT EXISTS entries (
-    area_id TEXT NOT NULL,
-    entry_date DATE NOT NULL,
-    data JSONB NOT NULL,
-    business_category VARCHAR(20),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (area_id, entry_date)
-  )
-  ```
+### 歴史的経緯 (旧 issue 説明、archive)
+> Phase 9.2 着手時の Explore レポートで発見。当時 entries の PK が `(area_id, entry_date)` のみで `business_category` を含まないため、同一エリア・同一日に複数業態の日次データを別レコードとして登録できず、後勝ち上書きでデータロスのリスクがあった。
+>
+> 実証 (2026-04-30): `/api/export/daily-entries?from=2026-04-01&to=2026-04-30&categories=water&areas=kansai` で期待 20-30 件に対し実際 1 件のみ (4 月 13 日のみ) という現象を確認、Phase 9.5 着手時の説得材料として記録。
+>
+> Phase 9.5 で `app/lib/db.ts` ensureSchema 内に冪等マイグレ (`ALTER TABLE entries ADD CONSTRAINT entries_pkey PRIMARY KEY (area_id, business_category, entry_date)` + 旧 INDEX DROP) を組み込み、本番デプロイで適用済。
 
-### 影響
-- 同一エリア（例: 関西）で、同一日に水道と電気の日次データを両方入力しようとすると、**後勝ちで上書き**される
-- 業態が増えるほど、または同エリアで複数業態を運営している箇所（関西は全業態運営）でデータロスのリスクが顕在化
-- 月次集計（`monthly_summaries`）には `business_category` が UNIQUE 制約に含まれており整合性は保たれているが、日次入力経路（`entries`）では保証されない
+### 関連テーブル (全て 3 列複合キー揃え済)
+- `entries`: PK は `(area_id, business_category, entry_date)` ✅
+- `targets`: PK は `(area_id, year, month, business_category)` ✅
+- `monthly_summaries`: UNIQUE は `(area_id, business_category, year, month)` ✅
 
-### 対応案（推奨）
-PK を `(area_id, entry_date, business_category)` の3列複合に拡張する。
-
-#### 移行手順（概要）
-1. 既存データの整合性確認（`business_category` が NULL のレコードがないか、複数業態で同日重複が既に発生していないか）
-2. 必要なら `business_category` を NOT NULL 化（DEFAULT 'water' は既に設定済み）
-3. 既存 PK を DROP し、新しい3列複合 PK を ADD
-4. `app/lib/db.ts` の `upsertEntry` 関数の ON CONFLICT 句を新 PK に対応
-5. 関連 API（`/api/entries/*` 等）のクエリで category 引数を必須化
-6. 既存呼び出し側の影響範囲調査と修正
-
-### 推奨タイミング
-**Phase 9.2 完了後、Phase 10 着手前の最優先 Issue**
-
-Phase 9.2（データ入出力センター）では、エクスポート・取込の両方で entries テーブルを参照するが、本問題のスコープ（PK 拡張・移行）には立ち入らない。Phase 10 以降で別 PR として実施する。
-
-### 参考
-- 既知の経緯: Phase 9.2 実装着手時の実体調査（Explore レポート）で発見
-- 関連テーブルとの比較:
-  - `targets`: PK は `(area_id, year, month, business_category)` ✅
-  - `monthly_summaries`: UNIQUE は `(area_id, business_category, year, month)` ✅
-  - `entries`: PK は `(area_id, entry_date)` のみ ⚠️
-
-### 実証ログ
-
-- **確認日**: 2026-04-30
-- **確認方法**: `/api/export/daily-entries?from=2026-04-01&to=2026-04-30&categories=water&areas=kansai`
-- **期待行数**: 20〜30件程度（業態運営の通常想定）
-- **実際行数**: **1件**（4月13日のみ）
-- **推定原因**: PK 制約による後勝ち上書き。同日同エリアで複数業態の入力があった場合、`(area_id, entry_date)` の単一性により最後の業態のみが残存していると考えられる
-- **意義**: 本問題が現実のデータで顕在化していることを確認。Phase 9.5 着手時の説得材料として保存
+### 関連実装
+- スキーマ定義: [app/lib/db.ts](app/lib/db.ts) ensureSchema
+- c96-1 範囲集計 API: [app/api/range-aggregate/route.ts](app/api/range-aggregate/route.ts) (複数業態 SUM 対応)
+- c96-2/3 視点切替 UI: [app/daily-report/page.tsx](app/daily-report/page.tsx)
 
 ---
 
