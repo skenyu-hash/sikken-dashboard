@@ -199,3 +199,38 @@ export function getCompanyAssignments(companyId: string): CompanyAreaAssignment[
   const company = getCompany(companyId);
   return company ? Array.from(company.areas) : [];
 }
+
+/** PR c97-4: 会社切替時の URL patch 派生 (純関数、テスト容易化、反さん bug 報告 2026-06-06 対応)。
+ *
+ *  バグ: c97-3 で「会社切替時に category/area を null に消す」修正をしたが、page.tsx 初期化の
+ *  fallback で category が "water" 固定になり、ULUA/GriT's/SIKKEN Group など水道以外の会社で
+ *  「ULUA / water」のような誤表示が発生していた。
+ *
+ *  修正方針 (反さん指示):
+ *    - 単一事業の会社 (Mavericks/TOPLEVEL/REXIA/ULUA/GriT's/SIKKEN) → その事業を category にセット
+ *    - 複数事業の会社 (DUNK = 水道+ロード) → null で URL から削除、page.tsx 初期化で先頭事業 fallback
+ *    - 同様に area も単一エリアならセット、複数なら null
+ *    - 未割当 (assignments 空) → category/area ともに null
+ *
+ *  使用箇所:
+ *    - page.tsx handleCompanyChange (会社タブクリック時の URL patch 生成)
+ *
+ *  例:
+ *    deriveCompanySwitchPatch("ulua")     → { company: "ulua", category: "electric", area: null }
+ *    deriveCompanySwitchPatch("grits")    → { company: "grits", category: "detective", area: null }
+ *    deriveCompanySwitchPatch("sikken")   → { company: "sikken", category: "locksmith", area: "kansai" }
+ *    deriveCompanySwitchPatch("dunk")     → { company: "dunk", category: null, area: null } (水道+ロードの複数事業、3 エリア)
+ *    deriveCompanySwitchPatch("mavericks") → { company: "mavericks", category: "water", area: null }
+ */
+export function deriveCompanySwitchPatch(companyId: string): {
+  company: string;
+  category: BusinessCategory | null;
+  area: string | null;
+} {
+  const sel = getCompanyCategoriesAndAreas(companyId);
+  return {
+    company: companyId,
+    category: sel.categories.length === 1 ? sel.categories[0] : null,
+    area: sel.areas.length === 1 ? sel.areas[0] : null,
+  };
+}

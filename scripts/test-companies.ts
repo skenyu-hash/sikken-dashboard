@@ -20,6 +20,7 @@ import {
   getCompanyFor,
   getCompanyCategoriesAndAreas,
   getCompanyAssignments,
+  deriveCompanySwitchPatch,
 } from "../app/lib/companies";
 import { BUSINESSES } from "../app/lib/businesses";
 
@@ -136,6 +137,53 @@ ok("重複 0 件 (各 (cat,area) は最大 1 社)",
 const uList = unassigned.areas.map((a) => `${a.category}|${a.areaId}`);
 const uSet = new Set(uList);
 ok("unassigned 内重複なし", uList.length === uSet.size);
+
+
+
+// ── 11. deriveCompanySwitchPatch (c97-4 bug fix、反さん指示) ──────
+//   会社切替時の URL patch 派生: 単一事業会社はその事業を category にセット、複数事業会社は null。
+//   バグ症状: 旧 handleCompanyChange で category=null → page.tsx fallback "water" 固定で
+//     ULUA/GriT's/SIKKEN など水道以外の会社で「ULUA / water」と誤表示されていた。
+console.log("\n📋 11. deriveCompanySwitchPatch (会社切替時 URL patch、c97-4)");
+
+const mavPatch = deriveCompanySwitchPatch("mavericks");
+eq("Mavericks (水道のみ × 2 エリア): category=water", mavPatch.category, "water");
+eq("Mavericks: area=null (2 エリア)", mavPatch.area, null);
+eq("Mavericks: company=mavericks", mavPatch.company, "mavericks");
+
+const topPatch = deriveCompanySwitchPatch("toplevel");
+eq("TOPLEVEL (水道のみ × 2 エリア): category=water", topPatch.category, "water");
+eq("TOPLEVEL: area=null (2 エリア)", topPatch.area, null);
+
+const rexPatch = deriveCompanySwitchPatch("rexia");
+eq("REXIA (水道のみ × 2 エリア): category=water", rexPatch.category, "water");
+eq("REXIA: area=null", rexPatch.area, null);
+
+const dunkPatch = deriveCompanySwitchPatch("dunk");
+eq("DUNK (水道+ロード = 複数事業): category=null", dunkPatch.category, null);
+eq("DUNK: area=null (3 エリア: kansai, kyushu, chugoku)", dunkPatch.area, null);
+
+const uluaPatch = deriveCompanySwitchPatch("ulua");
+eq("ULUA (電気のみ × 2 エリア): category=electric (★bug 修正の核心)", uluaPatch.category, "electric");
+eq("ULUA: area=null (2 エリア)", uluaPatch.area, null);
+
+const gritsPatch = deriveCompanySwitchPatch("grits");
+eq("GriT's (探偵のみ × 2 エリア): category=detective (★bug 修正の核心)", gritsPatch.category, "detective");
+eq("GriT's: area=null (2 エリア)", gritsPatch.area, null);
+
+const sikkenPatch = deriveCompanySwitchPatch("sikken");
+eq("SIKKEN Group (鍵×関西 = 1 ペア): category=locksmith (★bug 修正の核心)", sikkenPatch.category, "locksmith");
+eq("SIKKEN Group: area=kansai (1 エリア)", sikkenPatch.area, "kansai");
+
+const unassignedPatch = deriveCompanySwitchPatch("unassigned");
+// 現状の COMPANIES では全 (cat, area) が 7 社に所属しているため unassigned.areas は 0 件
+eq("未割当 (assignments 0 件): category=null", unassignedPatch.category, null);
+eq("未割当: area=null", unassignedPatch.area, null);
+
+const unknownPatch = deriveCompanySwitchPatch("unknown_company_id");
+eq("未知 id: category=null", unknownPatch.category, null);
+eq("未知 id: area=null", unknownPatch.area, null);
+eq("未知 id: company=unknown_company_id (そのまま反映)", unknownPatch.company, "unknown_company_id");
 
 console.log(`\n${failed === 0 ? "✅" : "❌"} ${passed}/${passed + failed} passed`);
 if (failed > 0) process.exit(1);

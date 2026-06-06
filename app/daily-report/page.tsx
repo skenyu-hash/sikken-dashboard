@@ -30,7 +30,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { BusinessCategory } from "../lib/businesses";
-import { COMPANIES } from "../lib/companies";
+import { COMPANIES, deriveCompanySwitchPatch, getCompanyCategoriesAndAreas } from "../lib/companies";
 import DailyReportContent from "../entry/components/dailyReport/DailyReportContent";
 
 const VALID_CATEGORIES: BusinessCategory[] = ["water", "electric", "locksmith", "road", "detective"];
@@ -83,10 +83,15 @@ function DailyReportPageContent() {
   const view: ViewMode = VALID_VIEWS.includes(urlView) ? urlView : "company";
   const defaultCompany = COMPANIES[0]?.id ?? "mavericks"; // 7 社目 = SIKKEN、未割当があれば 8 件目
   const company: string = COMPANIES.some((c) => c.id === urlCompany) ? urlCompany : defaultCompany;
+  // PR c97-4: category fallback を「会社の事業セット先頭」ベースに変更 (反さん bug 2026-06-06)。
+  //   旧: "water" 固定 → ULUA/GriT's/SIKKEN Group など水道以外の会社で誤表示 (例: 「ULUA / water」)
+  //   新: 会社の categories[0] を fallback、複数事業会社は手動選択 (DUNK → water or road)
+  const companyCategories = getCompanyCategoriesAndAreas(company).categories;
+  const defaultCategory: BusinessCategory = companyCategories[0] ?? "water";
   const areaId = (urlArea && VALID_AREAS.includes(urlArea)) ? urlArea : "kansai";
   const category: BusinessCategory = (urlCategory && VALID_CATEGORIES.includes(urlCategory as BusinessCategory))
     ? urlCategory as BusinessCategory
-    : "water";
+    : defaultCategory;
   const mode: DateMode = VALID_MODES.includes(urlMode) ? urlMode : "single";
   // c96-2-hotfix: 全ての URL date / from / to を MIN_DATE_C96 以降に clamp (URL 直叩き対策)
   const initialDate = clampDate((urlDate && isValidDate(urlDate)) ? urlDate : todayISO());
@@ -140,14 +145,20 @@ function DailyReportPageContent() {
   }, [updateUrl]);
 
   // 会社切替 (view=company 時)
-  // ⚠️ BUGFIX (2026-06-06): 旧実装は FilterBar 側で onCompanyChange → onCategoryChange("") → onAreaChange("")
+  // ⚠️ BUGFIX (2026-06-06 c97-3): 旧実装は FilterBar 側で onCompanyChange → onCategoryChange("") → onAreaChange("")
   //   の 3 連続呼出だったが、各 updateUrl 内で `searchParams.toString()` が同一 render サイクル内で
   //   同じ古い値を返すため、最後の呼出 (onAreaChange) で書く URL が古い company で上書きされ、
   //   結果として会社が切り替わらないバグになっていた (race condition)。
   //   修正: 1 回の updateUrl で company + category + area の patch をまとめて送り、race を回避。
   //   FilterBar 側は onClick から onCategoryChange("")/onAreaChange("") の呼出を削除。
+  //
+  // ⚠️ BUGFIX (2026-06-06 c97-4): c97-3 で category=null に統一したが、page.tsx 初期化で
+  //   category fallback が "water" 固定だったため ULUA/GriT's/SIKKEN など水道以外の会社で
+  //   「ULUA / water」のような誤表示が発生していた (反さん追加バグ報告)。
+  //   修正: deriveCompanySwitchPatch (companies.ts、純関数) で会社の事業を派生し、
+  //         単一事業会社はその事業を URL にセット、複数事業会社は null で page.tsx fallback (= 先頭事業) に委ねる。
   const handleCompanyChange = useCallback((newCompanyId: string) => {
-    updateUrl({ company: newCompanyId, category: null, area: null });
+    updateUrl(deriveCompanySwitchPatch(newCompanyId));
   }, [updateUrl]);
 
   // 業態切替 (view=business or 会社別 1 業態絞り込み)
