@@ -33,6 +33,7 @@
     "test:integration:c95-b-3-day-level-deduction": "tsx scripts/test-c95-b-3-day-level-deduction.ts",
     "test:integration:pr-2a-breakdown-table": "tsx scripts/test-pr-2a-breakdown-table.ts",
     "test:integration:auth-multi-session": "tsx scripts/test-auth-multi-session.ts",
+    "test:integration:businesses-pair-guard": "tsx scripts/test-businesses-pair-guard.ts",
     "migrate:c93-1-may2026": "tsx scripts/migrations/c93-1_reaggregate_may2026.ts",
     "migrate:c93-2-may2026": "tsx scripts/migrations/c93-2_init_construction_count_may2026.ts",
     "migrate:c95-a-2-help-staff-init": "tsx scripts/migrations/c95-a-2_help_staff_init.ts",

@@ -34,7 +34,7 @@ import LocksmithForm from "./components/forms/LocksmithForm";
 import RoadForm from "./components/forms/RoadForm";
 import DetectiveForm from "./components/forms/DetectiveForm";
 import { BUSINESS_LABELS, type BusinessCategory, type FieldLabels } from "../lib/business-labels";
-import { BUSINESSES } from "../lib/businesses";
+import { BUSINESSES, AREA_NAMES, clampAreaToCategory } from "../lib/businesses";
 import type { DailyEntry } from "../lib/calculations";
 import type { EntryFormState, ValidationErrors, AutoCalcResult, InputFieldKey, InputValue, HelpStaffEntry } from "./types";
 import { cleanHelpStaffForSave } from "./lib/helpStaffUtils";
@@ -49,10 +49,8 @@ type Props = {
   availableAreas: { id: string; name: string }[];
 };
 
-const AREA_NAMES: Record<string, string> = {
-  kansai: "関西", kanto: "関東", nagoya: "名古屋", kyushu: "九州",
-  kitakanto: "北関東", hokkaido: "北海道", chugoku: "中国", shizuoka: "静岡",
-};
+// PR-3 (2026-06-08): AREA_NAMES ハードコードを削除し businesses.ts からの import に統一
+// (area の真実を businesses.ts に一元化、二重定義解消)。
 
 const CATEGORY_LABELS: Record<BusinessCategory, string> = {
   water: "水道", electric: "電気", locksmith: "鍵", road: "ロード", detective: "探偵",
@@ -141,6 +139,20 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
   const [state, setState] = useState<EntryFormState>(() =>
     emptyState(initialArea, initialYear, initialMonth, initialDay, category)
   );
+
+  // PR-3 (2026-06-08): category prop 変化時に state.area_id がマスター外なら既定エリアへ clamp。
+  //   useState initializer は mount 時のみ実行のため、業態タブ切替後も state.area_id は前値保持される。
+  //   例: 水道タブで kitakanto 選択 → 電気タブに切替 → state は kitakanto のまま (← 電気は kitakanto を持つので OK)
+  //       水道タブで shizuoka 選択 → 探偵タブに切替 → 探偵は shizuoka を持たないので "kansai" に強制移動
+  //   c96-2 hotfix の clampDate(MIN_DATE_C96) と同方針 (明示定数 → silently 既定値正常化)。
+  //   同一値なら setState を呼ばず参照そのまま (不要な re-render 防止)。
+  useEffect(() => {
+    setState((s) => {
+      const clamped = clampAreaToCategory(s.area_id, category);
+      return clamped === s.area_id ? s : { ...s, area_id: clamped };
+    });
+  }, [category]);
+
   const calc = useFormCalculations(state);
   const { errors, validateField, validateAll, clearErrors } = useFormValidation();
   const [saving, setSaving] = useState(false);

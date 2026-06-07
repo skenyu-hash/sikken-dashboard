@@ -20,18 +20,18 @@ import { redirect } from "next/navigation";
 import { currentUser } from "../lib/auth";
 import { hasPageAccess, type Role } from "../lib/permissions";
 import { BUSINESS_LABELS, type BusinessCategory } from "../lib/business-labels";
+import {
+  BUSINESSES, AREA_NAMES,
+  getAreasForCategory, clampAreaToCategory,
+} from "../lib/businesses";
 import EntryForm from "./EntryForm";
 import BulkEntryMatrix from "./components/BulkEntryMatrix";
 
-const VALID_CATEGORIES: BusinessCategory[] = ["water", "electric", "locksmith", "road", "detective"];
-const ALL_AREAS: { id: string; name: string }[] = [
-  { id: "kansai", name: "関西" }, { id: "kanto", name: "関東" },
-  { id: "nagoya", name: "名古屋" }, { id: "kyushu", name: "九州" },
-  { id: "kitakanto", name: "北関東" }, { id: "hokkaido", name: "北海道" },
-  { id: "chugoku", name: "中国" }, { id: "shizuoka", name: "静岡" },
-];
+// PR-3 (2026-06-08): VALID_CATEGORIES / ALL_AREAS のハードコード二重定義を解消。
+//   category の真実は businesses.ts に一元化、area select は category 連動に。
+const VALID_CATEGORIES: BusinessCategory[] = BUSINESSES.map((b) => b.id);
 
-type SearchParams = { category?: string; view?: string };
+type SearchParams = { category?: string; area?: string; view?: string };
 
 export default async function EntryPage({
   searchParams,
@@ -68,11 +68,21 @@ export default async function EntryPage({
 
   void BUSINESS_LABELS;
 
+  // PR-3: availableAreas を category 連動に変更 (旧 ALL_AREAS 全 8 固定 →
+  //   getAreasForCategory(category) 派生)。category 切替で母集合が自動連動する。
+  const categoryAreas = getAreasForCategory(category);
   const canSelectArea = user.role === "executive" || user.role === "vice";
-  const initialArea = user.areaId ?? "kansai";
+
+  // PR-3: URL ?area= を受信し clampAreaToCategory で正常化。
+  //   URL 直叩き (例: ?category=electric&area=shizuoka) は silently DEFAULT_AREA_FOR_CLAMP
+  //   (= 関西) に寄せる。staff/clerk は user.areaId が固定だが、たまたまマスター外の組合せ
+  //   になる可能性に備えて同じく clamp を通す。c96-2 hotfix の clampDate と同方針。
+  const rawArea = sp.area ?? user.areaId ?? "kansai";
+  const initialArea = clampAreaToCategory(rawArea, category);
+
   const availableAreas = canSelectArea
-    ? ALL_AREAS
-    : [{ id: initialArea, name: ALL_AREAS.find((a) => a.id === initialArea)?.name ?? initialArea }];
+    ? categoryAreas.map((id) => ({ id, name: AREA_NAMES[id] ?? id }))
+    : [{ id: initialArea, name: AREA_NAMES[initialArea] ?? initialArea }];
 
   return (
     <EntryForm
