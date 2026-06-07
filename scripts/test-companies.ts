@@ -99,9 +99,10 @@ ok("getCompany('unknown_id') = undefined", getCompany("unknown_id") === undefine
 // ── 7. getCompanyCategoriesAndAreas (ユニーク派生) ─
 console.log("\n📋 7. getCompanyCategoriesAndAreas (会社別の絞り込み選択肢生成)");
 const dunkSel = getCompanyCategoriesAndAreas("dunk");
-ok("DUNK categories = [water, road]",
-  JSON.stringify(dunkSel.categories.sort()) === JSON.stringify(["road", "water"]));
-ok("DUNK areas = [kansai, kyushu, chugoku] (順不同)",
+// PR-1 (2026-06-07): DUNK に electric/kyushu 追加 → categories = [water, road, electric]、areas Set 不変
+ok("DUNK categories = [water, road, electric] (PR-1 で electric 追加)",
+  JSON.stringify(dunkSel.categories.sort()) === JSON.stringify(["electric", "road", "water"]));
+ok("DUNK areas = [kansai, kyushu, chugoku] (PR-1 で electric/kyushu 追加でも area Set 不変)",
   JSON.stringify(dunkSel.areas.sort()) === JSON.stringify(["chugoku", "kansai", "kyushu"]));
 
 // 未割当 / 未知 id は空
@@ -112,11 +113,12 @@ ok("unknown id: areas 空", unkSel.areas.length === 0);
 // ── 8. getCompanyAssignments ─────────────────────
 console.log("\n📋 8. getCompanyAssignments (assignments そのまま展開)");
 const rexiaA = getCompanyAssignments("rexia");
-eq("REXIA assignments 件数 = 2", rexiaA.length, 2);
-ok("REXIA 全件 water",
-  rexiaA.every((a) => a.category === "water"));
-ok("REXIA areas = [kanto, kitakanto]",
-  JSON.stringify(rexiaA.map((a) => a.areaId).sort()) === JSON.stringify(["kanto", "kitakanto"]));
+// PR-1 (2026-06-07): REXIA に electric/kitakanto 追加 → assignments 3 件、water 2 + electric 1
+eq("REXIA assignments 件数 = 3 (water 2 + electric 1)", rexiaA.length, 3);
+eq("REXIA water 件数 = 2", rexiaA.filter((a) => a.category === "water").length, 2);
+eq("REXIA electric 件数 = 1", rexiaA.filter((a) => a.category === "electric").length, 1);
+ok("REXIA areas Set = {kanto, kitakanto} (electric/kitakanto 追加でも area は同じ)",
+  JSON.stringify(Array.from(new Set(rexiaA.map((a) => a.areaId))).sort()) === JSON.stringify(["kanto", "kitakanto"]));
 
 eq("unknown id assignments = []", getCompanyAssignments("unknown_id").length, 0);
 
@@ -156,11 +158,13 @@ eq("TOPLEVEL (水道のみ × 2 エリア): category=water", topPatch.category, 
 eq("TOPLEVEL: area=null (2 エリア)", topPatch.area, null);
 
 const rexPatch = deriveCompanySwitchPatch("rexia");
-eq("REXIA (水道のみ × 2 エリア): category=water", rexPatch.category, "water");
-eq("REXIA: area=null", rexPatch.area, null);
+// PR-1 (2026-06-07): REXIA に electric/kitakanto 追加 → 水道+電気の複数事業会社化、category=null へ
+eq("REXIA (PR-1 後: 水道+電気の複数事業): category=null", rexPatch.category, null);
+eq("REXIA: area=null (2 エリア: kanto, kitakanto)", rexPatch.area, null);
 
 const dunkPatch = deriveCompanySwitchPatch("dunk");
-eq("DUNK (水道+ロード = 複数事業): category=null", dunkPatch.category, null);
+// PR-1: DUNK に electric/kyushu 追加。元から複数事業 (水道+ロード) なので挙動不変、areas Set も {kansai,kyushu,chugoku} で不変
+eq("DUNK (水道+ロード+電気 = 複数事業): category=null", dunkPatch.category, null);
 eq("DUNK: area=null (3 エリア: kansai, kyushu, chugoku)", dunkPatch.area, null);
 
 const uluaPatch = deriveCompanySwitchPatch("ulua");
@@ -184,6 +188,91 @@ const unknownPatch = deriveCompanySwitchPatch("unknown_company_id");
 eq("未知 id: category=null", unknownPatch.category, null);
 eq("未知 id: area=null", unknownPatch.area, null);
 eq("未知 id: company=unknown_company_id (そのまま反映)", unknownPatch.company, "unknown_company_id");
+
+
+
+// ── 12. PR-1 (2026-06-07): 未展開エリア 16 ペアの未割当自動算出 + DUNK/REXIA 電気追加 ─
+//   反さん指示「ちょうど 16 件 (3+6+3+4)」「過不足ゼロで内訳一致」を厳密検証。
+console.log("\n📋 12. PR-1: 未展開エリアを BUSINESSES に追加、computeUnassignedAreas() で 16 ペア自動算出");
+
+// 12-1: ちょうど 16 件
+eq("unassigned 件数 = 16 (反さん確定)", unassigned.areas.length, 16);
+
+// 12-2: 内訳完全一致
+const expectedUnassigned: Array<{ category: string; areaId: string }> = [
+  // electric: nagoya, chugoku, hokkaido = 3
+  { category: "electric", areaId: "nagoya" },
+  { category: "electric", areaId: "chugoku" },
+  { category: "electric", areaId: "hokkaido" },
+  // locksmith: kanto, nagoya, kyushu, kitakanto, chugoku, hokkaido = 6
+  { category: "locksmith", areaId: "kanto" },
+  { category: "locksmith", areaId: "nagoya" },
+  { category: "locksmith", areaId: "kyushu" },
+  { category: "locksmith", areaId: "kitakanto" },
+  { category: "locksmith", areaId: "chugoku" },
+  { category: "locksmith", areaId: "hokkaido" },
+  // detective: kanto, kyushu, hokkaido = 3
+  { category: "detective", areaId: "kanto" },
+  { category: "detective", areaId: "kyushu" },
+  { category: "detective", areaId: "hokkaido" },
+  // road: kanto, nagoya, kyushu, hokkaido = 4
+  { category: "road", areaId: "kanto" },
+  { category: "road", areaId: "nagoya" },
+  { category: "road", areaId: "kyushu" },
+  { category: "road", areaId: "hokkaido" },
+];
+
+// 期待値を Set 化 (順序非依存比較)
+const actualSet = new Set(unassigned.areas.map((a) => `${a.category}|${a.areaId}`));
+const expectedSet = new Set(expectedUnassigned.map((a) => `${a.category}|${a.areaId}`));
+
+eq("unassigned: 期待 Set サイズ = 16", expectedSet.size, 16);
+ok("unassigned: 実際 Set === 期待 Set (過不足ゼロ)",
+  actualSet.size === expectedSet.size &&
+  Array.from(actualSet).every((k) => expectedSet.has(k)));
+
+// 内訳ごとに件数チェック (ミスマッチ時に原因特定容易化)
+for (const cat of ["electric", "locksmith", "detective", "road"] as const) {
+  const actualForCat = unassigned.areas.filter((a) => a.category === cat).map((a) => a.areaId).sort();
+  const expectedForCat = expectedUnassigned.filter((a) => a.category === cat).map((a) => a.areaId).sort();
+  ok(`unassigned[${cat}] = [${expectedForCat.join(",")}]`,
+    JSON.stringify(actualForCat) === JSON.stringify(expectedForCat));
+}
+
+// water は未割当 0 件
+ok("unassigned[water] = [] (water 全 8 エリアは 4 社所属で完備)",
+  unassigned.areas.filter((a) => a.category === "water").length === 0);
+
+// 12-3: getCompanyFor 新規 2 ペア
+console.log("\n📋 12-3. getCompanyFor: 新規追加 2 ペアが正しい会社を返す");
+eq("(electric, kyushu) → 'dunk' (PR-1 新規)", getCompanyFor("electric", "kyushu"), "dunk");
+eq("(electric, kitakanto) → 'rexia' (PR-1 新規)", getCompanyFor("electric", "kitakanto"), "rexia");
+
+// 12-4: 既存 5 社 (mavericks/toplevel/ulua/grits/sikken) の getCompanyAssignments が PR 前と一致
+//   反さん指示「他 5 社は変更禁止」regression check。
+console.log("\n📋 12-4. 既存 5 社の getCompanyAssignments 不変 regression");
+eq("mavericks: 2 件 (water/kansai + water/hokkaido)", getCompanyAssignments("mavericks").length, 2);
+eq("toplevel: 2 件 (water/nagoya + water/shizuoka)", getCompanyAssignments("toplevel").length, 2);
+eq("ulua: 2 件 (electric/kansai + electric/kanto)", getCompanyAssignments("ulua").length, 2);
+eq("grits: 2 件 (detective/kansai + detective/nagoya)", getCompanyAssignments("grits").length, 2);
+eq("sikken: 1 件 (locksmith/kansai)", getCompanyAssignments("sikken").length, 1);
+
+// 12-5: REXIA / DUNK は assignment 1 件ずつ増えている (PR-1 で意図した変更)
+eq("rexia: 3 件 (water 2 + electric/kitakanto 新規)", getCompanyAssignments("rexia").length, 3);
+eq("dunk: 4 件 (water 2 + road/kansai + electric/kyushu 新規)", getCompanyAssignments("dunk").length, 4);
+
+// 12-6: deriveCompanySwitchPatch 既存挙動 regression (反さん指示)
+//   ULUA → electric / GriT's → detective / SIKKEN → locksmith/kansai は不変
+//   Mavericks/TOPLEVEL → water は不変
+//   REXIA は PR-1 で水道+電気の複数事業会社化 → category=null に変わる (上記 §11 で更新済)
+//   DUNK は元から複数事業 → 不変
+console.log("\n📋 12-6. deriveCompanySwitchPatch 既存挙動 regression");
+eq("ULUA → electric (不変、PR-1 でも変わらない)", deriveCompanySwitchPatch("ulua").category, "electric");
+eq("GriT's → detective (不変)", deriveCompanySwitchPatch("grits").category, "detective");
+eq("SIKKEN → locksmith (不変)", deriveCompanySwitchPatch("sikken").category, "locksmith");
+eq("SIKKEN area → kansai (不変、1 ペア会社)", deriveCompanySwitchPatch("sikken").area, "kansai");
+eq("Mavericks → water (不変)", deriveCompanySwitchPatch("mavericks").category, "water");
+eq("TOPLEVEL → water (不変)", deriveCompanySwitchPatch("toplevel").category, "water");
 
 console.log(`\n${failed === 0 ? "✅" : "❌"} ${passed}/${passed + failed} passed`);
 if (failed > 0) process.exit(1);

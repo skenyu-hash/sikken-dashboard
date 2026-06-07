@@ -87,6 +87,7 @@ const ASSIGNED_COMPANIES: Company[] = [
     areas: [
       { category: 'water', areaId: 'kanto' },
       { category: 'water', areaId: 'kitakanto' },
+      { category: 'electric', areaId: 'kitakanto' }, // PR-1 (2026-06-07): 電気×北関東 を REXIA 所属に
     ],
   },
   {
@@ -96,6 +97,7 @@ const ASSIGNED_COMPANIES: Company[] = [
       { category: 'water', areaId: 'kyushu' },
       { category: 'water', areaId: 'chugoku' },
       { category: 'road', areaId: 'kansai' },
+      { category: 'electric', areaId: 'kyushu' }, // PR-1 (2026-06-07): 電気×九州 を DUNK 所属に
     ],
   },
   {
