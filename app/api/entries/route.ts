@@ -4,6 +4,7 @@ import { hasDataAccess } from "../../lib/permissions";
 import { listEntries, upsertEntry } from "../../lib/db";
 import { aggregateMonthlySummary, type BusinessCategory } from "../../lib/monthlyAggregation";
 import type { DailyEntry } from "../../lib/calculations";
+import { getAreasForCategory } from "../../lib/businesses";
 
 // PR c90-1: aggregation の対象業態を限定 (型安全)。
 //   /api/entries の payload.category が想定外文字列の場合は water にフォールバック。
@@ -56,7 +57,17 @@ export async function POST(req: Request) {
   if (!body?.areaId || !body.entry || !AREA_IDS.has(body.areaId)) {
     return NextResponse.json({ error: "bad body" }, { status: 400 });
   }
-  const cat = body.category ?? "water";
+  const cat = toBusinessCategory(body.category ?? "water");
+  // PR-3 (2026-06-08): category-area ペアが BUSINESSES マスター内か検証。
+  //   旧仕様は AREA_IDS の存在チェックのみで、探偵×北関東 等のマスター外ペアが書き込めた。
+  //   UI 側は page.tsx の clampAreaToCategory が silently 既定エリアへ寄せるが、API 側は
+  //   厳格に 400 で弾く (UI clamp が効いていれば正常 path で来ない値が来た = 異常)。
+  if (!getAreasForCategory(cat).includes(body.areaId)) {
+    return NextResponse.json(
+      { error: "category-area pair not in master" },
+      { status: 400 },
+    );
+  }
   if (!hasDataAccess({ role: user.role, area_id: user.areaId }, body.areaId, cat, "edit")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
