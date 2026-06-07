@@ -20,6 +20,7 @@ import RoadDashboardSection from "./RoadDashboardSection";
 import DetectiveDashboardSection from "./DetectiveDashboardSection";
 import ElectricDashboardSection from "./ElectricDashboardSection";
 import WaterDashboardSection from "./WaterDashboardSection";
+import CompanyBreakdownTable from "./dashboard/CompanyBreakdownTable";
 import { resolveTotalProfit } from "../lib/profit";
 // PR c94-B-1: MetricsTable / MetricsTableMobile 撤去に伴い formatAchievement / GroupType /
 //   getGroupBorderColor は本ファイルでの使用が消失 → 削除。
@@ -1119,6 +1120,23 @@ export default function Dashboard() {
           })()}
         </div>
       </div>
+
+      {/* PR-2a (2026-06-07): 会社別ビュー時、ヒーローKPIカード直下に事業×エリア内訳テーブルを「追加」表示。
+          ヒーロー側のロジック・数値・表示は一切不変 (絶対制約)。
+          内訳行ソース: __all__ → 全社平坦化 / 通常会社 → company.areas / unassigned → 16 ペア。
+          「事業別で編集 →」ボタン押下で viewMode=business + activeBusiness/activeTab を切替。 */}
+      {viewMode === "company" && (
+        <CompanyBreakdownTable
+          activeCompany={activeCompany}
+          viewYear={viewYear}
+          viewMonth={viewMonth}
+          onChangeBusinessRequest={(category, areaId) => {
+            setViewMode("business");
+            setActiveBusiness(category);
+            setActiveTab(areaId);
+          }}
+        />
+      )}
 
       {/* ============ ボディ ============ */}
       <div className="page-padding-mobile" style={{ padding: "16px 20px", background: "#f2f5f2" }}>
