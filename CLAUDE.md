@@ -135,6 +135,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - business_category: water / electric / locksmith / road / detective
 - 会社↔エリア: REXIA=関東+北関東水道 / Mavericks=関西+北海道水道 / TOPLEVEL=名古屋水道 / DUNK=九州+中国水道 / ULUA=関西+関東電気 / SIKKEN=鍵関西
 - Vercel CDN: マージ後 30秒〜1分で反映。`?nocache=タイムスタンプ` で最新取得。
+- **★ 本番検証時はハードリロード (Ctrl+Shift+R) 必須** (PR-3 教訓、2026-06-08)。
+  `?nocache=` クエリだけではブラウザキャッシュで旧版が見え、デプロイ反映を誤判定する
+  (PR-3 検証で実際に踏んだ事例: 8 エリア→7 エリアの変更がハードリロードで初めて反映確認できた)。
+  デプロイ反映の真偽は **GitHub Deployments の Production "Active" + コミットハッシュ** で確認するのが確実。
+- **★ PR を「マージ済」と記録する前に必ず `gh pr view <PR#> --json mergedAt,state` で state=MERGED を確証する**
+  (PR #163 を未マージのままメモに「マージ済」と書いた事例あり、2026-06-08)。
+  CLAUDE.md §5 既出ルールの再確認と PR #163 事例の追加。
 
 ### SIKKEN グループ規模感（年商）
 - 水道: 約 42 億円（4 社・8 拠点）
@@ -319,6 +326,16 @@ UI / フロント変更 PR (= ユーザー画面に影響する変更) は本番
   - **運用変更**: 退職者の即時失効は「管理者によるユーザー無効化 (isActive=false)」のみで行う (users/route.ts:115 の WHERE user_id=X DELETE は維持)。ログイン時の自動セッション失効はもう無い。明示ログアウト = session_id 単位の destroySession() (auth.ts:259) は維持
   - **47 ユーザー運用への影響**: PC + スマホ等の複数デバイス同時ログインが可能に。デプロイ毎の再ログインも発生しなくなる
   - **検証**: 新規統合テスト 22/22 pass (`test:integration:auth-multi-session`) + regression 264/264 pass + invariant-guard ✅ 通過
+
+### PR #164 (PR-3): /entry エリア select を businesses.ts 連動化 (2026-06-08、本番稼働)
+- **PR #164 (PR-3)** ✅ マージ済 (commit c73a57c5、Production Active) — docs PR #163 の続き。旧 /entry は全事業 8 エリア固定で businesses.ts (32 ペア) 定義とズレ、静岡電気等のマスター外ペアが入力可能 = PK 整合性リスクがあった。各事業が定義通りのエリアのみ表示するよう変更 (水道 8 / 電気 7 / 鍵 7 / ロード 5 / 探偵 5 = 計 32)
+  - **2 層ガード**: ① UI clamp (page.tsx + EntryForm.tsx) ② API 400 (api/entries/route.ts) で「マスター外ペアは書けない」を保証
+  - **businesses.ts に追加**: `getAreasForCategory(cat)` / `clampAreaToCategory(area, cat)` / 定数 `DEFAULT_AREA_FOR_CLAMP = "kansai"` (clamp 先は配列先頭でなく明示定数 kansai 優先、areas[0] は 3 段目防御 = c96-2 hotfix の MIN_DATE_C96 と同方針)
+  - **修正 2 (反さん指摘)**: category 切替時に state.area_id が前値保持される問題を `useEffect([category])` 内の明示 clamp で解消。useState initializer は mount 時のみ実行され、prop→state 同期 useEffect が存在しなかったため、業態切替後も旧 area_id が残り無効ペア化していた
+  - **VALID_CATEGORIES 二重定義も解消**: page.tsx のハードコード列挙を `BUSINESSES.map(b => b.id)` 派生に統一 (category の真実を businesses.ts に一元化)
+  - **CI**: 新規純関数テスト 36/36 + regression 264/264 = **300/300 pass**。invariant-guard ✅ 通過。number-verifier 不要
+  - **本番 Chrome 検証 (反さん 2026-06-08、合格)**: 電気エリア select=7 (静岡消滅) / 探偵=5、shizuoka 直叩き → kansai clamp (修正 1)、category 切替 clamp (水道 kitakanto → 探偵で kansai 自動移動、修正 2)。**正のテスト**: 電気×名古屋 (未割当ペア) に実書込 ¥1,000 → 日報モーダル反映 → API GET count=1 で WRITE→READ 一気通貫を本番 DB 経由で確認。**検証データは Neon Console で DELETE 済** (electric/nagoya/2026-06-07 の 1 行、絶対不変 water 九州行は無傷)
+  - **★ 検証ステータスの正直な記録 (将来の誤認防止)**: API 400 ペアガードは実機で `"category-area pair not in master"` を直接確認できていない。正しい POST body 形式不明でペアガード到達前に別の body バリデーション (`"bad body"`) が先行して弾いた。ペアガード自体は route.ts の `BUSINESSES.find(...).areas.includes` 実装 + CI 純関数テスト (36/36) で確認済。UI clamp (1 層目) が本番動作確認済のため実害リスクなし。**「実機 400 確認済」と誤認しないこと**
 
 ### 保留中
 - ⚠️ **water 5/6 月コンサル費の実額入力 (現場運用)**: 2026-06-02 c95-D-4 apply 時点で water 5月の entries.data.consultant_fee は 217 行中 3 行 (chugoku 5/1-5/3) のみ has_key 状態。slice 4 マージで profit が約 +2,790 万円 跳ね上がっており、現場 (各エリアマネージャー) が実額入力を進めて初めて正しい粗利に収束する。**現場周知 + 入力催促が運用上の最優先課題**
