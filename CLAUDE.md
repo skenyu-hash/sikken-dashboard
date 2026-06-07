@@ -307,6 +307,19 @@ UI / フロント変更 PR (= ユーザー画面に影響する変更) は本番
 ### c98: 軽量 3 点 (単位注記 + 未割当タブ空メッセージ + KNOWN_ISSUES §1 解消マーク、2026-06-06)
 - **c98** ✅ PR #157 マージ済 (commit 97961a8) — TargetsMatrix/MobileTargetCard に unitLabel 関数 + 入力欄ヘッダーに単位注記 (万円/円/件/%、目標管理異常値 645.6% 等の桁ミス再発防止)、/targets 未割当タブの空 assignments 時の空メッセージ追加 (UX 向上)、KNOWN_ISSUES.md §1 (entries PK 後勝ち上書き) を「✅ [解消] Phase 9.5 で対応済」マーク化 + /data-io の警告文撤去
 
+### PR-1 / PR-2a / PR-2b: 未展開エリア解放 + 会社別ダッシュボード内訳テーブル + 横断集計クローズ (2026-06-07)
+- **PR-1** ✅ PR #159 マージ済 — BUSINESSES マスター 14→32 ペア拡張 (未展開エリア 18 ペア追加) + DUNK に electric/kyushu、REXIA に electric/kitakanto 追加。未割当 16 ペア自動算出 (electric 3 + locksmith 6 + detective 3 + road 4)。UI 影響なし (会社別タブの「未割当」中身が増えるのみ)。**マージ後の本番障害は JWT_SECRET の Needs Attention が真因、PR-1 自体は無関係 (RUNBOOK §2 に教訓追記済)**
+- **PR-2a** ✅ PR #161 マージ済 (commit 9ed129f) 本番稼働確認済 — 会社別ダッシュボード (viewMode="company") のヒーロー KPI 直下に事業×エリア内訳テーブル追加。`__all__`=32 / 通常会社=areas / `unassigned`=16 ペア。5 列 (売上/粗利/対応件数/客単価/広告費) + 「事業別で編集 →」ボタン。monthly-summary N 並列 fetch (ヒーローと同経路、不変条件 3 遵守)、Neon string レスポンスは normalizeNum で型ガード (c96-2 hotfix と同方針)。ヒーロー companyData useEffect (L306-346) 完全 untouch。純関数テスト 55/55 pass。**本番検証 (反さん 2026-06-07): DUNK 4 行 + REXIA 3 行で内訳縦計 = ヒーロー SUM が完全一致 (DUNK 売上 13,669,868/96 件、REXIA 15,281,860/136 件)、PR-1 で追加した電気×九州/北関東は実績 0 で「—」表示、クラッシュなし。番人 2 体 ✅ 通過**
+- **PR-2b** ✅ 実装不要クローズ (本番検証で確定、2026-06-07 セッション②) — エリアタブ・日報とも未割当 16 ペアの表示・横断集計が PR-1 (businesses.ts 32 ペア拡張) + c96-2 hotfix (MIN_DATE_C96="2026-05-01" ガード) の組合せで既に完成済と確認。両画面は companies.ts ではなく businesses.ts (事業×エリア軸) を母集合にする設計のため、PR-1 拡張時点で READ 系は自動で 16 ペアを拾う構造。横断集計の母集合は (a) エリアタブ/事業別/グループ全体/会社別 = `monthly-summary`/`monthly-summary-bulk` 直読 (4 月以前安全)、(b) 日報拡張モード (3 視点+期間) のみ `range-aggregate` (entries 直 SUM) だが FilterBar の MIN_DATE_C96 ガードで 4 月以前を UI 上選択不可にして構造封殺、で網羅。本番 Chrome 検証 (反さん): エリアタブ事業切替で 32 ペア通り増減、電気×名古屋 (未割当) 正常描画、日報「未割当」タブ正常、事業別=電気で 7 エリア (割当 4 + 未割当 3) 描画。**コード変更ゼロ**
+
+### PR #162: デプロイ毎再ログイン問題の根本対処 (2026-06-07)
+- **PR #162** ✅ マージ済 (commit 5da6565、2026-06-07T11:15Z) — Preview と Production が同一 Neon DB を共有する構成 (DATABASE_URL=All Environments) で、旧 auth.ts:222 の「ログイン時に WHERE user_id=X で全 session DELETE」が Preview 検証ログインで本番 session を即無効化していた真因を解消。
+  - **A 案**: ログイン時の一括 DELETE を撤廃、INSERT のみに (auth.ts:215-227)。複数 session 併存を許可
+  - **C 案**: verifyToken の silent fail を撤廃、catch に `console.error("verifyToken failed", { reason })` 追加 (auth.ts:34-47)。reason のみ出力、token/payload/password は非出力
+  - **運用変更**: 退職者の即時失効は「管理者によるユーザー無効化 (isActive=false)」のみで行う (users/route.ts:115 の WHERE user_id=X DELETE は維持)。ログイン時の自動セッション失効はもう無い。明示ログアウト = session_id 単位の destroySession() (auth.ts:259) は維持
+  - **47 ユーザー運用への影響**: PC + スマホ等の複数デバイス同時ログインが可能に。デプロイ毎の再ログインも発生しなくなる
+  - **検証**: 新規統合テスト 22/22 pass (`test:integration:auth-multi-session`) + regression 264/264 pass + invariant-guard ✅ 通過
+
 ### 保留中
 - ⚠️ **water 5/6 月コンサル費の実額入力 (現場運用)**: 2026-06-02 c95-D-4 apply 時点で water 5月の entries.data.consultant_fee は 217 行中 3 行 (chugoku 5/1-5/3) のみ has_key 状態。slice 4 マージで profit が約 +2,790 万円 跳ね上がっており、現場 (各エリアマネージャー) が実額入力を進めて初めて正しい粗利に収束する。**現場周知 + 入力催促が運用上の最優先課題**
 - **c95-C** 残作業（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— C-1 完了、C-2〜C-5 着手可能
