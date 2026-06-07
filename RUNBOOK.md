@@ -23,11 +23,32 @@
 - 補足: 過去に「画面値が検算と合わない」と疑った件は、検算する人間側の項目漏れ(広告費の引き忘れ)が原因だった。画面値を疑う前に、自分の手計算に全コスト項目(職人/材料/広告/営業外注/カード/コンサル費)が入っているか確認する。
 
 ## 2. デプロイで本番が壊れた(画面が出ない/エラー)
+
+### Step 0: ★まずネットワークログ(API ステータス)を見る★ (2026-06-07 PR-1 インシデント教訓)
+**外形(DOM 消失・画面真っ白)だけで原因推定しない。** 直前マージ PR を真っ先に疑うのは罠 (PR-1 では JWT_SECRET が真因なのにコードを 1 時間疑って迷走)。
+
+1. Chrome DevTools (or Claude in Chrome `read_network_requests`) で **`/api/me` / `/api/unread-count` / `/api/entries` 等 認証必須 API の HTTP ステータスを確認**:
+   - **全て 401** → 認証層(JWT/Cookie/環境変数)の問題。コード無関係の可能性高。Step 1 環境変数チェックへ
+   - **全て 500** → DB 接続 or aggregation エラー。DATABASE_URL / monthlyAggregation を疑う
+   - **一部だけ 401/500** → 特定 API のリグレッション。Step 2 ロールバックへ
+   - **全て 200 で値が変** → 表示ロジックの問題。§1 へ
+
+### Step 1: 環境変数の「Needs Attention」チェック (2026-06-07 教訓)
+本番障害が API 401 由来なら、まず Vercel Environment Variables の「Needs Attention」状態を疑う:
+1. Vercel ダッシュボード → Settings → Environment Variables を開く
+2. 各環境変数 (特に **JWT_SECRET / DATABASE_URL / *_PASSWORD 系**) の右に「Needs Attention」マークがないか確認
+3. ある場合: その変数 → Edit → **値は変えずに Save** → 自動再デプロイ → 再ログインで復旧
+   (Vercel 側で内部状態が壊れている。値再保存で正常化する既知の挙動)
+4. 復旧したか `/api/me` 等で再確認
+
+### Step 2: コード起因と確定したらロールバック
+Step 0/1 で環境変数が原因でないと確定した場合のみ:
 1. Vercel のダッシュボードで、直前の正常だったデプロイに **Rollback**(即座に戻せる)。
 2. 戻したら、問題のPRを特定して revert(`git revert <commit>`)。
 3. 落ち着いてから原因調査。番人を通して再実装。
 
 - ※コード(Vercel)のロールバックは簡単。DB(下記)は難しいので慎重に。
+- ⚠️ **2026-06-07 教訓**: PR-1 マージ後に全 API 401 + ナビ全消失が発生。当初 PR-1 を疑い rollback したが直らず、後で JWT_SECRET の Needs Attention が真因と判明。**外形だけで犯人を決めつけず、必ずネットワークログを見てから rollback の要否を判断する。**
 
 ## 3. 本番DBを間違って書き換えた(re-aggregation等の事故)
 1. **まず Neon のブランチ/スナップショットから復元できるか確認**(書き換え前にスナップショットを取っていれば、そこに戻せる)。
