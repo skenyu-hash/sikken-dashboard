@@ -42,7 +42,15 @@ export async function verifyToken(token: string): Promise<SessionUser | null> {
       areaId: payload.areaId ? String(payload.areaId) : null,
       sessionId: String(payload.sessionId),
     };
-  } catch {
+  } catch (e) {
+    // C案 (2026-06-07): silent fail を撤廃し、reason のみログ出力 (Vercel Logs から
+    // JWT 期限切れ / secret 不一致 / 署名不正 の判別を可能にする)。
+    // 個人情報 (token 本体 / payload / password) は意図的に出力しない。
+    const reason =
+      (e as { code?: string })?.code
+      ?? (e as Error)?.name
+      ?? "unknown";
+    console.error("verifyToken failed", { reason });
     return null;
   }
 }
@@ -218,8 +226,17 @@ export async function authenticate(email: string, password: string, ip: string):
     WHERE id = ${u.id as number}
   `;
 
-  // 既存のセッションを破棄して新規発行(同一アカウントの多重ログインは最新優先)
-  await getSql()`DELETE FROM user_sessions WHERE user_id = ${u.id as number}`;
+  // A案 (2026-06-07): 多重ログイン無効化 (同一 user_id の旧 session 一括 DELETE) を撤廃。
+  //
+  // 旧仕様: ログインのたびに WHERE user_id = X で全 session を消し、新 session を INSERT
+  //   していたため、Preview と Production が同一 Neon DB を共有している構成 (現状) で
+  //   Preview 検証ログインが本番 session を即無効化する副作用が発生していた。
+  //   また 1 ユーザー複数デバイス同時利用も不可能だった (2 台目ログインで 1 台目即ログアウト)。
+  //
+  // 新仕様: INSERT のみ。複数 session の併存を許可する。
+  //   - 明示ログアウト: destroySession() が WHERE session_id = X で当該 session のみ削除 (line 250)
+  //   - 退職者の強制失効: app/api/users/route.ts の isActive=false 経路が
+  //     WHERE user_id = X で全 session を削除 (セキュリティ要件は維持)
   const sessionId = crypto.randomUUID();
   await getSql()`
     INSERT INTO user_sessions (session_id, user_id, ip_address)
