@@ -641,12 +641,19 @@ export function calculateDriver(d: DriverInputs): DriverResult {
 // ============ 前月同日比 ============
 
 /**
+ * 日次データ比較が可能な最古月 = 2026年5月。
+ * MIN_DATE_C96 ("2026-05-01") と同じ5月境界だがコンサル費開始日とは別概念。
+ * CONSULTANT_FEE_APPLIED_FROM_YYYYMM とたまたま同値だが独立して管理する。
+ */
+export const MOM_COMPARE_MIN_YYYYMM = 202605;
+
+/**
  * 前月同日比の比較対象として有効な月かを判定するハードガード。
  * 2026-04-30 の唯一行が月末 maxDay≥30 で filterEntriesByDay をすり抜ける問題を
- * 構造的に封殺する。前月が 2026-05 (202605) より前なら日次データを参照しない。
+ * 構造的に封殺する。前月が MOM_COMPARE_MIN_YYYYMM より前なら日次データを参照しない。
  */
 export function canCompareSameDay(prevYear: number, prevMonth: number): boolean {
-  return toYyyyMm(prevYear, prevMonth) >= CONSULTANT_FEE_APPLIED_FROM_YYYYMM;
+  return toYyyyMm(prevYear, prevMonth) >= MOM_COMPARE_MIN_YYYYMM;
 }
 
 /** entries を日付の日部分でフィルタする（例: day <= 9 で月初〜9日分） */
