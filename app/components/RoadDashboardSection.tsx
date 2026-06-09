@@ -22,7 +22,7 @@
 //   成約率   = 総獲得件数 ÷ 総入電件数 × 100
 
 import React from "react";
-import { yen, type Targets } from "../lib/calculations";
+import { yen, momLabel, type Targets, type SameDayAggregate } from "../lib/calculations";
 import { MetricBadge, type GroupType } from "./ui";
 import { getGroupBorderColor } from "./dashboard/metric-groups";
 import { SECTION } from "./sectionStyles";
@@ -30,6 +30,7 @@ import { SECTION } from "./sectionStyles";
 type Props = {
   monthlySummary: Record<string, unknown> | null;
   targets: Targets;
+  prevCalc: SameDayAggregate | null;
 };
 
 const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
@@ -38,7 +39,8 @@ const fmtCount = (v: number): string => (v > 0 ? `${v.toLocaleString()}件` : "�
 const fmtPct = (v: number): string => (v > 0 ? `${v.toFixed(1)}%` : "—");
 const fmtYen = (v: number): string => (v > 0 ? yen(v) : "—");
 
-export default function RoadDashboardSection({ monthlySummary, targets }: Props) {
+export default function RoadDashboardSection({ monthlySummary, targets, prevCalc }: Props) {
+  const p = prevCalc;
   // 売上・コスト
   const sales = numOf(monthlySummary?.total_revenue);
   const adCost = numOf(monthlySummary?.ad_cost);
@@ -96,13 +98,17 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
       <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SECTION.GAP, gridAutoRows: "min-content" }}>
         {/* ① 新規対応 */}
         <Card title="① 新規対応 (売上・コスト・粗利)" group="rev">
-          <Row label="売上"   actual={fmtYen(sales)}     target={fmtYen(targetSales)}   achievement={achv(sales, targetSales)} />
+          <Row label="売上"   actual={fmtYen(sales)}     target={fmtYen(targetSales)}   achievement={achv(sales, targetSales)}
+            mom={momLabel(sales, p?.total_revenue ?? 0, "yen")} />
           <Row label="保険売上"   actual={fmtYen(insuranceRevenue)}    target="—" sub="保険業務由来の売上" />
           <Row label="無保険売上" actual={fmtYen(nonInsuranceRevenue)} target="—" sub="保険業務以外の売上" />
-          <Row label="広告費" actual={fmtYen(adCost)}    target={fmtYen(targetAdCost)} achievement={achv(adCost, targetAdCost, true)} sub={`売上比 ${fmtPct(ratio(adCost))}`} />
-          <Row label="手数料" actual={fmtYen(commission)} target="—" sub={`売上比 ${fmtPct(ratio(commission))}`} />
+          <Row label="広告費" actual={fmtYen(adCost)} target={fmtYen(targetAdCost)} achievement={achv(adCost, targetAdCost, true)} sub={`売上比 ${fmtPct(ratio(adCost))}`}
+            mom={momLabel(adCost, p?.ad_cost ?? 0, "yen")} momInvert />
+          <Row label="手数料" actual={fmtYen(commission)} target="—" sub={`売上比 ${fmtPct(ratio(commission))}`}
+            mom={momLabel(commission, p?.sales_outsourcing_cost ?? 0, "yen")} momInvert />
           <Row label="販管費" actual={fmtYen(sellingAdminCost)} target="—" sub="記録のみ (営業利益式には含めず)" />
-          <Row label="粗利"   actual={fmtYen(profit)}    target="—" sub="= 売上 − (広告費 + 手数料)" highlight />
+          <Row label="粗利"   actual={fmtYen(profit)}    target="—" sub="= 売上 − (広告費 + 手数料)" highlight
+            mom={momLabel(profit, p?.total_profit ?? 0, "yen")} />
         </Card>
 
         {/* ② 入電 (PR #58c で 7 内訳 DB 化) */}
@@ -114,8 +120,10 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
           <Row label="ウェルネスト 入電" actual={fmtCount(callWellnest)} target="—" />
           <Row label="SEO 入電"        actual={fmtCount(callSeo)}      target="—" />
           <Row label="保険会社 入電"   actual={fmtCount(callInsurance)} target="—" />
-          <Row label="総入電件数" actual={fmtCount(callCount)}      target={fmtCount(targetCallCount)} achievement={achv(callCount, targetCallCount)} />
-          <Row label="入電単価"   actual={fmtYen(callUnitPrice)}    target="—" sub="= 広告費 ÷ 総入電件数" />
+          <Row label="総入電件数" actual={fmtCount(callCount)} target={fmtCount(targetCallCount)} achievement={achv(callCount, targetCallCount)}
+            mom={momLabel(callCount, p?.call_count ?? 0, "count")} />
+          <Row label="入電単価"   actual={fmtYen(callUnitPrice)} target="—" sub="= 広告費 ÷ 総入電件数"
+            mom={momLabel(callUnitPrice, p ? Math.round(safeDiv(p.ad_cost, p.call_count)) : 0, "yen")} momInvert />
         </Card>
 
         {/* ③ 獲得 (PR #52 で 7 内訳 DB 化) — PR #82: 3 sections (odd) → 最終を full-width 化 */}
@@ -128,10 +136,14 @@ export default function RoadDashboardSection({ monthlySummary, targets }: Props)
             <Row label="ウェルネスト 獲得" actual={fmtCount(acqWellnest)} target="—" />
             <Row label="SEO 獲得"        actual={fmtCount(acqSeo)}       target="—" />
             <Row label="保険会社 獲得"   actual={fmtCount(acqInsurance)} target="—" />
-            <Row label="総獲得件数" actual={fmtCount(acquisitionCount)} target={fmtCount(targetCount)} achievement={achv(acquisitionCount, targetCount)} highlight />
-            <Row label="客単価"      actual={fmtYen(Math.round(safeDiv(sales, acquisitionCount)))} target={fmtYen(targetUnitPrice)} sub="= 売上 ÷ 総獲得件数" />
-            <Row label="CPA"         actual={fmtYen(cpa)}                target={fmtYen(targetCpa)}     achievement={achv(cpa, targetCpa, true)} sub="= 広告費 ÷ 総獲得件数" />
-            <Row label="成約率"      actual={fmtPct(convRate)}            target={fmtPct(targetConvRate)} achievement={achv(convRate, targetConvRate)} sub="= 総獲得件数 ÷ 総入電件数 × 100" />
+            <Row label="総獲得件数" actual={fmtCount(acquisitionCount)} target={fmtCount(targetCount)} achievement={achv(acquisitionCount, targetCount)} highlight
+              mom={momLabel(acquisitionCount, p?.acquisition_count ?? 0, "count")} />
+            <Row label="客単価" actual={fmtYen(Math.round(safeDiv(sales, acquisitionCount)))} target={fmtYen(targetUnitPrice)} sub="= 売上 ÷ 総獲得件数"
+              mom={momLabel(Math.round(safeDiv(sales, acquisitionCount)), p ? Math.round(safeDiv(p.total_revenue, p.acquisition_count)) : 0, "yen")} />
+            <Row label="CPA"    actual={fmtYen(cpa)} target={fmtYen(targetCpa)} achievement={achv(cpa, targetCpa, true)} sub="= 広告費 ÷ 総獲得件数"
+              mom={momLabel(cpa, p ? Math.round(safeDiv(p.ad_cost, p.acquisition_count)) : 0, "yen")} momInvert />
+            <Row label="成約率" actual={fmtPct(convRate)} target={fmtPct(targetConvRate)} achievement={achv(convRate, targetConvRate)} sub="= 総獲得件数 ÷ 総入電件数 × 100"
+              mom={momLabel(convRate, p ? safeDiv(p.acquisition_count, p.call_count) * 100 : 0, "pct")} />
           </Card>
         </div>
 
@@ -178,14 +190,15 @@ function Card({ title, group, children }: { title: string; group: GroupType; chi
       }}>{title}</div>
       <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <colgroup>
-          <col style={{ width: "34%" }} />
-          <col style={{ width: "22%" }} />
-          <col style={{ width: "22%" }} />
-          <col style={{ width: "22%" }} />
+          <col style={{ width: "28%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "18%" }} />
         </colgroup>
         <thead>
           <tr style={{ background: "#fafffe" }}>
-            {["指標", "実績", "目標", "達成率 / 補足"].map((h, i) => (
+            {["指標", "実績", "目標", "達成率 / 補足", "前月同日比"].map((h, i) => (
               <th key={h} style={{
                 padding: `7px ${SECTION.PADDING_H}px`, fontSize: 10, fontWeight: 700, color: "#6b7280",
                 textTransform: "uppercase", letterSpacing: "0.06em",
@@ -202,7 +215,7 @@ function Card({ title, group, children }: { title: string; group: GroupType; chi
 }
 
 function Row({
-  label, actual, target, achievement, sub, highlight, group,
+  label, actual, target, achievement, sub, highlight, group, mom, momInvert,
 }: {
   label: string;
   actual: string;
@@ -210,8 +223,9 @@ function Row({
   achievement?: { pct: number; status: "good" | "warn" | "bad" } | null;
   sub?: string;
   highlight?: boolean;
-  /** PR #59 c1: 親 Card から cloneElement で注入される */
   group?: GroupType;
+  mom?: string | null;
+  momInvert?: boolean;
 }) {
   const td: React.CSSProperties = {
     padding: `9px ${SECTION.PADDING_H}px`, fontSize: 12, color: "#374151",
@@ -219,6 +233,9 @@ function Row({
   };
   const bg = highlight ? "#f0fdf4" : "transparent";
   const borderColor = group ? getGroupBorderColor(group) : "transparent";
+  const momColor = mom
+    ? (() => { const up = mom.startsWith("↑") || mom.startsWith("+"); return (momInvert ? !up : up) ? "#059669" : "#dc2626"; })()
+    : "#9ca3af";
 
   return (
     <tr style={{ background: bg }}>
@@ -244,6 +261,9 @@ function Row({
         ) : (
           <span style={{ color: "#d1d5db" }}>—</span>
         )}
+      </td>
+      <td style={{ ...td, textAlign: "right", fontSize: 11, color: momColor }}>
+        {mom ?? <span style={{ color: "#d1d5db" }}>—</span>}
       </td>
     </tr>
   );

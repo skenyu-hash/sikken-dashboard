@@ -1,6 +1,8 @@
 // 経営ダッシュボード ビジネスロジック
 // 全ての金額は「円(整数)」、件数は「件(整数)」を想定
 
+import { CONSULTANT_FEE_APPLIED_FROM_YYYYMM, toYyyyMm } from "./consultantFee";
+
 export type DailyEntry = {
   date: string; // YYYY-MM-DD
   // 全体
@@ -634,4 +636,163 @@ export function calculateDriver(d: DriverInputs): DriverResult {
     avgUnit: Math.round(avgUnit),
     avgMargin,
   };
+}
+
+// ============ 前月同日比 ============
+
+/** entries を日付の日部分でフィルタする（例: day <= 9 で月初〜9日分） */
+export function filterEntriesByDay(entries: DailyEntry[], maxDay: number): DailyEntry[] {
+  return entries.filter((e) => {
+    const d = parseInt(e.date.split("-")[2], 10);
+    return d <= maxDay;
+  });
+}
+
+/**
+ * prevEntries を集計して前月同日分の集計値を返す。
+ * フィールドは monthly_summaries と同じキー名で揃え、Section コンポーネントで直接参照できるようにする。
+ * 粗利は profit.ts の resolveTotalProfit と同じロジック（category / consultant_fee 境界を含む）。
+ */
+export type SameDayAggregate = {
+  total_revenue: number;
+  total_labor_cost: number;
+  material_cost: number;
+  ad_cost: number;
+  sales_outsourcing_cost: number;
+  card_processing_fee: number;
+  consultant_fee: number;
+  total_profit: number;
+  total_count: number;
+  call_count: number;
+  acquisition_count: number;
+  construction_count: number;
+  internal_construction_count: number;
+  outsourced_construction_cost: number;
+  internal_construction_profit: number;
+  help_revenue: number;
+  help_count: number;
+  repeat_count: number;
+  revisit_count: number;
+  review_count: number;
+  switchboard_count: number;
+  locksmith_construction_cost: number;
+  locksmith_commission_fee: number;
+  locksmith_repeat_count: number;
+  locksmith_revisit_count: number;
+};
+
+export function aggregatePrevSameDay(
+  entries: DailyEntry[],
+  category: string,
+  year: number,
+  month: number
+): SameDayAggregate {
+  const n = (v: unknown): number => {
+    if (v == null) return 0;
+    const num = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(num) ? num : 0;
+  };
+
+  let total_revenue = 0, total_labor_cost = 0, material_cost = 0;
+  let ad_cost = 0, sales_outsourcing_cost = 0, card_processing_fee = 0;
+  let consultant_fee = 0;
+  let total_count = 0, call_count = 0, acquisition_count = 0;
+  let construction_count = 0, internal_construction_count = 0;
+  let outsourced_construction_cost = 0, internal_construction_profit = 0;
+  let help_revenue = 0, help_count = 0;
+  let repeat_count = 0, revisit_count = 0, review_count = 0;
+  let switchboard_count = 0;
+  let locksmith_construction_cost = 0, locksmith_commission_fee = 0;
+  let locksmith_repeat_count = 0, locksmith_revisit_count = 0;
+
+  for (const e of entries) {
+    total_revenue += n(e.outsourced_sales_revenue) + n(e.internal_staff_revenue);
+    total_count   += n(e.outsourced_response_count) + n(e.internal_staff_response_count);
+    total_labor_cost           += n(e.total_labor_cost);
+    material_cost              += n(e.material_cost);
+    ad_cost                    += n(e.ad_cost);
+    sales_outsourcing_cost     += n(e.sales_outsourcing_cost);
+    card_processing_fee        += n(e.card_processing_fee);
+    consultant_fee             += n(e.consultant_fee);
+    call_count                 += n(e.call_count);
+    acquisition_count          += n(e.acquisition_count);
+    construction_count         += n(e.construction_count);
+    internal_construction_count   += n(e.internal_construction_count);
+    outsourced_construction_cost  += n(e.outsourced_construction_cost);
+    internal_construction_profit  += n(e.internal_construction_profit);
+    help_revenue               += n(e.help_revenue);
+    help_count                 += n(e.help_count);
+    repeat_count               += n(e.repeat_count);
+    revisit_count              += n(e.revisit_count);
+    review_count               += n(e.review_count);
+    switchboard_count          += n(e.switchboard_count);
+    locksmith_construction_cost += n(e.locksmith_construction_cost);
+    locksmith_commission_fee    += n(e.locksmith_commission_fee);
+    locksmith_repeat_count      += n(e.locksmith_repeat_count);
+    locksmith_revisit_count     += n(e.locksmith_revisit_count);
+  }
+
+  // 粗利: resolveTotalProfit と同じロジック（category-aware + consultant_fee 境界）
+  let total_profit: number;
+  if (category === "locksmith") {
+    total_profit = total_revenue - locksmith_construction_cost - material_cost - ad_cost - locksmith_commission_fee;
+  } else {
+    total_profit = total_revenue - total_labor_cost - material_cost - ad_cost - sales_outsourcing_cost - card_processing_fee;
+  }
+  if (category === "water") {
+    const yyyymm = toYyyyMm(year, month);
+    if (yyyymm >= CONSULTANT_FEE_APPLIED_FROM_YYYYMM) {
+      total_profit -= consultant_fee;
+    }
+  }
+  total_profit = Math.max(0, Math.round(total_profit));
+
+  return {
+    total_revenue, total_labor_cost, material_cost, ad_cost,
+    sales_outsourcing_cost, card_processing_fee, consultant_fee,
+    total_profit, total_count, call_count, acquisition_count,
+    construction_count, internal_construction_count,
+    outsourced_construction_cost, internal_construction_profit,
+    help_revenue, help_count, repeat_count, revisit_count, review_count,
+    switchboard_count, locksmith_construction_cost, locksmith_commission_fee,
+    locksmith_repeat_count, locksmith_revisit_count,
+  };
+}
+
+/**
+ * 前月同日比ラベルを生成する。
+ * - "yen"  : "↑+12.3% (+¥270万)" のように % と金額差を表示
+ * - "count": "↑+9.7% (+16件)"
+ * - "pct"  : "+2.1pt"（パーセントポイント差、率指標用）
+ * prev が 0 以下のときは null（表示なし）。
+ */
+export function momLabel(
+  current: number,
+  prev: number,
+  fmt: "yen" | "count" | "pct"
+): string | null {
+  if (prev <= 0) return null;
+  const diff = current - prev;
+
+  if (fmt === "pct") {
+    const pt = Math.round((current - prev) * 10) / 10;
+    const sign = pt >= 0 ? "+" : "";
+    return `${sign}${pt}pt`;
+  }
+
+  const pct = Math.round((diff / prev) * 1000) / 10;
+  const arrow = pct >= 0 ? "↑" : "↓";
+  const sign  = pct >= 0 ? "+" : "";
+
+  if (fmt === "yen") {
+    const abs = Math.abs(diff);
+    const diffStr = abs >= 10000
+      ? `${diff >= 0 ? "+" : "-"}¥${Math.round(abs / 10000).toLocaleString("ja-JP")}万`
+      : `${diff >= 0 ? "+" : "-"}¥${Math.round(abs).toLocaleString("ja-JP")}`;
+    return `${arrow}${sign}${pct}% (${diffStr})`;
+  }
+
+  // count
+  const dSign = diff >= 0 ? "+" : "";
+  return `${arrow}${sign}${pct}% (${dSign}${Math.round(diff)}件)`;
 }

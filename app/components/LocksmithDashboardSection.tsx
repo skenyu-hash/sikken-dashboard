@@ -25,7 +25,7 @@
 //   HELP 率  = HELP売上 ÷ 売上 × 100
 
 import React from "react";
-import { yen, type Targets } from "../lib/calculations";
+import { yen, momLabel, type Targets, type SameDayAggregate } from "../lib/calculations";
 import { MetricBadge, type GroupType } from "./ui";
 import { getGroupBorderColor } from "./dashboard/metric-groups";
 import { SECTION } from "./sectionStyles";
@@ -33,6 +33,7 @@ import { SECTION } from "./sectionStyles";
 type Props = {
   monthlySummary: Record<string, unknown> | null;
   targets: Targets;
+  prevCalc: SameDayAggregate | null;
 };
 
 const numOf = (v: unknown): number => (typeof v === "number" ? v : v != null ? Number(v) || 0 : 0);
@@ -41,7 +42,8 @@ const fmtCount = (v: number): string => (v > 0 ? `${v.toLocaleString()}件` : "�
 const fmtPct = (v: number): string => (v > 0 ? `${v.toFixed(1)}%` : "—");
 const fmtYen = (v: number): string => (v > 0 ? yen(v) : "—");
 
-export default function LocksmithDashboardSection({ monthlySummary, targets }: Props) {
+export default function LocksmithDashboardSection({ monthlySummary, targets, prevCalc }: Props) {
+  const p = prevCalc;
   // 売上系
   const sales = numOf(monthlySummary?.total_revenue);
   const constructionCost = numOf(monthlySummary?.locksmith_construction_cost);
@@ -101,42 +103,61 @@ export default function LocksmithDashboardSection({ monthlySummary, targets }: P
       <div className="metrics-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SECTION.GAP, gridAutoRows: "min-content" }}>
         {/* ① 新規対応 */}
         <Card title="① 新規対応 (売上・コスト・粗利)" group="rev">
-          <Row label="売上"   actual={fmtYen(sales)}            target={fmtYen(targetSales)}    achievement={achv(sales, targetSales)} />
-          <Row label="工事費" actual={fmtYen(constructionCost)} target="—"                       sub={`売上比 ${fmtPct(ratio(constructionCost))}`} />
-          <Row label="材料費" actual={fmtYen(materialCost)}     target="—"                       sub={`売上比 ${fmtPct(ratio(materialCost))}`} />
-          <Row label="広告費" actual={fmtYen(adCost)}           target={fmtYen(targetAdCost)}   achievement={achv(adCost, targetAdCost, true)} sub={`売上比 ${fmtPct(ratio(adCost))}`} />
-          <Row label="手数料" actual={fmtYen(commission)}       target="—"                       sub={`売上比 ${fmtPct(ratio(commission))}`} />
+          <Row label="売上"   actual={fmtYen(sales)}            target={fmtYen(targetSales)}  achievement={achv(sales, targetSales)}
+            mom={momLabel(sales, p?.total_revenue ?? 0, "yen")} />
+          <Row label="工事費" actual={fmtYen(constructionCost)} target="—" sub={`売上比 ${fmtPct(ratio(constructionCost))}`}
+            mom={momLabel(constructionCost, p?.locksmith_construction_cost ?? 0, "yen")} momInvert />
+          <Row label="材料費" actual={fmtYen(materialCost)}     target="—" sub={`売上比 ${fmtPct(ratio(materialCost))}`}
+            mom={momLabel(materialCost, p?.material_cost ?? 0, "yen")} momInvert />
+          <Row label="広告費" actual={fmtYen(adCost)}           target={fmtYen(targetAdCost)} achievement={achv(adCost, targetAdCost, true)} sub={`売上比 ${fmtPct(ratio(adCost))}`}
+            mom={momLabel(adCost, p?.ad_cost ?? 0, "yen")} momInvert />
+          <Row label="手数料" actual={fmtYen(commission)}       target="—" sub={`売上比 ${fmtPct(ratio(commission))}`}
+            mom={momLabel(commission, p?.locksmith_commission_fee ?? 0, "yen")} momInvert />
           <Row label="販管費" actual="— (UI のみ、Phase 4 予定)" target="—" />
-          <Row label="粗利"   actual={fmtYen(profit)}            target="—"                       sub="= 売上 − (工事費 + 材料費 + 広告費 + 手数料)" highlight />
+          <Row label="粗利"   actual={fmtYen(profit)}           target="—" sub="= 売上 − (工事費 + 材料費 + 広告費 + 手数料)" highlight
+            mom={momLabel(profit, p?.total_profit ?? 0, "yen")} />
         </Card>
 
         {/* ② 入電 */}
         <Card title="② 入電" group="acq">
           <Row label="車LP+メール 入電" actual="— (UI のみ、Phase B 後続予定)" target="—" />
           <Row label="インハウス 入電"  actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="総入電件数" actual={fmtCount(callCount)}        target={fmtCount(targetCallCount)} achievement={achv(callCount, targetCallCount)} />
-          <Row label="入電単価"   actual={fmtYen(callUnitPrice)}      target="—"                          sub="= 広告費 ÷ 総入電件数" />
+          <Row label="総入電件数" actual={fmtCount(callCount)}   target={fmtCount(targetCallCount)} achievement={achv(callCount, targetCallCount)}
+            mom={momLabel(callCount, p?.call_count ?? 0, "count")} />
+          <Row label="入電単価"   actual={fmtYen(callUnitPrice)} target="—" sub="= 広告費 ÷ 総入電件数"
+            mom={momLabel(callUnitPrice, p ? Math.round(safeDiv(p.ad_cost, p.call_count)) : 0, "yen")} momInvert />
         </Card>
 
         {/* ③ 獲得 */}
         <Card title="③ 獲得 (5 内訳)" group="acq">
           <Row label="車LP+メール 獲得" actual={fmtCount(acqLpMail)}  target="—" />
           <Row label="インハウス 獲得"  actual={fmtCount(acqInhouse)} target="—" />
-          <Row label="リピート（紹介）" actual={fmtCount(acqRepeat)}  target="—" />
-          <Row label="再訪問"           actual={fmtCount(acqRevisit)} target="—" />
-          <Row label="HELP 件数 (獲得)" actual={fmtCount(acqHelp)}    target={fmtCount(targetHelpCount)} achievement={achv(acqHelp, targetHelpCount)} />
-          <Row label="総獲得件数" actual={fmtCount(acquisitionCount)} target={fmtCount(targetCount)} achievement={achv(acquisitionCount, targetCount)} highlight />
-          <Row label="客単価"      actual={fmtYen(Math.round(safeDiv(sales, acquisitionCount)))} target={fmtYen(targetUnitPrice)} sub="= 売上 ÷ 総獲得件数" />
-          <Row label="CPA"         actual={fmtYen(cpa)}                target={fmtYen(targetCpa)}     achievement={achv(cpa, targetCpa, true)} sub="= 広告費 ÷ 総獲得件数" />
-          <Row label="成約率"      actual={fmtPct(convRate)}            target={fmtPct(targetConvRate)} achievement={achv(convRate, targetConvRate)} sub="= 総獲得件数 ÷ 総入電件数 × 100" />
+          <Row label="リピート（紹介）" actual={fmtCount(acqRepeat)}  target="—"
+            mom={momLabel(acqRepeat, p?.locksmith_repeat_count ?? 0, "count")} />
+          <Row label="再訪問"           actual={fmtCount(acqRevisit)} target="—"
+            mom={momLabel(acqRevisit, p?.locksmith_revisit_count ?? 0, "count")} />
+          <Row label="HELP 件数 (獲得)" actual={fmtCount(acqHelp)}    target={fmtCount(targetHelpCount)} achievement={achv(acqHelp, targetHelpCount)}
+            mom={momLabel(acqHelp, p?.help_count ?? 0, "count")} />
+          <Row label="総獲得件数" actual={fmtCount(acquisitionCount)} target={fmtCount(targetCount)} achievement={achv(acquisitionCount, targetCount)} highlight
+            mom={momLabel(acquisitionCount, p?.acquisition_count ?? 0, "count")} />
+          <Row label="客単価" actual={fmtYen(Math.round(safeDiv(sales, acquisitionCount)))} target={fmtYen(targetUnitPrice)} sub="= 売上 ÷ 総獲得件数"
+            mom={momLabel(Math.round(safeDiv(sales, acquisitionCount)), p ? Math.round(safeDiv(p.total_revenue, p.acquisition_count)) : 0, "yen")} />
+          <Row label="CPA"    actual={fmtYen(cpa)} target={fmtYen(targetCpa)} achievement={achv(cpa, targetCpa, true)} sub="= 広告費 ÷ 総獲得件数"
+            mom={momLabel(cpa, p ? Math.round(safeDiv(p.ad_cost, p.acquisition_count)) : 0, "yen")} momInvert />
+          <Row label="成約率"  actual={fmtPct(convRate)} target={fmtPct(targetConvRate)} achievement={achv(convRate, targetConvRate)} sub="= 総獲得件数 ÷ 総入電件数 × 100"
+            mom={momLabel(convRate, p ? safeDiv(p.acquisition_count, p.call_count) * 100 : 0, "pct")} />
         </Card>
 
         {/* ④ HELP */}
         <Card title="④ HELP" group="help">
-          <Row label="HELP 売上"    actual={fmtYen(helpRevenue)}   target={fmtYen(targetHelpSales)}    achievement={achv(helpRevenue, targetHelpSales)} />
-          <Row label="HELP 件数"    actual={fmtCount(helpCount)}   target={fmtCount(targetHelpCount)} achievement={achv(helpCount, targetHelpCount)} />
-          <Row label="HELP 客単価"  actual={fmtYen(helpUnitPrice)} target={fmtYen(targetHelpUnitPrice)} achievement={achv(helpUnitPrice, targetHelpUnitPrice)} sub="= HELP売上 ÷ HELP件数" />
-          <Row label="HELP 率"      actual={fmtPct(helpRate)}      target={fmtPct(targetHelpRate)}      achievement={achv(helpRate, targetHelpRate)} sub="= HELP売上 ÷ 売上 × 100" />
+          <Row label="HELP 売上"   actual={fmtYen(helpRevenue)}   target={fmtYen(targetHelpSales)}    achievement={achv(helpRevenue, targetHelpSales)}
+            mom={momLabel(helpRevenue, p?.help_revenue ?? 0, "yen")} />
+          <Row label="HELP 件数"   actual={fmtCount(helpCount)}   target={fmtCount(targetHelpCount)}  achievement={achv(helpCount, targetHelpCount)}
+            mom={momLabel(helpCount, p?.help_count ?? 0, "count")} />
+          <Row label="HELP 客単価" actual={fmtYen(helpUnitPrice)} target={fmtYen(targetHelpUnitPrice)} achievement={achv(helpUnitPrice, targetHelpUnitPrice)} sub="= HELP売上 ÷ HELP件数"
+            mom={momLabel(helpUnitPrice, p ? Math.round(safeDiv(p.help_revenue, p.help_count)) : 0, "yen")} />
+          <Row label="HELP 率"     actual={fmtPct(helpRate)}      target={fmtPct(targetHelpRate)}      achievement={achv(helpRate, targetHelpRate)} sub="= HELP売上 ÷ 売上 × 100"
+            mom={momLabel(helpRate, p ? safeDiv(p.help_revenue, p.total_revenue) * 100 : 0, "pct")} />
         </Card>
 
         {/* ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット) */}
@@ -182,14 +203,15 @@ function Card({ title, group, children }: { title: string; group: GroupType; chi
       }}>{title}</div>
       <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <colgroup>
-          <col style={{ width: "34%" }} />
-          <col style={{ width: "22%" }} />
-          <col style={{ width: "22%" }} />
-          <col style={{ width: "22%" }} />
+          <col style={{ width: "28%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "18%" }} />
         </colgroup>
         <thead>
           <tr style={{ background: "#fafffe" }}>
-            {["指標", "実績", "目標", "達成率 / 補足"].map((h, i) => (
+            {["指標", "実績", "目標", "達成率 / 補足", "前月同日比"].map((h, i) => (
               <th key={h} style={{
                 padding: `7px ${SECTION.PADDING_H}px`, fontSize: 10, fontWeight: 700, color: "#6b7280",
                 textTransform: "uppercase", letterSpacing: "0.06em",
@@ -206,7 +228,7 @@ function Card({ title, group, children }: { title: string; group: GroupType; chi
 }
 
 function Row({
-  label, actual, target, achievement, sub, highlight, group,
+  label, actual, target, achievement, sub, highlight, group, mom, momInvert,
 }: {
   label: string;
   actual: string;
@@ -214,8 +236,9 @@ function Row({
   achievement?: { pct: number; status: "good" | "warn" | "bad" } | null;
   sub?: string;
   highlight?: boolean;
-  /** PR #59 c1: 親 Card から cloneElement で注入される */
   group?: GroupType;
+  mom?: string | null;
+  momInvert?: boolean;
 }) {
   const td: React.CSSProperties = {
     padding: `9px ${SECTION.PADDING_H}px`, fontSize: 12, color: "#374151",
@@ -223,6 +246,9 @@ function Row({
   };
   const bg = highlight ? "#f0fdf4" : "transparent";
   const borderColor = group ? getGroupBorderColor(group) : "transparent";
+  const momColor = mom
+    ? (() => { const up = mom.startsWith("↑") || mom.startsWith("+"); return (momInvert ? !up : up) ? "#059669" : "#dc2626"; })()
+    : "#9ca3af";
 
   return (
     <tr style={{ background: bg }}>
@@ -248,6 +274,9 @@ function Row({
         ) : (
           <span style={{ color: "#d1d5db" }}>—</span>
         )}
+      </td>
+      <td style={{ ...td, textAlign: "right", fontSize: 11, color: momColor }}>
+        {mom ?? <span style={{ color: "#d1d5db" }}>—</span>}
       </td>
     </tr>
   );
