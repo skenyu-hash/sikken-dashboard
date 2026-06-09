@@ -1,10 +1,11 @@
 /**
  * 前月同日比機能の純関数テスト
- * テスト対象: filterEntriesByDay / aggregatePrevSameDay / momLabel
+ * テスト対象: filterEntriesByDay / aggregatePrevSameDay / momLabel / canCompareSameDay
  */
 import {
   filterEntriesByDay,
   aggregatePrevSameDay,
+  canCompareSameDay,
   momLabel,
   type DailyEntry,
 } from "../app/lib/calculations";
@@ -150,6 +151,44 @@ assert("locksmith: locksmith_revisit_count = 2", lockResult.locksmith_revisit_co
 const emptyResult = aggregatePrevSameDay([], "water", 2026, 5);
 assert("空配列 → total_revenue = 0", emptyResult.total_revenue, 0);
 assert("空配列 → total_profit = 0", emptyResult.total_profit, 0);
+
+// ===== canCompareSameDay（4月境界ハードガード）=====
+console.log("\n--- canCompareSameDay ---");
+
+assert("2026-05 → true (5月以降は比較可)", canCompareSameDay(2026, 5), true);
+assert("2026-06 → true", canCompareSameDay(2026, 6), true);
+assert("2027-01 → true", canCompareSameDay(2027, 1), true);
+assert("2026-04 → false (4月は絶対不変行のみ、比較禁止)", canCompareSameDay(2026, 4), false);
+assert("2026-01 → false", canCompareSameDay(2026, 1), false);
+assert("2025-12 → false", canCompareSameDay(2025, 12), false);
+
+// ハードガード本体の検証:
+// 今日=2026-06-30(月末, maxDay=30) かつ 前月=2026-04 → 4月唯一行(day=30)がすり抜けるリスク
+const apr30Entry = makeEntry("2026-04-30", 1_000_000);
+// filterEntriesByDay 単体ではリスクあり（day=30 ≤ maxDay=30 で取得される）
+assert(
+  "リスク確認: filterEntriesByDay単体では Apr-30 をmaxDay=30で取得してしまう",
+  filterEntriesByDay([apr30Entry], 30).length,
+  1
+);
+// canCompareSameDay ガードで封殺 → prevCalcはnullになる（Dashboard.tsxのuseMemoと同じ判定）
+assert(
+  "ガード封殺: canCompareSameDay(2026,4)=false → Dashboard はnullを返す（—表示）",
+  canCompareSameDay(2026, 4),
+  false
+);
+// 通常ケース: 前月=2026-05、今日=6月9日(maxDay=9)、5月データありで数値が出る
+const may9Entries: DailyEntry[] = [
+  makeEntry("2026-05-01", 500_000),
+  makeEntry("2026-05-05", 300_000),
+  makeEntry("2026-05-09", 200_000),
+  makeEntry("2026-05-15", 999_999), // day=15 > 9、フィルタ対象
+];
+assert("通常ケース: canCompareSameDay(2026,5)=true", canCompareSameDay(2026, 5), true);
+const may9Filtered = filterEntriesByDay(may9Entries, 9);
+assert("通常ケース: maxDay=9でday≤9の3件", may9Filtered.length, 3);
+const may9Calc = aggregatePrevSameDay(may9Filtered, "water", 2026, 5);
+assert("通常ケース: 5月1〜9日の売上合計 = 1000000", may9Calc.total_revenue, 1_000_000);
 
 // ===== momLabel =====
 console.log("\n--- momLabel ---");

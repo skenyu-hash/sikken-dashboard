@@ -8,7 +8,7 @@ import {
   DailyEntry, FixedCosts, Targets, emptyTargets, manToYen,
   emptyEntry,
   yen,
-  filterEntriesByDay, aggregatePrevSameDay, type SameDayAggregate,
+  filterEntriesByDay, aggregatePrevSameDay, canCompareSameDay, type SameDayAggregate,
 } from "../lib/calculations";
 import { useRole, useSession } from "./RoleProvider";
 import { hasPageAccess, type Role } from "../lib/permissions";
@@ -520,8 +520,12 @@ export default function Dashboard() {
   // ============ 前月同日比 ============
   // prevEntries を「今月と同じ経過日数」でフィルタして集計する。
   // summaryToday.getDate() = 当月表示中なら今日の日付、過去月表示中なら月末日。
+  // ハードガード: 前月が 2026-04 以前は日次データを参照しない。
+  //   filterEntriesByDay の偶然頼みでは月末(maxDay≥30)に April-30 行を誤取得するため
+  //   canCompareSameDay で構造的に封殺する。
   const prevSameDayCalc = useMemo((): SameDayAggregate | null => {
     if (prevEntries.length === 0) return null;
+    if (!canCompareSameDay(prevYear, prevMonth)) return null;
     const maxDay = summaryToday.getDate();
     const filtered = filterEntriesByDay(prevEntries, maxDay);
     return aggregatePrevSameDay(filtered, activeBusiness, prevYear, prevMonth);

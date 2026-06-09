@@ -640,6 +640,15 @@ export function calculateDriver(d: DriverInputs): DriverResult {
 
 // ============ 前月同日比 ============
 
+/**
+ * 前月同日比の比較対象として有効な月かを判定するハードガード。
+ * 2026-04-30 の唯一行が月末 maxDay≥30 で filterEntriesByDay をすり抜ける問題を
+ * 構造的に封殺する。前月が 2026-05 (202605) より前なら日次データを参照しない。
+ */
+export function canCompareSameDay(prevYear: number, prevMonth: number): boolean {
+  return toYyyyMm(prevYear, prevMonth) >= CONSULTANT_FEE_APPLIED_FROM_YYYYMM;
+}
+
 /** entries を日付の日部分でフィルタする（例: day <= 9 で月初〜9日分） */
 export function filterEntriesByDay(entries: DailyEntry[], maxDay: number): DailyEntry[] {
   return entries.filter((e) => {
