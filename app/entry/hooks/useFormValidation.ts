@@ -47,17 +47,12 @@ export function useFormValidation() {
   const validateAll = useCallback((state: EntryFormState): boolean => {
     const errs: ValidationErrors = {};
 
-    // 売上必須: f2 (業務委託売上) または f3 (内勤社員売上) のどちらかは > 0
-    const totalRev = num(state.outsourced_sales_revenue) + num(state.internal_staff_revenue);
-    if (totalRev <= 0) {
-      errs.outsourced_sales_revenue = "業務委託売上または内勤社員売上のいずれかを入力してください";
-      errs.internal_staff_revenue = "業務委託売上または内勤社員売上のいずれかを入力してください";
-    }
-
-    // PR #48a: 対応件数の必須チェックは緩和。
+    // 売上必須チェックを撤廃: 売上 0 でも対応件数が発生した日は記録すべきため。
+    // （例: 出動したが断られた日、キャンセル日など）
+    // PR #48a: 対応件数の必須チェックは緩和済み。
     // 鍵・ロード・探偵など「業務委託 vs 内勤社員」の内訳を持たない業態では
     // 件数を 0 のまま保存できる必要がある (業態別フォーム移行 PR #48b までの
-    // 緊急緩和)。売上は引き続き必須。
+    // 緊急緩和)。売上必須も同様に撤廃。
 
     // 各フィールド非負チェック
     // PR c95-A-2: help_staff は配列 (HelpStaffEntry[]) のため本ループの InputValue 単体検証から除外。
