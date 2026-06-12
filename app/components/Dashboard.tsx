@@ -8,6 +8,7 @@ import {
   DailyEntry, FixedCosts, Targets, emptyTargets, manToYen,
   emptyEntry,
   yen,
+  filterEntriesByDay, aggregatePrevSameDay, canCompareSameDay, type SameDayAggregate,
 } from "../lib/calculations";
 import { useRole, useSession } from "./RoleProvider";
 import { hasPageAccess, type Role } from "../lib/permissions";
@@ -516,34 +517,35 @@ export default function Dashboard() {
     };
   }, [summary, monthlySummary, viewYear, viewMonth, isGroup, groupEntriesByArea, groupMonthlySummaries, viewMode, companyData]);
 
-  // ============ 前月比 ============
-  // PR #50: 客単価 (companyUnitPrice) を派生フィールドとして追加。
-  // monthly_summaries には unit_price 列があるが、無い場合は revenue/count から
-  // 算出して fallback (DashboardSummary の派生と整合)。
+  // ============ 前月同日比 ============
+  // prevEntries を「今月と同じ経過日数」でフィルタして集計する。
+  // summaryToday.getDate() = 当月表示中なら今日の日付、過去月表示中なら月末日。
+  // ハードガード: 前月が 2026-04 以前は日次データを参照しない。
+  //   filterEntriesByDay の偶然頼みでは月末(maxDay≥30)に April-30 行を誤取得するため
+  //   canCompareSameDay で構造的に封殺する。
+  const prevSameDayCalc = useMemo((): SameDayAggregate | null => {
+    if (prevEntries.length === 0) return null;
+    if (!canCompareSameDay(prevYear, prevMonth)) return null;
+    const maxDay = summaryToday.getDate();
+    const filtered = filterEntriesByDay(prevEntries, maxDay);
+    return aggregatePrevSameDay(filtered, activeBusiness, prevYear, prevMonth);
+  }, [prevEntries, summaryToday, activeBusiness, prevYear, prevMonth]);
+
+  // 緑部分ヒーロー KPI の前月比も同日比ベースに統一
   const prevSummaryCalc = useMemo(() => {
-    if (prevMonthlySummary) {
-      const rev = Number(prevMonthlySummary.total_revenue ?? 0);
-      const cnt = Number(prevMonthlySummary.total_count ?? 0);
-      const ms = prevMonthlySummary as Record<string, unknown>;
-      const unit = Number(ms.unit_price ?? 0) || (cnt > 0 ? Math.round(rev / cnt) : 0);
+    if (prevSameDayCalc) {
+      const rev = prevSameDayCalc.total_revenue;
+      const cnt = prevSameDayCalc.total_count;
       return {
         totalRevenue: rev,
-        totalProfit: resolveTotalProfit(prevMonthlySummary),
-        totalAdCost: Number(prevMonthlySummary.ad_cost ?? 0),
+        totalProfit: prevSameDayCalc.total_profit,
+        totalAdCost: prevSameDayCalc.ad_cost,
         totalCount: cnt,
-        companyUnitPrice: unit,
+        companyUnitPrice: cnt > 0 ? Math.round(rev / cnt) : 0,
       };
     }
-    const s = calculateDashboard(prevEntries, prevYear, prevMonth,
-      new Date(prevYear, prevMonth - 1, getDaysInMonth(prevYear, prevMonth)));
-    return {
-      totalRevenue: s.totalRevenue,
-      totalProfit: s.totalProfit,
-      totalAdCost: s.totalAdCost,
-      totalCount: s.totalCount,
-      companyUnitPrice: s.companyUnitPrice,
-    };
-  }, [prevMonthlySummary, prevEntries, prevYear, prevMonth]);
+    return { totalRevenue: 0, totalProfit: 0, totalAdCost: 0, totalCount: 0, companyUnitPrice: 0 };
+  }, [prevSameDayCalc]);
 
   const mom = (current: number, prev: number): number | null => {
     if (prev <= 0) return null;
@@ -1233,19 +1235,19 @@ export default function Dashboard() {
             旧 MetricsTable / MetricsTableMobile / buildMetricRows / WATER_METRIC_TO_GROUP
             は完全撤去 (~390 line dead code)。 */}
       {!isGroup && activeBusiness === "locksmith" && (
-        <LocksmithDashboardSection monthlySummary={monthlySummary} targets={targets} />
+        <LocksmithDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
       )}
       {!isGroup && activeBusiness === "road" && (
-        <RoadDashboardSection monthlySummary={monthlySummary} targets={targets} />
+        <RoadDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
       )}
       {!isGroup && activeBusiness === "detective" && (
-        <DetectiveDashboardSection monthlySummary={monthlySummary} targets={targets} />
+        <DetectiveDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
       )}
       {!isGroup && activeBusiness === "electric" && (
-        <ElectricDashboardSection monthlySummary={monthlySummary} targets={targets} />
+        <ElectricDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
       )}
       {!isGroup && activeBusiness === "water" && (
-        <WaterDashboardSection monthlySummary={monthlySummary} targets={targets} />
+        <WaterDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
       )}
 
       {/* ============ グループ: 事業別クロス比較 ============ */}
