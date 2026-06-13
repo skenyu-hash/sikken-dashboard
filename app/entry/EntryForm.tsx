@@ -812,7 +812,7 @@ export default function EntryForm({ initialArea, initialYear, initialMonth, init
         </aside>
 
         {/* ===== 右メイン (flex-1 / 1024px 未満は sidebar 下に積む) ===== */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+        <div key={currentDateStr} style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
           {/* PR #48b c3: 業態別フォーム routing 層。
               現状は全業態 WaterForm にルーティング (動作変更ゼロを担保)。
               c4 で electric → ElectricForm、locksmith → LocksmithForm に分岐。
