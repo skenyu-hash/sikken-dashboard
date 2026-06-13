@@ -1,5 +1,19 @@
 import { resolveTotalProfit } from "./profit";
 import type { BusinessCategory } from "./businesses";
+import { emptyTargets, type Targets } from "./calculations";
+
+// Targets の絶対値フィールド（そのまま加算できるもの）
+// 率・派生値（CPA/単価）は加算せず、後で合算後の絶対値から再計算する
+const SUMMABLE_TARGET_KEYS: ReadonlyArray<keyof Targets> = [
+  "targetSales", "targetProfit", "targetCount",
+  "targetHelpSales", "targetHelpCount",
+  "targetSelfSales", "targetSelfProfit", "targetSelfCount",
+  "targetNewSales", "targetNewProfit", "targetNewCount",
+  "targetAdCost",
+  "targetVehicleCount", "targetTraineeCount", "targetCallCount",
+  "targetMeetingCount",
+  "targetSwitchboardCount",
+];
 
 // 数値として加算しないメタ列（文字列・日時・ID系）
 const META_KEYS = new Set([
@@ -54,6 +68,59 @@ export function aggregateSummariesByCategory(
       if (!Number.isFinite(numVal)) continue;
       current[key] = (Number(current[key]) || 0) + numVal;
     }
+  }
+
+  return result;
+}
+
+/**
+ * 会社の全 (category, area) ペアの targets を業態別に合算する。
+ *
+ * 絶対値フィールド（targetSales/targetProfit 等）はそのまま加算する。
+ * 派生値フィールド（targetCpa/targetUnitPrice 等）は合算後の絶対値から再計算する。
+ * 率フィールド（targetAdRate/targetConversionRate 等）は 0 のまま（UI で「—」表示）。
+ *
+ * 呼び出し前に manToYen() を適用済みの Targets を渡すこと。
+ */
+export function aggregateTargetsByCategory(
+  pairs: Array<{ category: BusinessCategory; targets: Targets }>,
+): Partial<Record<BusinessCategory, Targets>> {
+  const sums: Partial<Record<BusinessCategory, Targets>> = {};
+
+  for (const { category, targets } of pairs) {
+    if (!sums[category]) {
+      sums[category] = emptyTargets();
+    }
+    const s = sums[category]!;
+    for (const key of SUMMABLE_TARGET_KEYS) {
+      (s[key] as number) += targets[key] as number;
+    }
+  }
+
+  const result: Partial<Record<BusinessCategory, Targets>> = {};
+  for (const [cat, s] of Object.entries(sums)) {
+    const sd = s!;
+    result[cat as BusinessCategory] = {
+      ...sd,
+      // 派生値: 合算済み絶対値から再計算
+      targetCpa:
+        sd.targetCount > 0 ? Math.round(sd.targetAdCost / sd.targetCount) : 0,
+      targetUnitPrice:
+        sd.targetCount > 0 ? Math.round(sd.targetSales / sd.targetCount) : 0,
+      targetCallUnitPrice:
+        sd.targetCallCount > 0 ? Math.round(sd.targetAdCost / sd.targetCallCount) : 0,
+      targetHelpUnitPrice:
+        sd.targetHelpCount > 0 ? Math.round(sd.targetHelpSales / sd.targetHelpCount) : 0,
+      // 率: 0 のまま（加算できないため「—」表示）
+      targetConversionRate: 0,
+      targetAdRate: 0,
+      targetLaborRate: 0,
+      targetMaterialRate: 0,
+      targetConstructionRate: 0,
+      targetPassRate: 0,
+      targetHelpRate: 0,
+      targetMeetingRate: 0,
+    };
   }
 
   return result;

@@ -23,7 +23,7 @@ import ElectricDashboardSection from "./ElectricDashboardSection";
 import WaterDashboardSection from "./WaterDashboardSection";
 import CompanyBreakdownTable from "./dashboard/CompanyBreakdownTable";
 import { resolveTotalProfit } from "../lib/profit";
-import { aggregateSummariesByCategory } from "../lib/company-aggregations";
+import { aggregateSummariesByCategory, aggregateTargetsByCategory } from "../lib/company-aggregations";
 // PR c94-B-1: MetricsTable / MetricsTableMobile 撤去に伴い formatAchievement / GroupType /
 //   getGroupBorderColor は本ファイルでの使用が消失 → 削除。
 //   MetricBadge / getBadgeColor は KPI ストリップ (line 1071, 1079) で継続使用のため残置。
@@ -195,6 +195,7 @@ export default function Dashboard() {
     helpRevenue: number; helpCount: number; vehicleCount: number;
   } | null>(null);
   const [companyCategoryData, setCompanyCategoryData] = useState<Partial<Record<BusinessCategory, Record<string, unknown>>>>({});
+  const [companyCategoryTargets, setCompanyCategoryTargets] = useState<Partial<Record<BusinessCategory, Targets>>>({});
   const [form, setForm] = useState<DailyEntry>(() => emptyEntry(todayStr()));
   const [, setLoaded] = useState(false);
 
@@ -313,7 +314,7 @@ export default function Dashboard() {
 
   // ============ データ読込: 会社別ビュー ============
   useEffect(() => {
-    if (viewMode !== "company") { setCompanyData(null); setCompanyCategoryData({}); return; }
+    if (viewMode !== "company") { setCompanyData(null); setCompanyCategoryData({}); setCompanyCategoryTargets({}); return; }
     let cancelled = false;
     const company = COMPANIES.find(c => c.id === activeCompany);
     const pairs = company ? company.areas : COMPANIES.flatMap(c => c.areas);
@@ -352,6 +353,21 @@ export default function Dashboard() {
       if (cancelled) return;
       setEntries(entryArrays.flat());
     });
+
+    // 業態別目標を取得して合算（達成率表示用）
+    Promise.all(
+      pairs.map(async ({ category, areaId }) => {
+        const res = await fetch(`/api/targets?area=${areaId}&year=${viewYear}&month=${viewMonth}&category=${category}`)
+          .then(r => r.ok ? r.json() : { targets: null });
+        if (!res.targets) return null;
+        return { category, targets: manToYen(res.targets as Targets) };
+      })
+    ).then((items) => {
+      if (cancelled) return;
+      const valid = items.filter((i): i is { category: BusinessCategory; targets: Targets } => i !== null);
+      setCompanyCategoryTargets(aggregateTargetsByCategory(valid));
+    });
+
     return () => { cancelled = true; };
   }, [viewMode, activeCompany, viewYear, viewMonth]);
 
@@ -1279,35 +1295,35 @@ export default function Dashboard() {
           {companyCategoryData.water && (
             <WaterDashboardSection
               monthlySummary={companyCategoryData.water}
-              targets={emptyTargets()}
+              targets={companyCategoryTargets.water ?? emptyTargets()}
               prevCalc={null}
             />
           )}
           {companyCategoryData.electric && (
             <ElectricDashboardSection
               monthlySummary={companyCategoryData.electric}
-              targets={emptyTargets()}
+              targets={companyCategoryTargets.electric ?? emptyTargets()}
               prevCalc={null}
             />
           )}
           {companyCategoryData.locksmith && (
             <LocksmithDashboardSection
               monthlySummary={companyCategoryData.locksmith}
-              targets={emptyTargets()}
+              targets={companyCategoryTargets.locksmith ?? emptyTargets()}
               prevCalc={null}
             />
           )}
           {companyCategoryData.road && (
             <RoadDashboardSection
               monthlySummary={companyCategoryData.road}
-              targets={emptyTargets()}
+              targets={companyCategoryTargets.road ?? emptyTargets()}
               prevCalc={null}
             />
           )}
           {companyCategoryData.detective && (
             <DetectiveDashboardSection
               monthlySummary={companyCategoryData.detective}
-              targets={emptyTargets()}
+              targets={companyCategoryTargets.detective ?? emptyTargets()}
               prevCalc={null}
             />
           )}

@@ -1,7 +1,8 @@
 // 単独実行: npx tsx scripts/test-company-aggregations.ts
-// aggregateSummariesByCategory のユニットテスト
+// aggregateSummariesByCategory / aggregateTargetsByCategory のユニットテスト
 
-import { aggregateSummariesByCategory } from "../app/lib/company-aggregations";
+import { aggregateSummariesByCategory, aggregateTargetsByCategory } from "../app/lib/company-aggregations";
+import { emptyTargets, type Targets } from "../app/lib/calculations";
 import type { BusinessCategory } from "../app/lib/businesses";
 
 type Case = {
@@ -281,6 +282,193 @@ const cases: Case[] = [
   },
 ];
 
+// ===== aggregateTargetsByCategory テスト =====
+
+function makeTargets(overrides: Partial<Targets> = {}): Targets {
+  return { ...emptyTargets(), ...overrides };
+}
+
+type TargetCase = {
+  note: string;
+  input: Array<{ category: BusinessCategory; targets: Targets }>;
+  check: (result: Partial<Record<BusinessCategory, Targets>>) => boolean;
+  expected: string;
+};
+
+const targetCases: TargetCase[] = [
+  // ===== 単一ペア: そのまま返る =====
+  {
+    note: "単一ペア: targetSales がそのまま入る",
+    input: [{ category: "water", targets: makeTargets({ targetSales: 50000000, targetProfit: 15000000, targetCount: 200 }) }],
+    check: (r) => r.water?.targetSales === 50000000,
+    expected: "targetSales = 50000000",
+  },
+
+  // ===== 絶対値フィールドの加算 =====
+  {
+    note: "水道2エリア: targetSales が加算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetSales: 30000000, targetProfit: 9000000, targetCount: 120 }) },
+      { category: "water", targets: makeTargets({ targetSales: 25000000, targetProfit: 7500000, targetCount: 100 }) },
+    ],
+    check: (r) => r.water?.targetSales === 55000000,
+    expected: "targetSales = 55000000 (30M + 25M)",
+  },
+
+  {
+    note: "水道2エリア: targetProfit が加算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetSales: 30000000, targetProfit: 9000000, targetCount: 120 }) },
+      { category: "water", targets: makeTargets({ targetSales: 25000000, targetProfit: 7500000, targetCount: 100 }) },
+    ],
+    check: (r) => r.water?.targetProfit === 16500000,
+    expected: "targetProfit = 16500000 (9M + 7.5M)",
+  },
+
+  {
+    note: "水道2エリア: targetCount が加算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetSales: 30000000, targetProfit: 9000000, targetCount: 120 }) },
+      { category: "water", targets: makeTargets({ targetSales: 25000000, targetProfit: 7500000, targetCount: 100 }) },
+    ],
+    check: (r) => r.water?.targetCount === 220,
+    expected: "targetCount = 220 (120 + 100)",
+  },
+
+  {
+    note: "水道2エリア: targetAdCost が加算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetAdCost: 5000000, targetCount: 120 }) },
+      { category: "water", targets: makeTargets({ targetAdCost: 4000000, targetCount: 100 }) },
+    ],
+    check: (r) => r.water?.targetAdCost === 9000000,
+    expected: "targetAdCost = 9000000 (5M + 4M)",
+  },
+
+  // ===== 派生値: 合算後の絶対値から再計算 =====
+  {
+    note: "targetCpa は合算後に targetAdCost ÷ targetCount で再計算される",
+    input: [
+      // area1: adCost=5M, count=100 → CPA=50000
+      { category: "water", targets: makeTargets({ targetAdCost: 5000000, targetCount: 100, targetCpa: 50000 }) },
+      // area2: adCost=4M, count=80 → CPA=50000
+      { category: "water", targets: makeTargets({ targetAdCost: 4000000, targetCount: 80, targetCpa: 50000 }) },
+    ],
+    // 合算: (5M + 4M) / (100 + 80) = 9M / 180 = 50000
+    check: (r) => r.water?.targetCpa === 50000,
+    expected: "targetCpa = 50000 (9000000 ÷ 180)",
+  },
+
+  {
+    note: "targetUnitPrice は targetSales ÷ targetCount で再計算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetSales: 30000000, targetCount: 120 }) },
+      { category: "water", targets: makeTargets({ targetSales: 25000000, targetCount: 100 }) },
+    ],
+    // (30M + 25M) / (120 + 100) = 55M / 220 = 250000
+    check: (r) => r.water?.targetUnitPrice === 250000,
+    expected: "targetUnitPrice = 250000 (55000000 ÷ 220)",
+  },
+
+  {
+    note: "targetHelpUnitPrice は targetHelpSales ÷ targetHelpCount で再計算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetHelpSales: 6000000, targetHelpCount: 10 }) },
+      { category: "water", targets: makeTargets({ targetHelpSales: 4000000, targetHelpCount: 8 }) },
+    ],
+    // (6M + 4M) / (10 + 8) = 10M / 18 ≈ 555555
+    check: (r) => r.water?.targetHelpUnitPrice === Math.round(10000000 / 18),
+    expected: `targetHelpUnitPrice = ${Math.round(10000000 / 18)} (10000000 ÷ 18)`,
+  },
+
+  // ===== 率フィールド: 0 のまま（「—」表示）=====
+  {
+    note: "targetAdRate は 0（加算不可・「—」表示）",
+    input: [
+      { category: "water", targets: makeTargets({ targetAdRate: 15 }) },
+      { category: "water", targets: makeTargets({ targetAdRate: 12 }) },
+    ],
+    check: (r) => r.water?.targetAdRate === 0,
+    expected: "targetAdRate = 0（率は加算不可）",
+  },
+
+  {
+    note: "targetConversionRate は 0（加算不可・「—」表示）",
+    input: [
+      { category: "water", targets: makeTargets({ targetConversionRate: 80 }) },
+      { category: "water", targets: makeTargets({ targetConversionRate: 75 }) },
+    ],
+    check: (r) => r.water?.targetConversionRate === 0,
+    expected: "targetConversionRate = 0（率は加算不可）",
+  },
+
+  // ===== 複数業態: DUNK（water×2 + electric×1 + road×1）=====
+  {
+    note: "複数業態: water と electric が別キーに集計される",
+    input: [
+      { category: "water", targets: makeTargets({ targetSales: 30000000, targetCount: 120 }) },
+      { category: "water", targets: makeTargets({ targetSales: 25000000, targetCount: 100 }) },
+      { category: "electric", targets: makeTargets({ targetSales: 20000000, targetCount: 80 }) },
+      { category: "road", targets: makeTargets({ targetSales: 10000000, targetCount: 40 }) },
+    ],
+    check: (r) =>
+      r.water?.targetSales === 55000000 &&
+      r.electric?.targetSales === 20000000 &&
+      r.road?.targetSales === 10000000,
+    expected: "water=55M, electric=20M, road=10M に分かれる",
+  },
+
+  // ===== SIKKEN Group（鍵1ペア）=====
+  {
+    note: "鍵1ペア: locksmith のみ存在",
+    input: [
+      { category: "locksmith", targets: makeTargets({ targetSales: 15000000, targetProfit: 6000000, targetCount: 150 }) },
+    ],
+    check: (r) => r.locksmith !== undefined && r.water === undefined && r.locksmith.targetSales === 15000000,
+    expected: "locksmith のみ存在",
+  },
+
+  // ===== 空配列 =====
+  {
+    note: "空配列: 結果も空オブジェクト",
+    input: [],
+    check: (r) => Object.keys(r).length === 0,
+    expected: "空オブジェクト {}",
+  },
+
+  // ===== targetCallCount / targetVehicleCount / targetTraineeCount =====
+  {
+    note: "targetCallCount が加算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetCallCount: 500 }) },
+      { category: "water", targets: makeTargets({ targetCallCount: 400 }) },
+    ],
+    check: (r) => r.water?.targetCallCount === 900,
+    expected: "targetCallCount = 900 (500 + 400)",
+  },
+
+  {
+    note: "targetVehicleCount が加算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetVehicleCount: 8 }) },
+      { category: "water", targets: makeTargets({ targetVehicleCount: 6 }) },
+    ],
+    check: (r) => r.water?.targetVehicleCount === 14,
+    expected: "targetVehicleCount = 14 (8 + 6)",
+  },
+
+  // ===== 電気専用 targetSwitchboardCount =====
+  {
+    note: "targetSwitchboardCount（電気専用）が加算される",
+    input: [
+      { category: "electric", targets: makeTargets({ targetSwitchboardCount: 20 }) },
+      { category: "electric", targets: makeTargets({ targetSwitchboardCount: 15 }) },
+    ],
+    check: (r) => r.electric?.targetSwitchboardCount === 35,
+    expected: "targetSwitchboardCount = 35 (20 + 15)",
+  },
+];
+
 let passed = 0;
 let failed = 0;
 const failures: string[] = [];
@@ -298,7 +486,27 @@ for (const c of cases) {
 }
 
 console.log(`\n${failed === 0 ? "✅" : "❌"} ${passed}/${passed + failed} passed — aggregateSummariesByCategory`);
-if (failed > 0) {
-  console.error(`\n${failed} failures:\n${failures.join("\n")}`);
+
+let tPassed = 0;
+let tFailed = 0;
+const tFailures: string[] = [];
+
+for (const c of targetCases) {
+  const result = aggregateTargetsByCategory(c.input);
+  if (c.check(result)) {
+    tPassed++;
+  } else {
+    tFailed++;
+    const msg = `❌ [${c.note}] — expected: ${c.expected}, got: ${JSON.stringify(result)}`;
+    tFailures.push(msg);
+    console.error(msg);
+  }
 }
-process.exit(failed > 0 ? 1 : 0);
+
+console.log(`${tFailed === 0 ? "✅" : "❌"} ${tPassed}/${tPassed + tFailed} passed — aggregateTargetsByCategory`);
+
+const totalFailed = failed + tFailed;
+if (totalFailed > 0) {
+  console.error(`\n${totalFailed} total failures:\n${[...failures, ...tFailures].join("\n")}`);
+}
+process.exit(totalFailed > 0 ? 1 : 0);
