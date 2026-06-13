@@ -324,8 +324,23 @@ function Row({
           <span style={{ color: "#d1d5db" }}>—</span>
         )}
       </td>
-      <td style={{ ...td, textAlign: "right", fontSize: 11, color: momColor }}>
-        {mom ?? <span style={{ color: "#d1d5db" }}>—</span>}
+      <td style={{ ...td, textAlign: "right" }}>
+        {mom ? (() => {
+          let badge = mom;
+          let sub: string | null = null;
+          if (!mom.includes("→")) {
+            const idx = mom.indexOf("%") + 1;
+            badge = mom.slice(0, idx);
+            sub = mom.slice(idx).trim() || null;
+          }
+          const bgColor = momColor === "#059669" ? "#dcfce7" : "#fee2e2";
+          return (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: momColor, background: bgColor, borderRadius: 4, padding: "2px 6px" }}>{badge}</span>
+              {sub && <span style={{ fontSize: 10, color: "#9ca3af" }}>{sub}</span>}
+            </div>
+          );
+        })() : <span style={{ color: "#d1d5db" }}>—</span>}
       </td>
     </tr>
   );
