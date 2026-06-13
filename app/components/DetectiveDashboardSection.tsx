@@ -303,7 +303,7 @@ function Row({
           }
           const bgColor = momColor === "#059669" ? "#dcfce7" : "#fee2e2";
           return (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+            <div style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: momColor, background: bgColor, borderRadius: 4, padding: "2px 6px" }}>{badge}</span>
               {sub && <span style={{ fontSize: 10, color: "#9ca3af" }}>{sub}</span>}
             </div>
