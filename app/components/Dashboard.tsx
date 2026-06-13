@@ -996,8 +996,10 @@ export default function Dashboard() {
               客単価の着地: 比例関係上 landing = actual で式が成り立つため、
                 landRate ≡ targetRatio となるが、UI 一貫性のため両バッジ表示。 */}
           {/* KPIストリップ: 事業別・会社別ともに表示（companyDataから正しく集計される）。
-              targets は会社別では emptyTargets() のため達成率バッジは表示されない（null になる）。 */}
-          {!isGroup && (() => {
+              targets は会社別では emptyTargets() のため達成率バッジは表示されない（null になる）。
+              isGroup は activeTab===GROUP_TAB で決まるため、グループ全体から会社別に切替時も
+              true のまま残る。会社別ビューでは isGroup を無視して常に表示する。 */}
+          {(!isGroup || viewMode === "company") && (() => {
             const dim = displaySummary.daysInMonth;
             const elapsed = isCurrentMonth ? now.getDate() : dim;
             const landing = (v: number) => isCurrentMonth && elapsed > 0 ? Math.round(v / elapsed * dim) : v;
