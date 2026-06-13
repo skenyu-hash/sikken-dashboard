@@ -243,15 +243,15 @@ function Card({ title, group, children }: { title: string; group: GroupType; chi
       }}>{title}</div>
       <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <colgroup>
-          <col style={{ width: "28%" }} />
-          <col style={{ width: "18%" }} />
-          <col style={{ width: "18%" }} />
-          <col style={{ width: "18%" }} />
-          <col style={{ width: "18%" }} />
+          <col style={{ width: "34%" }} />
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "22%" }} />
         </colgroup>
         <thead>
           <tr style={{ background: "#fafffe" }}>
-            {["指標", "実績", "目標", "達成率 / 補足", "前月同日比"].map((h, i) => (
+            {["指標", "実績", "目標", "達成率", "前月同日比"].map((h, i) => (
               <th key={h} style={{
                 padding: `7px ${SECTION.PADDING_H}px`, fontSize: 10, fontWeight: 700, color: "#6b7280",
                 textTransform: "uppercase", letterSpacing: "0.06em",
@@ -287,7 +287,17 @@ function Row({
   const bg = highlight ? "#f0fdf4" : "transparent";
   const borderColor = group ? getGroupBorderColor(group) : "transparent";
   const momColor = mom
-    ? (() => { const up = mom.startsWith("↑") || mom.startsWith("+"); return (momInvert ? !up : up) ? "#059669" : "#dc2626"; })()
+    ? (() => {
+        let up: boolean;
+        if (mom.includes("→")) {
+          const parts = mom.split("→");
+          up = parseFloat(parts[1]) >= parseFloat(parts[0]);
+        } else {
+          up = mom.startsWith("+");
+        }
+        const isGood = momInvert ? !up : up;
+        return isGood ? "#059669" : "#dc2626";
+      })()
     : "#9ca3af";
 
   return (
@@ -297,7 +307,8 @@ function Row({
         color: highlight ? "#065f46" : "#111",
         borderLeft: `3px solid ${borderColor}`,
       }}>
-        {label}
+        <div style={{ whiteSpace: "nowrap" }}>{label}</div>
+        {sub && <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 400, whiteSpace: "normal", lineHeight: 1.4, marginTop: 2 }}>{sub}</div>}
       </td>
       <td style={{ ...td, textAlign: "right", fontWeight: 700, color: highlight ? "#065f46" : "#111" }}>{actual}</td>
       <td style={{ ...td, textAlign: "right", color: "#6b7280" }}>{target}</td>
@@ -309,8 +320,6 @@ function Row({
           >
             {achievement.pct.toFixed(1)}%
           </MetricBadge>
-        ) : sub ? (
-          <span style={{ fontSize: 10, color: "#6b7280" }}>{sub}</span>
         ) : (
           <span style={{ color: "#d1d5db" }}>—</span>
         )}

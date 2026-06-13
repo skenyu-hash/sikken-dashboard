@@ -199,18 +199,18 @@ assert("prev=0 → null (count)", momLabel(5, 0, "count"), null);
 assert("prev=0 → null (pct)", momLabel(50, 0, "pct"), null);
 
 // yen: 10000 以上の差 → 万円表示
-assert("yen +増加 (万円)", momLabel(1_200_000, 1_000_000, "yen"), "↑+20% (+¥20万)");
-assert("yen -減少 (万円)", momLabel(800_000, 1_000_000, "yen"), "↓-20% (-¥20万)");
+assert("yen +増加 (万円)", momLabel(1_200_000, 1_000_000, "yen"), "+20% +¥20万");
+assert("yen -減少 (万円)", momLabel(800_000, 1_000_000, "yen"), "-20% -¥20万");
 // yen: 差が 10000 未満 → 円表示
-assert("yen +増加 (円)", momLabel(5000, 4000, "yen"), "↑+25% (+¥1,000)");
+assert("yen +増加 (円)", momLabel(5000, 4000, "yen"), "+25% +¥1,000");
 // count
-assert("count +増加", momLabel(22, 20, "count"), "↑+10% (+2件)");
-assert("count -減少", momLabel(18, 20, "count"), "↓-10% (-2件)");
-// pct: percentage point
-assert("pct +増加", momLabel(32.5, 30, "pct"), "+2.5pt");
-assert("pct -減少", momLabel(27.5, 30, "pct"), "-2.5pt");
+assert("count +増加", momLabel(22, 20, "count"), "+10% +2件");
+assert("count -減少", momLabel(18, 20, "count"), "-10% -2件");
+// pct: 前月値 → 今月値
+assert("pct +増加", momLabel(32.5, 30, "pct"), "30.0% → 32.5%");
+assert("pct -減少", momLabel(27.5, 30, "pct"), "30.0% → 27.5%");
 // 変化なし
-assert("yen 変化なし (0%)", momLabel(1_000_000, 1_000_000, "yen"), "↑+0% (+¥0)");
+assert("yen 変化なし (0%)", momLabel(1_000_000, 1_000_000, "yen"), "+0% +¥0");
 
 // ===== 結果 =====
 console.log(`\n${"=".repeat(40)}`);
