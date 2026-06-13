@@ -777,9 +777,9 @@ export function aggregatePrevSameDay(
 
 /**
  * 前月同日比ラベルを生成する。
- * - "yen"  : "↑+12.3% (+¥270万)" のように % と金額差を表示
- * - "count": "↑+9.7% (+16件)"
- * - "pct"  : "+2.1pt"（パーセントポイント差、率指標用）
+ * - "yen"  : "+12.3% +¥270万" のように % と金額差を表示（色で上下を表現）
+ * - "count": "+9.7% +16件"
+ * - "pct"  : "16.5% → 31.6%"（率指標は前月値→今月値を直接表示）
  * prev が 0 以下のときは null（表示なし）。
  */
 export function momLabel(
@@ -791,24 +791,21 @@ export function momLabel(
   const diff = current - prev;
 
   if (fmt === "pct") {
-    const pt = Math.round((current - prev) * 10) / 10;
-    const sign = pt >= 0 ? "+" : "";
-    return `${sign}${pt}pt`;
+    return `${prev.toFixed(1)}% → ${current.toFixed(1)}%`;
   }
 
   const pct = Math.round((diff / prev) * 1000) / 10;
-  const arrow = pct >= 0 ? "↑" : "↓";
-  const sign  = pct >= 0 ? "+" : "";
+  const sign = pct >= 0 ? "+" : "";
 
   if (fmt === "yen") {
     const abs = Math.abs(diff);
     const diffStr = abs >= 10000
       ? `${diff >= 0 ? "+" : "-"}¥${Math.round(abs / 10000).toLocaleString("ja-JP")}万`
       : `${diff >= 0 ? "+" : "-"}¥${Math.round(abs).toLocaleString("ja-JP")}`;
-    return `${arrow}${sign}${pct}% (${diffStr})`;
+    return `${sign}${pct}% ${diffStr}`;
   }
 
   // count
   const dSign = diff >= 0 ? "+" : "";
-  return `${arrow}${sign}${pct}% (${dSign}${Math.round(diff)}件)`;
+  return `${sign}${pct}% ${dSign}${Math.round(diff)}件`;
 }
