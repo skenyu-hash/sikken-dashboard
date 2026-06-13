@@ -243,7 +243,12 @@ export default function Dashboard() {
 
   // 固定費 + 目標の読込
   useEffect(() => {
-    if (isGroup || viewMode === "company") return;
+    // 会社別ビューでは古い目標値（達成率464%等の誤表示の原因）を確実にクリア
+    if (viewMode === "company") {
+      setTargets(emptyTargets());
+      return;
+    }
+    if (isGroup) return;
     fetch(`/api/fixed-costs?area=${activeTab}&year=${viewYear}&month=${viewMonth}`)
       .then((r) => (r.ok ? r.json() : { fixedCosts: { laborCost: 0, rent: 0, other: 0 } }))
       .then((j: { fixedCosts: FixedCosts }) => setFixedCosts(j.fixedCosts));
@@ -874,39 +879,46 @@ export default function Dashboard() {
                     ? Math.round(displaySummary.totalRevenue / now.getDate() * displaySummary.daysInMonth)
                     : displaySummary.totalRevenue;
                   return forecastRevenue > 0 ? yen(forecastRevenue) : "¥0";
-                })()} ｜ 達成率{" "}
-                <strong style={{ color: "#86efac" }}>
-                  {targets.targetSales > 0 ? (
-                    isCurrentMonth && now.getDate() > 0
-                      ? Math.round(displaySummary.totalRevenue / now.getDate() * displaySummary.daysInMonth / targets.targetSales * 100)
-                      : Math.round(displaySummary.totalRevenue / Math.max(targets.targetSales, 1) * 100)
-                  ) + "%" : "未設定"}
-                </strong>
-                {monthlySummary && (
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,0.2)",
-                    color: "#fff", borderRadius: 4, padding: "2px 8px", marginLeft: 8,
-                  }}>
-                    過去データ
-                  </span>
-                )}
-                {yoyMonthlySummary && Number(yoyMonthlySummary.total_revenue ?? 0) > 0 && (() => {
-                  const yoyRevenue = Number(yoyMonthlySummary.total_revenue);
-                  const yoyRate = Math.round((displaySummary.totalRevenue - yoyRevenue) / yoyRevenue * 1000) / 10;
-                  return (
-                    <span style={{
-                      fontSize: 10, fontWeight: 700,
-                      background: yoyRate >= 0 ? "rgba(134,239,172,0.3)" : "rgba(252,165,165,0.3)",
-                      color: "#fff", borderRadius: 4, padding: "2px 8px", marginLeft: 8,
-                    }}>
-                      前年同月比: {yoyRate >= 0 ? "+" : ""}{yoyRate.toFixed(1)}%
-                    </span>
-                  );
                 })()}
+                {/* 達成率・バッジは事業別ビューのみ。会社別では目標が存在しないため非表示 */}
+                {viewMode === "business" && (
+                  <>
+                    {" "}｜ 達成率{" "}
+                    <strong style={{ color: "#86efac" }}>
+                      {targets.targetSales > 0 ? (
+                        isCurrentMonth && now.getDate() > 0
+                          ? Math.round(displaySummary.totalRevenue / now.getDate() * displaySummary.daysInMonth / targets.targetSales * 100)
+                          : Math.round(displaySummary.totalRevenue / Math.max(targets.targetSales, 1) * 100)
+                      ) + "%" : "未設定"}
+                    </strong>
+                    {monthlySummary && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,0.2)",
+                        color: "#fff", borderRadius: 4, padding: "2px 8px", marginLeft: 8,
+                      }}>
+                        過去データ
+                      </span>
+                    )}
+                    {yoyMonthlySummary && Number(yoyMonthlySummary.total_revenue ?? 0) > 0 && (() => {
+                      const yoyRevenue = Number(yoyMonthlySummary.total_revenue);
+                      const yoyRate = Math.round((displaySummary.totalRevenue - yoyRevenue) / yoyRevenue * 1000) / 10;
+                      return (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700,
+                          background: yoyRate >= 0 ? "rgba(134,239,172,0.3)" : "rgba(252,165,165,0.3)",
+                          color: "#fff", borderRadius: 4, padding: "2px 8px", marginLeft: 8,
+                        }}>
+                          前年同月比: {yoyRate >= 0 ? "+" : ""}{yoyRate.toFixed(1)}%
+                        </span>
+                      );
+                    })()}
+                  </>
+                )}
               </p>
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-              <button
+              {/* CSV出力は事業別ビューのみ。会社別では activeTab が事業別エリアのため誤データになる */}
+              {viewMode === "business" && <button
                 type="button"
                 onClick={() => {
                   const area = activeTab;
@@ -964,7 +976,7 @@ export default function Dashboard() {
                 }}
               >
                 CSV出力
-              </button>
+              </button>}
               <div style={{ textAlign: "right", lineHeight: 1.2 }}>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginBottom: 2 }}>残り</div>
                 <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", lineHeight: 1 }}>
@@ -983,7 +995,11 @@ export default function Dashboard() {
               新規追加 : 客単価 (= total_revenue ÷ total_count、目標 = targetUnitPrice)
               客単価の着地: 比例関係上 landing = actual で式が成り立つため、
                 landRate ≡ targetRatio となるが、UI 一貫性のため両バッジ表示。 */}
-          {!isGroup && (() => {
+          {/* KPIストリップ: 事業別・会社別ともに表示（companyDataから正しく集計される）。
+              targets は会社別では emptyTargets() のため達成率バッジは表示されない（null になる）。
+              isGroup は activeTab===GROUP_TAB で決まるため、グループ全体から会社別に切替時も
+              true のまま残る。会社別ビューでは isGroup を無視して常に表示する。 */}
+          {(!isGroup || viewMode === "company") && (() => {
             const dim = displaySummary.daysInMonth;
             const elapsed = isCurrentMonth ? now.getDate() : dim;
             const landing = (v: number) => isCurrentMonth && elapsed > 0 ? Math.round(v / elapsed * dim) : v;
@@ -1234,19 +1250,20 @@ export default function Dashboard() {
           PR c94-B-1: 水道業態を WaterDashboardSection に置換 (5 セクション、業態統一)。
             旧 MetricsTable / MetricsTableMobile / buildMetricRows / WATER_METRIC_TO_GROUP
             は完全撤去 (~390 line dead code)。 */}
-      {!isGroup && activeBusiness === "locksmith" && (
+      {/* 業態別セクションは事業別ビューのみ。会社別では monthlySummary=null のため全項目「—」になるバグを防ぐ */}
+      {viewMode === "business" && !isGroup && activeBusiness === "locksmith" && (
         <LocksmithDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
       )}
-      {!isGroup && activeBusiness === "road" && (
+      {viewMode === "business" && !isGroup && activeBusiness === "road" && (
         <RoadDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
       )}
-      {!isGroup && activeBusiness === "detective" && (
+      {viewMode === "business" && !isGroup && activeBusiness === "detective" && (
         <DetectiveDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
       )}
-      {!isGroup && activeBusiness === "electric" && (
+      {viewMode === "business" && !isGroup && activeBusiness === "electric" && (
         <ElectricDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
       )}
-      {!isGroup && activeBusiness === "water" && (
+      {viewMode === "business" && !isGroup && activeBusiness === "water" && (
         <WaterDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
       )}
 
