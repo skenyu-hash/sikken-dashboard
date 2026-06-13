@@ -23,6 +23,7 @@ import ElectricDashboardSection from "./ElectricDashboardSection";
 import WaterDashboardSection from "./WaterDashboardSection";
 import CompanyBreakdownTable from "./dashboard/CompanyBreakdownTable";
 import { resolveTotalProfit } from "../lib/profit";
+import { aggregateSummariesByCategory } from "../lib/company-aggregations";
 // PR c94-B-1: MetricsTable / MetricsTableMobile 撤去に伴い formatAchievement / GroupType /
 //   getGroupBorderColor は本ファイルでの使用が消失 → 削除。
 //   MetricBadge / getBadgeColor は KPI ストリップ (line 1071, 1079) で継続使用のため残置。
@@ -193,6 +194,7 @@ export default function Dashboard() {
     totalRevenue: number; totalProfit: number; totalCount: number; totalAdCost: number;
     helpRevenue: number; helpCount: number; vehicleCount: number;
   } | null>(null);
+  const [companyCategoryData, setCompanyCategoryData] = useState<Partial<Record<BusinessCategory, Record<string, unknown>>>>({});
   const [form, setForm] = useState<DailyEntry>(() => emptyEntry(todayStr()));
   const [, setLoaded] = useState(false);
 
@@ -311,7 +313,7 @@ export default function Dashboard() {
 
   // ============ データ読込: 会社別ビュー ============
   useEffect(() => {
-    if (viewMode !== "company") { setCompanyData(null); return; }
+    if (viewMode !== "company") { setCompanyData(null); setCompanyCategoryData({}); return; }
     let cancelled = false;
     const company = COMPANIES.find(c => c.id === activeCompany);
     const pairs = company ? company.areas : COMPANIES.flatMap(c => c.areas);
@@ -319,12 +321,12 @@ export default function Dashboard() {
       pairs.map(async ({ category, areaId }) => {
         const res = await fetch(`/api/monthly-summary?area=${areaId}&year=${viewYear}&month=${viewMonth}&category=${category}`)
           .then(r => r.ok ? r.json() : { summary: null });
-        return res.summary;
+        return { category, summary: res.summary as Record<string, unknown> | null };
       })
-    ).then((summaries) => {
+    ).then((items) => {
       if (cancelled) return;
       const result = { totalRevenue: 0, totalProfit: 0, totalCount: 0, totalAdCost: 0, helpRevenue: 0, helpCount: 0, vehicleCount: 0 };
-      for (const s of summaries) {
+      for (const { summary: s } of items) {
         if (!s) continue;
         result.totalRevenue += Number(s.total_revenue ?? 0);
         result.totalProfit += resolveTotalProfit(s);
@@ -335,6 +337,7 @@ export default function Dashboard() {
         result.vehicleCount += Number(s.vehicle_count ?? 0);
       }
       setCompanyData(result);
+      setCompanyCategoryData(aggregateSummariesByCategory(items));
     });
     // Also load group entries for company view aggregation
     const uniqueAreas = [...new Set(pairs.map(p => p.areaId))];
@@ -1265,6 +1268,50 @@ export default function Dashboard() {
       )}
       {viewMode === "business" && !isGroup && activeBusiness === "water" && (
         <WaterDashboardSection monthlySummary={monthlySummary} targets={targets} prevCalc={prevSameDayCalc} />
+      )}
+
+      {/* ============ 会社別ビュー: 業態別セクション（案B）============
+          companyCategoryData に業態別合算済み monthlySummary が入る。
+          targets=emptyTargets() のため目標列は「—」、prevCalc=null のため前月同日比は「—」。
+          その会社が持つ業態のみ表示（キーが存在する場合のみレンダリング）。 */}
+      {viewMode === "company" && Object.keys(companyCategoryData).length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 32, paddingBottom: 32 }}>
+          {companyCategoryData.water && (
+            <WaterDashboardSection
+              monthlySummary={companyCategoryData.water}
+              targets={emptyTargets()}
+              prevCalc={null}
+            />
+          )}
+          {companyCategoryData.electric && (
+            <ElectricDashboardSection
+              monthlySummary={companyCategoryData.electric}
+              targets={emptyTargets()}
+              prevCalc={null}
+            />
+          )}
+          {companyCategoryData.locksmith && (
+            <LocksmithDashboardSection
+              monthlySummary={companyCategoryData.locksmith}
+              targets={emptyTargets()}
+              prevCalc={null}
+            />
+          )}
+          {companyCategoryData.road && (
+            <RoadDashboardSection
+              monthlySummary={companyCategoryData.road}
+              targets={emptyTargets()}
+              prevCalc={null}
+            />
+          )}
+          {companyCategoryData.detective && (
+            <DetectiveDashboardSection
+              monthlySummary={companyCategoryData.detective}
+              targets={emptyTargets()}
+              prevCalc={null}
+            />
+          )}
+        </div>
       )}
 
       {/* ============ グループ: 事業別クロス比較 ============ */}
