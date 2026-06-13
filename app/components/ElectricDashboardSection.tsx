@@ -333,11 +333,10 @@ function Row({
             badge = mom.slice(0, idx);
             sub = mom.slice(idx).trim() || null;
           }
-          const bgColor = momColor === "#059669" ? "#dcfce7" : "#fee2e2";
           return (
             <div style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: momColor, background: bgColor, borderRadius: 4, padding: "2px 6px" }}>{badge}</span>
-              {sub && <span style={{ fontSize: 10, color: "#9ca3af" }}>{sub}</span>}
+              <span style={{ fontSize: 11, fontWeight: 700, color: momColor }}>{badge}</span>
+              {sub && <span style={{ fontSize: 10, fontWeight: 400, color: momColor, opacity: 0.7 }}>{sub}</span>}
             </div>
           );
         })() : <span style={{ color: "#d1d5db" }}>—</span>}
