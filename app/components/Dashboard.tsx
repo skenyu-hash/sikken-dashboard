@@ -196,6 +196,8 @@ export default function Dashboard() {
   } | null>(null);
   const [companyCategoryData, setCompanyCategoryData] = useState<Partial<Record<BusinessCategory, Record<string, unknown>>>>({});
   const [companyCategoryTargets, setCompanyCategoryTargets] = useState<Partial<Record<BusinessCategory, Targets>>>({});
+  // 会社別ビュー: 前月同日比用の「前月 entries」を業態ごとに連結保持（READ ONLY、当月集計とは別経路）。
+  const [companyPrevEntriesByCat, setCompanyPrevEntriesByCat] = useState<Partial<Record<BusinessCategory, DailyEntry[]>>>({});
   const [form, setForm] = useState<DailyEntry>(() => emptyEntry(todayStr()));
   const [, setLoaded] = useState(false);
 
@@ -420,6 +422,33 @@ export default function Dashboard() {
     }
   }, [activeTab, viewYear, viewMonth, isGroup, activeBusiness, viewMode]);
 
+  // ============ 会社別ビュー: 前月 entries 取得（前月同日比用、READ ONLY）============
+  // エリアタブと同じ仕組み（/api/entries 日次 → filterEntriesByDay → aggregatePrevSameDay）を
+  // 会社の (業態×エリア) 全ペアに適用する。会社が同一業態を複数エリアに持つ場合
+  // （例 REXIA 水道=関東+北関東）は業態キーに連結して会社合算にする。
+  // viewMode!=="company" では必ず空に戻す（business 経路の stale prevEntries 誤用を構造的に封殺）。
+  useEffect(() => {
+    if (viewMode !== "company") { setCompanyPrevEntriesByCat({}); return; }
+    let cancelled = false;
+    const company = COMPANIES.find(c => c.id === activeCompany);
+    const pairs = company ? company.areas : COMPANIES.flatMap(c => c.areas);
+    Promise.all(
+      pairs.map(async ({ category, areaId }) => {
+        const res = await fetch(`/api/entries?area=${areaId}&year=${prevYear}&month=${prevMonth}&category=${category}`)
+          .then(r => r.ok ? r.json() : { entries: [] });
+        return { category, entries: (res.entries ?? []) as DailyEntry[] };
+      })
+    ).then((items) => {
+      if (cancelled) return;
+      const byCat: Partial<Record<BusinessCategory, DailyEntry[]>> = {};
+      for (const { category, entries } of items) {
+        (byCat[category] ??= []).push(...entries);
+      }
+      setCompanyPrevEntriesByCat(byCat);
+    });
+    return () => { cancelled = true; };
+  }, [viewMode, activeCompany, prevYear, prevMonth]);
+
   // ============ 集計 ============
   const summaryToday = useMemo(
     () => (isCurrentMonth ? now : new Date(viewYear, viewMonth, 0)),
@@ -560,8 +589,41 @@ export default function Dashboard() {
     return aggregatePrevSameDay(filtered, activeBusiness, prevYear, prevMonth);
   }, [prevEntries, summaryToday, activeBusiness, prevYear, prevMonth]);
 
-  // 緑部分ヒーロー KPI の前月比も同日比ベースに統一
+  // 会社別ビュー: 業態ごとの前月同日集計（業態別セクションの prevCalc に渡す）。
+  // canCompareSameDay で 2026-04 以前を構造的に封殺（エリアタブの prevSameDayCalc と同じガード）。
+  const companyPrevSameDayByCat = useMemo((): Partial<Record<BusinessCategory, SameDayAggregate>> => {
+    if (viewMode !== "company") return {};
+    if (!canCompareSameDay(prevYear, prevMonth)) return {};
+    const maxDay = summaryToday.getDate();
+    const result: Partial<Record<BusinessCategory, SameDayAggregate>> = {};
+    for (const [cat, ents] of Object.entries(companyPrevEntriesByCat)) {
+      if (!ents || ents.length === 0) continue;
+      const filtered = filterEntriesByDay(ents, maxDay);
+      result[cat as BusinessCategory] = aggregatePrevSameDay(filtered, cat, prevYear, prevMonth);
+    }
+    return result;
+  }, [viewMode, companyPrevEntriesByCat, summaryToday, prevYear, prevMonth]);
+
+  // 会社別ビュー: 全業態を合算した会社合計の前月同日集計（ヒーロー KPI 用）。
+  // companyData（当月）の集計規則に合わせ、件数は total_count || acquisition_count。
+  const companyPrevSummary = useMemo(() => {
+    let rev = 0, prof = 0, ad = 0, cnt = 0;
+    for (const agg of Object.values(companyPrevSameDayByCat)) {
+      if (!agg) continue;
+      rev += agg.total_revenue;
+      prof += agg.total_profit;
+      ad += agg.ad_cost;
+      cnt += agg.total_count || agg.acquisition_count;
+    }
+    return { totalRevenue: rev, totalProfit: prof, totalAdCost: ad, totalCount: cnt,
+             companyUnitPrice: cnt > 0 ? Math.round(rev / cnt) : 0 };
+  }, [companyPrevSameDayByCat]);
+
+  // 緑部分ヒーロー KPI の前月比も同日比ベースに統一。
+  // 会社別ビューでは companyPrevSummary（会社合算）を使う。business 経路の prevSameDayCalc は
+  // company では更新されず stale になるため、ここで明示的に分岐して誤比較を防ぐ。
   const prevSummaryCalc = useMemo(() => {
+    if (viewMode === "company") return companyPrevSummary;
     if (prevSameDayCalc) {
       const rev = prevSameDayCalc.total_revenue;
       const cnt = prevSameDayCalc.total_count || prevSameDayCalc.acquisition_count;
@@ -574,7 +636,7 @@ export default function Dashboard() {
       };
     }
     return { totalRevenue: 0, totalProfit: 0, totalAdCost: 0, totalCount: 0, companyUnitPrice: 0 };
-  }, [prevSameDayCalc]);
+  }, [viewMode, companyPrevSummary, prevSameDayCalc]);
 
   const mom = (current: number, prev: number): number | null => {
     if (prev <= 0) return null;
@@ -1294,7 +1356,9 @@ export default function Dashboard() {
 
       {/* ============ 会社別ビュー: 業態別セクション（案B）============
           companyCategoryData に業態別合算済み monthlySummary が入る。
-          targets=emptyTargets() のため目標列は「—」、prevCalc=null のため前月同日比は「—」。
+          targets=emptyTargets() のため目標列は「—」。
+          prevCalc=companyPrevSameDayByCat[業態] により前月同日比を実値表示
+          （会社の各エリア×業態の前月 entries を同経過日数で集計、2026-04 以前は canCompareSameDay で封殺）。
           その会社が持つ業態のみ表示（キーが存在する場合のみレンダリング）。 */}
       {viewMode === "company" && Object.keys(companyCategoryData).length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 32, paddingBottom: 32 }}>
@@ -1302,35 +1366,35 @@ export default function Dashboard() {
             <WaterDashboardSection
               monthlySummary={companyCategoryData.water}
               targets={companyCategoryTargets.water ?? emptyTargets()}
-              prevCalc={null}
+              prevCalc={companyPrevSameDayByCat.water ?? null}
             />
           )}
           {companyCategoryData.electric && (
             <ElectricDashboardSection
               monthlySummary={companyCategoryData.electric}
               targets={companyCategoryTargets.electric ?? emptyTargets()}
-              prevCalc={null}
+              prevCalc={companyPrevSameDayByCat.electric ?? null}
             />
           )}
           {companyCategoryData.locksmith && (
             <LocksmithDashboardSection
               monthlySummary={companyCategoryData.locksmith}
               targets={companyCategoryTargets.locksmith ?? emptyTargets()}
-              prevCalc={null}
+              prevCalc={companyPrevSameDayByCat.locksmith ?? null}
             />
           )}
           {companyCategoryData.road && (
             <RoadDashboardSection
               monthlySummary={companyCategoryData.road}
               targets={companyCategoryTargets.road ?? emptyTargets()}
-              prevCalc={null}
+              prevCalc={companyPrevSameDayByCat.road ?? null}
             />
           )}
           {companyCategoryData.detective && (
             <DetectiveDashboardSection
               monthlySummary={companyCategoryData.detective}
               targets={companyCategoryTargets.detective ?? emptyTargets()}
-              prevCalc={null}
+              prevCalc={companyPrevSameDayByCat.detective ?? null}
             />
           )}
         </div>
