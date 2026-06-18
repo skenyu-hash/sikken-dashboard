@@ -350,6 +350,13 @@ UI / フロント変更 PR (= ユーザー画面に影響する変更) は本番
 - **PR #172** ✅ マージ済 (2026-06-18、commit 0191a7f) — 鍵業態 入電2内訳 Phase B DB 化。`locksmith_car_lp_email_call_count` / `locksmith_inhouse_call_count` を monthly_summaries に追加 (`ALTER TABLE ADD COLUMN IF NOT EXISTS ... DEFAULT 0`、非破壊)。LocksmithForm の②入電2項目を LocalNumberField→NumberField（DB保存）に切替、aggregation/import-monthly/SameDayAggregate/ダッシュボードに配線。road の `road_*_call_count` と同型。会社別ビューは aggregateSummariesByCategory が全数値列を自動合算するため追加実装不要。
 - **鍵 入電内訳 過去47日 埋め戻し** ✅ 本番適用済 (2026-06-18) — 現場エクセル（5/6月、車LP+メール/インハウス分離記録）を正として関西 locksmith 過去 entries に内訳を埋め戻し。`scripts/backfill-locksmith-call-breakdown.ts`（dry-run→`--apply`）。エクセル和とDB call_count が食い違う8日は call_count を上書き。**月次 call_count: 5月 1177→1172 / 6月 574→576、入電単価: 5月 8,362→8,397円 / 6月 9,373→9,340円**（売上・粗利・広告費・獲得件数は不変）。4月以前 monthly_summaries 完全不変をコード照合済。6/17 は DB未登録のため対象外（現場通常入力に委ねる）。[DECISIONS.md D-012](./DECISIONS.md)
 
+### PR #174: 会社別ビューの前月同日比を実値化 + ヒーロー誤比較バグ修正（2026-06-18）
+- **PR #174** ✅ マージ済 (2026-06-18T14:40Z、mergeCommit 8c06d643) — 会社別ビュー (`viewMode="company"`) の前月同日比を、各会社が実際に行う事業の前月実績と正しく突き合わせるよう修正。`app/components/Dashboard.tsx` のみ (+72/-8)。
+  - **バグ（修正前）**: 会社別ビューは前月 entries を一切 fetch せず（prev/YoY effect が全て `viewMode==="business"` ガード + else クリアなし）、業態別 KPI セクションは `prevCalc={null}` で「—」、ヒーロー KPI は business 経路の **stale prevEntries（初期値=水道×関西）** と比較していた。例: ULUA 電気の当月を「水道関西の前月¥56M」と誤比較し前月同日比 -39.5% と誤表示。
+  - **修正**: `companyPrevEntriesByCat`（会社の(業態×エリア)全ペアの前月 entries を `/api/entries` で取得し業態キーに連結、複数エリア同一業態は会社合算）→ `companyPrevSameDayByCat`（業態ごとに `canCompareSameDay`(4月以前ガード) → `filterEntriesByDay` → `aggregatePrevSameDay`、**既存 lib 流用で新計算式ゼロ**）→ `companyPrevSummary`（全業態合算、件数=`total_count||acquisition_count`）。`prevSummaryCalc` を `viewMode==="company"` 時に分岐（business 経路 `prevSameDayCalc` は完全不変）。業態別セクション5箇所の `prevCalc` を配線。
+  - **検証**: `scripts/check-company-mom-prevday.ts`（READ ONLY、本番DB直読の独立検算）。TOPLEVEL 水道が本番スクショ実値と**1円単位一致**（売上-32.2% 差¥11,434,386 等）で手法を実値立証、ULUA 電気の正しい前月同日比は**売上-26.7%**（前月¥46.4M、旧-39.5%は誤比較）、REXIA 複数エリア水道の連結合算=エリア別合算で粗利差0、consultant_fee(202605~)前月反映・4月以前非混入を確認。number-verifier / invariant-guard 両番人合格、tsc緑、build緑、Preview で ULUA -26.7% 目視確認済。DB 書き込みなし。
+  - **§10 事後一報 実施済**（現場が見る前月同日比の数字が会社別タブで変わるため）。
+
 ### 保留中
 - ⚠️ **water 5/6 月コンサル費の実額入力 (現場運用)**: 2026-06-02 c95-D-4 apply 時点で water 5月の entries.data.consultant_fee は 217 行中 3 行 (chugoku 5/1-5/3) のみ has_key 状態。slice 4 マージで profit が約 +2,790 万円 跳ね上がっており、現場 (各エリアマネージャー) が実額入力を進めて初めて正しい粗利に収束する。**現場周知 + 入力催促が運用上の最優先課題**
 - **c95-C** 残作業（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— C-1 完了、C-2〜C-5 着手可能
