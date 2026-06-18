@@ -37,11 +37,11 @@
 //   HELP 売上     → help_revenue
 //   粗利 (自動)   → total_profit (= 売上 - 4 コスト、handleSave で category-aware)
 //
-// 既知制限 (PR #51 後も残る):
-//   - 入電 2 内訳 (車LP+メール 入電 / インハウス 入電) は依然 UI only。編集モードで
-//     state.call_count は復元されるが、内訳ローカル state はブランクに戻る。
-//     ユーザーが内訳を 1 つでも入力すると call_count が sum で上書きされる。
-//     → Phase B 後続で DB 化検討。
+// Phase B 完了 (入電 2 内訳 DB 化):
+//   - locksmith_car_lp_email_call_count / locksmith_inhouse_call_count を DB 保存化。
+//     編集モードで内訳が復元され、call_count も連動更新される。
+// 既知制限:
+//   - 販管費は引き続き UI only (将来 Phase 対応)。
 
 import { useMemo, useState } from "react";
 import SectionShell from "../SectionShell";
@@ -80,10 +80,8 @@ export function computeLocksmithProfit(state: EntryFormState): number {
 }
 
 export default function LocksmithForm({ state, setField, setHelpStaff, validateField, errors, labels, calc, vehicleSnapshot, traineeSnapshot }: Props) {
-  // 販管費 + 入電 2 内訳は引き続き UI only (Phase B 後続で対応)。
+  // 販管費のみ UI only (Phase B 後続)。入電 2 内訳は DB 化済み (Phase B 完了)。
   const [sellingAdmin, setSellingAdmin] = useState<InputValue>("");
-  const [callLpMail, setCallLpMail] = useState<InputValue>("");
-  const [callInhouse, setCallInhouse] = useState<InputValue>("");
 
   // PR c95-A-2 (G2): ③ 5番目スロット (HELP) は help_staff 配列の合計から派生表示。
   //   旧 state.help_count NumberField を撤去、syncAcquisitionCount は配列 SUM を使う。
@@ -94,6 +92,7 @@ export default function LocksmithForm({ state, setField, setHelpStaff, validateF
   const syncCallCount = (lp: InputValue, ih: InputValue) => {
     setField("call_count", num(lp) + num(ih));
   };
+
   // 獲得 5 内訳 → state.acquisition_count 同期 (5番目 HELP は配列 SUM を内部で取得)
   const syncAcquisitionCount = (lp: InputValue, ih: InputValue, rep: InputValue, rev: InputValue) => {
     setField("acquisition_count", num(lp) + num(ih) + num(rep) + num(rev) + helpCountSum);
@@ -163,20 +162,24 @@ export default function LocksmithForm({ state, setField, setHelpStaff, validateF
         <AutoRow label="粗利" value={fmtYen(profit)} formula="= 売上 − (工事費 + 材料費 + 広告費 + 手数料)" />
       </SectionShell>
 
-      {/* ② 入電セクション */}
+      {/* ② 入電セクション (Phase B DB 化済み) */}
       <SectionShell title="② 入電" subtitle="入力 2項目 + 自動計算 (総入電件数 / 入電単価)" group="acq" count={4}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-          <LocalNumberField label="車LP+メール" unit="件" value={callLpMail}
-            onChange={(v) => { setCallLpMail(v); syncCallCount(v, callInhouse); }} />
-          <LocalNumberField label="インハウス" unit="件" value={callInhouse}
-            onChange={(v) => { setCallInhouse(v); syncCallCount(callLpMail, v); }} />
+          <NumberField field="locksmith_car_lp_email_call_count" label="車LP+メール" unit="件"
+            value={state.locksmith_car_lp_email_call_count}
+            onChange={(v) => {
+              setField("locksmith_car_lp_email_call_count", v);
+              syncCallCount(v, state.locksmith_inhouse_call_count);
+            }}
+            onBlur={validateField} state={state} error={errors.locksmith_car_lp_email_call_count} />
+          <NumberField field="locksmith_inhouse_call_count" label="インハウス" unit="件"
+            value={state.locksmith_inhouse_call_count}
+            onChange={(v) => {
+              setField("locksmith_inhouse_call_count", v);
+              syncCallCount(state.locksmith_car_lp_email_call_count, v);
+            }}
+            onBlur={validateField} state={state} error={errors.locksmith_inhouse_call_count} />
         </div>
-        <p style={{
-          marginTop: 8, padding: "8px 10px", fontSize: 11, color: "#374151", lineHeight: 1.5,
-          background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb",
-        }}>
-          💡 内訳を入力すると総入電件数が自動更新されます。内訳自体は DB 保存対象外 (Phase B 後続予定)。
-        </p>
         <AutoRow label={labels.call_count} value={fmtCount(num(state.call_count))} formula="= 車LP+メール + インハウス" />
         <AutoRow label={labels.call_unit_price} value={fmtYen(calc.call_unit_price)} formula="= 広告費 ÷ 総入電件数" />
       </SectionShell>

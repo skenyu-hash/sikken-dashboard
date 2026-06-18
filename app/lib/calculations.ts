@@ -84,13 +84,15 @@ export type DailyEntry = {
   // 電気業態専用 (PR #48b)
   switchboard_count?: number;
 
-  // 鍵業態専用 (PR #51) — 獲得 4 内訳 + コスト 2
+  // 鍵業態専用 (PR #51) — 獲得 4 内訳 + コスト 2 + 入電 2 内訳 (Phase B)
   locksmith_car_lp_email_count?: number;
   locksmith_inhouse_count?: number;
   locksmith_repeat_count?: number;
   locksmith_revisit_count?: number;
   locksmith_construction_cost?: number;
   locksmith_commission_fee?: number;
+  locksmith_car_lp_email_call_count?: number;
+  locksmith_inhouse_call_count?: number;
 
   // ロード業態専用 (PR #52 + #58c) — 獲得 7 + 入電 7 + 保険売上 2 + 販管費
   road_ad_count?: number;
@@ -695,6 +697,8 @@ export type SameDayAggregate = {
   locksmith_commission_fee: number;
   locksmith_repeat_count: number;
   locksmith_revisit_count: number;
+  locksmith_car_lp_email_call_count: number;
+  locksmith_inhouse_call_count: number;
 };
 
 export function aggregatePrevSameDay(
@@ -720,6 +724,7 @@ export function aggregatePrevSameDay(
   let switchboard_count = 0;
   let locksmith_construction_cost = 0, locksmith_commission_fee = 0;
   let locksmith_repeat_count = 0, locksmith_revisit_count = 0;
+  let locksmith_car_lp_email_call_count = 0, locksmith_inhouse_call_count = 0;
 
   for (const e of entries) {
     total_revenue += n(e.outsourced_sales_revenue) + n(e.internal_staff_revenue);
@@ -746,6 +751,8 @@ export function aggregatePrevSameDay(
     locksmith_commission_fee    += n(e.locksmith_commission_fee);
     locksmith_repeat_count      += n(e.locksmith_repeat_count);
     locksmith_revisit_count     += n(e.locksmith_revisit_count);
+    locksmith_car_lp_email_call_count += n(e.locksmith_car_lp_email_call_count);
+    locksmith_inhouse_call_count      += n(e.locksmith_inhouse_call_count);
   }
 
   // 粗利: resolveTotalProfit と同じロジック（category-aware + consultant_fee 境界）
@@ -772,6 +779,7 @@ export function aggregatePrevSameDay(
     help_revenue, help_count, repeat_count, revisit_count, review_count,
     switchboard_count, locksmith_construction_cost, locksmith_commission_fee,
     locksmith_repeat_count, locksmith_revisit_count,
+    locksmith_car_lp_email_call_count, locksmith_inhouse_call_count,
   };
 }
 

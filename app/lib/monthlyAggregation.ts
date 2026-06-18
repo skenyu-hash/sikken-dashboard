@@ -130,6 +130,8 @@ export async function aggregateMonthlySummary(
         -- A-3 鍵業態
         COALESCE(SUM(COALESCE((data->>'locksmith_car_lp_email_count')::numeric, 0)), 0) AS sum_locksmith_car_lp_email_count,
         COALESCE(SUM(COALESCE((data->>'locksmith_inhouse_count')::numeric, 0)), 0) AS sum_locksmith_inhouse_count,
+        COALESCE(SUM(COALESCE((data->>'locksmith_car_lp_email_call_count')::numeric, 0)), 0) AS sum_locksmith_car_lp_email_call_count,
+        COALESCE(SUM(COALESCE((data->>'locksmith_inhouse_call_count')::numeric, 0)), 0) AS sum_locksmith_inhouse_call_count,
         COALESCE(SUM(COALESCE((data->>'locksmith_repeat_count')::numeric, 0)), 0) AS sum_locksmith_repeat_count,
         COALESCE(SUM(COALESCE((data->>'locksmith_revisit_count')::numeric, 0)), 0) AS sum_locksmith_revisit_count,
         COALESCE(SUM(COALESCE((data->>'locksmith_construction_cost')::numeric, 0)), 0) AS sum_locksmith_construction_cost,
@@ -256,6 +258,7 @@ export async function aggregateMonthlySummary(
       switchboard_count,
       -- A-3 鍵
       locksmith_car_lp_email_count, locksmith_inhouse_count,
+      locksmith_car_lp_email_call_count, locksmith_inhouse_call_count,
       locksmith_repeat_count, locksmith_revisit_count,
       locksmith_construction_cost, locksmith_commission_fee,
       -- A-4 ロード
@@ -307,6 +310,7 @@ export async function aggregateMonthlySummary(
       d.sum_construction_count, -- PR c93-2
       d.sum_switchboard_count,
       d.sum_locksmith_car_lp_email_count, d.sum_locksmith_inhouse_count,
+      d.sum_locksmith_car_lp_email_call_count, d.sum_locksmith_inhouse_call_count,
       d.sum_locksmith_repeat_count, d.sum_locksmith_revisit_count,
       d.sum_locksmith_construction_cost, d.sum_locksmith_commission_fee,
       d.sum_road_ad_count, d.sum_road_repeat_count, d.sum_road_referral_count, d.sum_road_revisit_count,
@@ -363,6 +367,8 @@ export async function aggregateMonthlySummary(
       switchboard_count = EXCLUDED.switchboard_count,
       locksmith_car_lp_email_count = EXCLUDED.locksmith_car_lp_email_count,
       locksmith_inhouse_count = EXCLUDED.locksmith_inhouse_count,
+      locksmith_car_lp_email_call_count = EXCLUDED.locksmith_car_lp_email_call_count,
+      locksmith_inhouse_call_count = EXCLUDED.locksmith_inhouse_call_count,
       locksmith_repeat_count = EXCLUDED.locksmith_repeat_count,
       locksmith_revisit_count = EXCLUDED.locksmith_revisit_count,
       locksmith_construction_cost = EXCLUDED.locksmith_construction_cost,
