@@ -277,7 +277,7 @@ export default function Dashboard() {
           revenue: acc.revenue + Number(r.total_revenue ?? 0),
           profit: acc.profit + resolveTotalProfit(r),
           adCost: acc.adCost + Number(r.ad_cost ?? 0),
-          count: acc.count + Number(r.total_count ?? 0),
+          count: acc.count + (Number(r.total_count ?? 0) || Number(r.acquisition_count ?? 0)),
         }), { revenue: 0, profit: 0, adCost: 0, count: 0 });
         return [biz.id, agg] as const;
       })
@@ -331,7 +331,7 @@ export default function Dashboard() {
         if (!s) continue;
         result.totalRevenue += Number(s.total_revenue ?? 0);
         result.totalProfit += resolveTotalProfit(s);
-        result.totalCount += Number(s.total_count ?? 0);
+        result.totalCount += Number(s.total_count ?? 0) || Number(s.acquisition_count ?? 0);
         result.totalAdCost += Number(s.ad_cost ?? 0);
         result.helpRevenue += Number(s.help_revenue ?? 0);
         result.helpCount += Number(s.help_count ?? 0);
@@ -472,7 +472,7 @@ export default function Dashboard() {
         const dim = getDaysInMonth(viewYear, viewMonth);
         const totalRevenue = summaries.reduce((s, ms) => s + Number(ms.total_revenue ?? 0), 0);
         const totalProfit = summaries.reduce((s, ms) => s + resolveTotalProfit(ms), 0);
-        const totalCount = summaries.reduce((s, ms) => s + Number(ms.total_count ?? 0), 0);
+        const totalCount = summaries.reduce((s, ms) => s + (Number(ms.total_count ?? 0) || Number(ms.acquisition_count ?? 0)), 0);
         const totalAdCost = summaries.reduce((s, ms) => s + Number(ms.ad_cost ?? 0), 0);
         const helpRevenue = summaries.reduce((s, ms) => s + Number(ms.help_revenue ?? 0), 0);
         const helpCount = summaries.reduce((s, ms) => s + Number(ms.help_count ?? 0), 0);
@@ -513,7 +513,7 @@ export default function Dashboard() {
       ...summary,
       totalRevenue: Number(monthlySummary.total_revenue ?? 0),
       totalProfit: resolveTotalProfit(monthlySummary),
-      totalCount: Number(monthlySummary.total_count ?? 0),
+      totalCount: Number(monthlySummary.total_count ?? 0) || Number(monthlySummary.acquisition_count ?? 0),
       totalAdCost: Number(monthlySummary.ad_cost ?? 0),
       companyUnitPrice: Number(monthlySummary.unit_price ?? 0),
       vehicleCount: Number(monthlySummary.vehicle_count ?? 0),
@@ -559,7 +559,7 @@ export default function Dashboard() {
   const prevSummaryCalc = useMemo(() => {
     if (prevSameDayCalc) {
       const rev = prevSameDayCalc.total_revenue;
-      const cnt = prevSameDayCalc.total_count;
+      const cnt = prevSameDayCalc.total_count || prevSameDayCalc.acquisition_count;
       return {
         totalRevenue: rev,
         totalProfit: prevSameDayCalc.total_profit,
@@ -621,7 +621,7 @@ export default function Dashboard() {
           area: a,
           summary: { ...raw,
             totalRevenue: Number(ms.total_revenue ?? 0), totalProfit: resolveTotalProfit(ms),
-            totalCount: Number(ms.total_count ?? 0), totalAdCost: Number(ms.ad_cost ?? 0),
+            totalCount: Number(ms.total_count ?? 0) || Number(ms.acquisition_count ?? 0), totalAdCost: Number(ms.ad_cost ?? 0),
             companyUnitPrice: Number(ms.unit_price ?? 0), vehicleCount: Number(ms.vehicle_count ?? 0),
             help: { revenue: Number(ms.help_revenue ?? 0), profit: 0, count: Number(ms.help_count ?? 0),
               unitPrice: Number(ms.help_count) > 0 ? Math.round(Number(ms.help_revenue) / Number(ms.help_count)) : 0 },
@@ -964,7 +964,7 @@ export default function Dashboard() {
                         const rev = Number(s.total_revenue ?? 0);
                         const profit = resolveTotalProfit(s);
                         const profitRate = rev > 0 ? (profit / rev * 100).toFixed(1) : "0";
-                        const count = Number(s.total_count ?? 0);
+                        const count = Number(s.total_count ?? 0) || Number(s.acquisition_count ?? 0);
                         const unitPrice = count > 0 ? Math.round(rev / count) : 0;
                         const adCost = Number(s.ad_cost ?? 0);
                         const adRate = rev > 0 ? (adCost / rev * 100).toFixed(1) : "0";
