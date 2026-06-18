@@ -113,6 +113,8 @@ export default function WaterDashboardSection({ monthlySummary, targets, prevCal
   const targetHelpRate = numOf(targets.targetHelpRate);
   const targetVehicleCount = numOf(targets.targetVehicleCount);
   const targetTraineeCount = numOf(targets.targetTraineeCount);
+  const targetCallUnitPrice = numOf(targets.targetCallUnitPrice);
+  const targetPassRate = numOf(targets.targetPassRate);
 
   return (
     <section style={{ marginBottom: SECTION.MARGIN }}>
@@ -147,7 +149,10 @@ export default function WaterDashboardSection({ monthlySummary, targets, prevCal
             mom={momLabel(adRate, p ? safeDiv(p.ad_cost, p.total_revenue) * 100 : 0, "pct")} momInvert />
           <Row label="入電件数"  actual={fmtCount(callCount)}        target={fmtCount(targetCallCount)} achievement={achv(callCount, targetCallCount)}
             mom={momLabel(callCount, p?.call_count ?? 0, "count")} />
-          <Row label="入電単価"  actual={fmtYen(callUnitPrice)}      target="—" sub="= 広告費 ÷ 入電件数"
+          <Row label="入電単価"  actual={fmtYen(callUnitPrice)}
+            target={targetCallUnitPrice > 0 ? fmtYen(targetCallUnitPrice) : "—"}
+            achievement={targetCallUnitPrice > 0 ? achv(callUnitPrice, targetCallUnitPrice, true) : undefined}
+            sub="= 広告費 ÷ 入電件数"
             mom={momLabel(callUnitPrice, p ? Math.round(safeDiv(p.ad_cost, p.call_count)) : 0, "yen")} momInvert />
           <Row label="獲得件数"  actual={fmtCount(acquisitionCount)} target={fmtCount(targetCount)}    achievement={achv(acquisitionCount, targetCount)}
             mom={momLabel(acquisitionCount, p?.acquisition_count ?? 0, "count")} />
@@ -192,7 +197,10 @@ export default function WaterDashboardSection({ monthlySummary, targets, prevCal
         {/* ⑤ 水道専用 */}
         <div style={{ gridColumn: "1 / -1" }}>
           <Card title="⑤ 水道専用" group="cnt">
-            <Row label="対応率"       actual={fmtPct(responseRate)}    target="—" sub="= 対応件数 ÷ 入電件数 × 100"
+            <Row label="対応率"       actual={fmtPct(responseRate)}
+              target={targetPassRate > 0 ? fmtPct(targetPassRate) : "—"}
+              achievement={targetPassRate > 0 ? achv(responseRate, targetPassRate) : undefined}
+              sub="= 対応件数 ÷ 入電件数 × 100"
               mom={momLabel(responseRate, p ? safeDiv(p.total_count, p.call_count) * 100 : 0, "pct")} />
             <Row label="リピート件数" actual={fmtCount(repeatCount)}   target="—"
               mom={momLabel(repeatCount, p?.repeat_count ?? 0, "count")} />

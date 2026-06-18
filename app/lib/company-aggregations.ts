@@ -78,7 +78,8 @@ export function aggregateSummariesByCategory(
  *
  * 絶対値フィールド（targetSales/targetProfit 等）はそのまま加算する。
  * 派生値フィールド（targetCpa/targetUnitPrice 等）は合算後の絶対値から再計算する。
- * 率フィールド（targetAdRate/targetConversionRate 等）は 0 のまま（UI で「—」表示）。
+ * 率フィールドのうち分母・分子が SUMMABLE_TARGET_KEYS にあるものは合算後に再計算する。
+ * 費用系（職人費率・材料費率等）は費用の目標フィールドが存在しないため 0（UI で「—」表示）。
  *
  * 呼び出し前に manToYen() を適用済みの Targets を渡すこと。
  */
@@ -111,14 +112,15 @@ export function aggregateTargetsByCategory(
         sd.targetCallCount > 0 ? Math.round(sd.targetAdCost / sd.targetCallCount) : 0,
       targetHelpUnitPrice:
         sd.targetHelpCount > 0 ? Math.round(sd.targetHelpSales / sd.targetHelpCount) : 0,
-      // 率: 0 のまま（加算できないため「—」表示）
-      targetConversionRate: 0,
-      targetAdRate: 0,
+      // 率: 分母・分子ともに SUMMABLE_TARGET_KEYS にある → 合算後の絶対値から再計算
+      targetAdRate: sd.targetSales > 0 ? Math.round(sd.targetAdCost / sd.targetSales * 1000) / 10 : 0,
+      targetConversionRate: sd.targetCallCount > 0 ? Math.round(sd.targetCount / sd.targetCallCount * 1000) / 10 : 0,
+      targetHelpRate: sd.targetSales > 0 ? Math.round(sd.targetHelpSales / sd.targetSales * 1000) / 10 : 0,
+      targetPassRate: sd.targetCallCount > 0 ? Math.round(sd.targetCount / sd.targetCallCount * 1000) / 10 : 0,
+      // 費用・工事件数の目標フィールドなし → 計算不可
       targetLaborRate: 0,
       targetMaterialRate: 0,
       targetConstructionRate: 0,
-      targetPassRate: 0,
-      targetHelpRate: 0,
       targetMeetingRate: 0,
     };
   }

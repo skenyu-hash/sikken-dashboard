@@ -381,25 +381,70 @@ const targetCases: TargetCase[] = [
     expected: `targetHelpUnitPrice = ${Math.round(10000000 / 18)} (10000000 ÷ 18)`,
   },
 
-  // ===== 率フィールド: 0 のまま（「—」表示）=====
+  // ===== 率フィールド: 絶対値フィールドなし → 0（「—」表示）=====
   {
-    note: "targetAdRate は 0（加算不可・「—」表示）",
+    note: "targetAdRate: 絶対値フィールド(targetSales/targetAdCost)が 0 → 計算不可で 0",
     input: [
       { category: "water", targets: makeTargets({ targetAdRate: 15 }) },
       { category: "water", targets: makeTargets({ targetAdRate: 12 }) },
     ],
     check: (r) => r.water?.targetAdRate === 0,
-    expected: "targetAdRate = 0（率は加算不可）",
+    expected: "targetAdRate = 0（分母 targetSales=0 のため計算不可）",
   },
 
   {
-    note: "targetConversionRate は 0（加算不可・「—」表示）",
+    note: "targetConversionRate: 絶対値フィールド(targetCallCount)が 0 → 計算不可で 0",
     input: [
       { category: "water", targets: makeTargets({ targetConversionRate: 80 }) },
       { category: "water", targets: makeTargets({ targetConversionRate: 75 }) },
     ],
     check: (r) => r.water?.targetConversionRate === 0,
-    expected: "targetConversionRate = 0（率は加算不可）",
+    expected: "targetConversionRate = 0（分母 targetCallCount=0 のため計算不可）",
+  },
+
+  // ===== 率フィールド: 絶対値から再計算 =====
+  {
+    note: "targetAdRate: targetAdCost/targetSales から再計算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetSales: 40000000, targetAdCost: 10000000 }) },
+      { category: "water", targets: makeTargets({ targetSales: 30000000, targetAdCost: 8000000 }) },
+    ],
+    // (10M + 8M) / (40M + 30M) * 100 = 18M / 70M * 100 = 25.7%
+    check: (r) => r.water?.targetAdRate === Math.round(18000000 / 70000000 * 1000) / 10,
+    expected: `targetAdRate = ${Math.round(18000000 / 70000000 * 1000) / 10}% (18M ÷ 70M)`,
+  },
+
+  {
+    note: "targetConversionRate: targetCount/targetCallCount から再計算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetCount: 300, targetCallCount: 500 }) },
+      { category: "water", targets: makeTargets({ targetCount: 250, targetCallCount: 400 }) },
+    ],
+    // (300 + 250) / (500 + 400) * 100 = 550 / 900 * 100 = 61.1%
+    check: (r) => r.water?.targetConversionRate === Math.round(550 / 900 * 1000) / 10,
+    expected: `targetConversionRate = ${Math.round(550 / 900 * 1000) / 10}% (550 ÷ 900)`,
+  },
+
+  {
+    note: "targetHelpRate: targetHelpSales/targetSales から再計算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetSales: 50000000, targetHelpSales: 15000000 }) },
+      { category: "water", targets: makeTargets({ targetSales: 40000000, targetHelpSales: 10000000 }) },
+    ],
+    // (15M + 10M) / (50M + 40M) * 100 = 25M / 90M * 100 = 27.8%
+    check: (r) => r.water?.targetHelpRate === Math.round(25000000 / 90000000 * 1000) / 10,
+    expected: `targetHelpRate = ${Math.round(25000000 / 90000000 * 1000) / 10}% (25M ÷ 90M)`,
+  },
+
+  {
+    note: "targetPassRate: targetCount/targetCallCount から再計算される",
+    input: [
+      { category: "water", targets: makeTargets({ targetCount: 400, targetCallCount: 600 }) },
+      { category: "water", targets: makeTargets({ targetCount: 350, targetCallCount: 500 }) },
+    ],
+    // (400 + 350) / (600 + 500) * 100 = 750 / 1100 * 100 = 68.2%
+    check: (r) => r.water?.targetPassRate === Math.round(750 / 1100 * 1000) / 10,
+    expected: `targetPassRate = ${Math.round(750 / 1100 * 1000) / 10}% (750 ÷ 1100)`,
   },
 
   // ===== 複数業態: DUNK（water×2 + electric×1 + road×1）=====
