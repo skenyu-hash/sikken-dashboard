@@ -345,6 +345,11 @@ UI / フロント変更 PR (= ユーザー画面に影響する変更) は本番
   - **ヒーロー KPI**: 「前月比」→「前月同日比」ラベル修正
   - **最終形**: バッジ背景なし・カラーテキストのみ（% 太字 fontWeight 700、絶対値 細字 opacity 0.7、Bloomberg スタイル）
 
+### PR #170 / #172 + 鍵入電内訳 埋め戻し（2026-06-18）
+- **PR #170** ✅ マージ済 (2026-06-18、commit fceef3d) — 会社別ビュー (`viewMode="company"`) に業態別 KPI セクションを並列表示（案B）。`aggregateSummariesByCategory()` 純関数で同一業態の複数エリア monthly_summary を合算（`total_profit` は各行 `resolveTotalProfit()` 確定後に加算＝コンサル費二重控除防止）。[DECISIONS.md D-011](./DECISIONS.md)
+- **PR #172** ✅ マージ済 (2026-06-18、commit 0191a7f) — 鍵業態 入電2内訳 Phase B DB 化。`locksmith_car_lp_email_call_count` / `locksmith_inhouse_call_count` を monthly_summaries に追加 (`ALTER TABLE ADD COLUMN IF NOT EXISTS ... DEFAULT 0`、非破壊)。LocksmithForm の②入電2項目を LocalNumberField→NumberField（DB保存）に切替、aggregation/import-monthly/SameDayAggregate/ダッシュボードに配線。road の `road_*_call_count` と同型。会社別ビューは aggregateSummariesByCategory が全数値列を自動合算するため追加実装不要。
+- **鍵 入電内訳 過去47日 埋め戻し** ✅ 本番適用済 (2026-06-18) — 現場エクセル（5/6月、車LP+メール/インハウス分離記録）を正として関西 locksmith 過去 entries に内訳を埋め戻し。`scripts/backfill-locksmith-call-breakdown.ts`（dry-run→`--apply`）。エクセル和とDB call_count が食い違う8日は call_count を上書き。**月次 call_count: 5月 1177→1172 / 6月 574→576、入電単価: 5月 8,362→8,397円 / 6月 9,373→9,340円**（売上・粗利・広告費・獲得件数は不変）。4月以前 monthly_summaries 完全不変をコード照合済。6/17 は DB未登録のため対象外（現場通常入力に委ねる）。[DECISIONS.md D-012](./DECISIONS.md)
+
 ### 保留中
 - ⚠️ **water 5/6 月コンサル費の実額入力 (現場運用)**: 2026-06-02 c95-D-4 apply 時点で water 5月の entries.data.consultant_fee は 217 行中 3 行 (chugoku 5/1-5/3) のみ has_key 状態。slice 4 マージで profit が約 +2,790 万円 跳ね上がっており、現場 (各エリアマネージャー) が実額入力を進めて初めて正しい粗利に収束する。**現場周知 + 入力催促が運用上の最優先課題**
 - **c95-C** 残作業（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— C-1 完了、C-2〜C-5 着手可能
