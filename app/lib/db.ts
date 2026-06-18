@@ -226,9 +226,11 @@ export function ensureSchema(): Promise<void> {
       //   - コスト 2 項目 (工事費 / 手数料) ※従来 total_labor_cost / sales_outsourcing_cost
       //     に流用保存していたが、専用カラムに切替 (handleSave で category-aware に
       //     total_labor_cost / sales_outsourcing_cost を 0 にする)
-      // 入電内訳 (車LP+メール / インハウス 入電) は本 PR では未対応 (Phase B 後続)
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_car_lp_email_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_inhouse_count INTEGER NOT NULL DEFAULT 0`);
+      // 鍵業態 入電 2 内訳 Phase B (road の road_*_call_count と同型)
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_car_lp_email_call_count INTEGER NOT NULL DEFAULT 0`);
+      await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_inhouse_call_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_repeat_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_revisit_count INTEGER NOT NULL DEFAULT 0`);
       await safe(sql`ALTER TABLE monthly_summaries ADD COLUMN IF NOT EXISTS locksmith_construction_cost NUMERIC NOT NULL DEFAULT 0`);

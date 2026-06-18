@@ -98,6 +98,9 @@ export interface EntryFormState {
   //   コスト 2 項目: 旧 total_labor_cost / sales_outsourcing_cost 流用から専用カラムへ
   locksmith_construction_cost: InputValue;
   locksmith_commission_fee: InputValue;
+  //   入電 2 内訳 (Phase B DB 化)
+  locksmith_car_lp_email_call_count: InputValue;
+  locksmith_inhouse_call_count: InputValue;
 
   // PR #52: ロード業態専用 獲得 7 チャネル (他業態では常に "" → 保存時 0)
   //   入電 7 内訳 / 保険売上 / 無保険売上 / 販管費は引き続き UI only
