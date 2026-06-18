@@ -54,6 +54,8 @@ export default function LocksmithDashboardSection({ monthlySummary, targets, pre
 
   // 入電 / 獲得
   const callCount = numOf(monthlySummary?.call_count);
+  const callLpMail = numOf(monthlySummary?.locksmith_car_lp_email_call_count);
+  const callInhouse = numOf(monthlySummary?.locksmith_inhouse_call_count);
   const acqLpMail = numOf(monthlySummary?.locksmith_car_lp_email_count);
   const acqInhouse = numOf(monthlySummary?.locksmith_inhouse_count);
   const acqRepeat = numOf(monthlySummary?.locksmith_repeat_count);
@@ -120,8 +122,10 @@ export default function LocksmithDashboardSection({ monthlySummary, targets, pre
 
         {/* ② 入電 */}
         <Card title="② 入電" group="acq">
-          <Row label="車LP+メール 入電" actual="— (UI のみ、Phase B 後続予定)" target="—" />
-          <Row label="インハウス 入電"  actual="— (UI のみ、Phase B 後続予定)" target="—" />
+          <Row label="車LP+メール 入電" actual={fmtCount(callLpMail)} target="—"
+            mom={momLabel(callLpMail, p?.locksmith_car_lp_email_call_count ?? 0, "count")} />
+          <Row label="インハウス 入電"  actual={fmtCount(callInhouse)} target="—"
+            mom={momLabel(callInhouse, p?.locksmith_inhouse_call_count ?? 0, "count")} />
           <Row label="総入電件数" actual={fmtCount(callCount)}   target={fmtCount(targetCallCount)} achievement={achv(callCount, targetCallCount)}
             mom={momLabel(callCount, p?.call_count ?? 0, "count")} />
           <Row label="入電単価"   actual={fmtYen(callUnitPrice)} target="—" sub="= 広告費 ÷ 総入電件数"
