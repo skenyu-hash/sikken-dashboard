@@ -515,7 +515,12 @@ export default function Dashboard() {
       totalProfit: resolveTotalProfit(monthlySummary),
       totalCount: Number(monthlySummary.total_count ?? 0) || Number(monthlySummary.acquisition_count ?? 0),
       totalAdCost: Number(monthlySummary.ad_cost ?? 0),
-      companyUnitPrice: Number(monthlySummary.unit_price ?? 0),
+      // unit_price は DB 格納値だが total_count ベースで計算されているため locksmith/road で 0 になる。
+      // effectiveCount（acquisition_count フォールバック済み）で再計算する。
+      companyUnitPrice: (() => {
+        const ec = Number(monthlySummary.total_count ?? 0) || Number(monthlySummary.acquisition_count ?? 0);
+        return ec > 0 ? Math.round(Number(monthlySummary.total_revenue ?? 0) / ec) : 0;
+      })(),
       vehicleCount: Number(monthlySummary.vehicle_count ?? 0),
       constructionRate: Number(monthlySummary.construction_rate ?? 0),
       help: {
@@ -622,7 +627,8 @@ export default function Dashboard() {
           summary: { ...raw,
             totalRevenue: Number(ms.total_revenue ?? 0), totalProfit: resolveTotalProfit(ms),
             totalCount: Number(ms.total_count ?? 0) || Number(ms.acquisition_count ?? 0), totalAdCost: Number(ms.ad_cost ?? 0),
-            companyUnitPrice: Number(ms.unit_price ?? 0), vehicleCount: Number(ms.vehicle_count ?? 0),
+            companyUnitPrice: (() => { const ec = Number(ms.total_count ?? 0) || Number(ms.acquisition_count ?? 0); return ec > 0 ? Math.round(Number(ms.total_revenue ?? 0) / ec) : 0; })(),
+            vehicleCount: Number(ms.vehicle_count ?? 0),
             help: { revenue: Number(ms.help_revenue ?? 0), profit: 0, count: Number(ms.help_count ?? 0),
               unitPrice: Number(ms.help_count) > 0 ? Math.round(Number(ms.help_revenue) / Number(ms.help_count)) : 0 },
             daysElapsed: dim, daysInMonth: dim, grossMargin: Number(ms.profit_rate ?? 0),

@@ -177,7 +177,10 @@ export default function CompanyBreakdownTable({
               // (絶対制約: entries.length>0 による early return は追加禁止、行は出す)
               const revenue = s?.total_revenue;
               const profit = s ? resolveTotalProfit(s) : null;
-              const count = s?.total_count;
+              // total_count は water/electric のみ populated。locksmith/road は acquisition_count を使う
+              const count = s != null
+                ? (Number(s.total_count ?? 0) || Number(s.acquisition_count ?? 0))
+                : null;
               const adCost = s?.ad_cost;
               return (
                 <tr key={`${r.category}::${r.areaId}`}>
