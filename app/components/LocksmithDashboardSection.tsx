@@ -140,7 +140,8 @@ export default function LocksmithDashboardSection({ monthlySummary, targets, pre
             mom={momLabel(acqHelp, p?.help_count ?? 0, "count")} />
           <Row label="総獲得件数" actual={fmtCount(acquisitionCount)} target={fmtCount(targetCount)} achievement={achv(acquisitionCount, targetCount)} highlight
             mom={momLabel(acquisitionCount, p?.acquisition_count ?? 0, "count")} />
-          <Row label="客単価" actual={fmtYen(Math.round(safeDiv(sales, acquisitionCount)))} target={fmtYen(targetUnitPrice)} sub="= 売上 ÷ 総獲得件数"
+          <Row label="客単価" actual={fmtYen(Math.round(safeDiv(sales, acquisitionCount)))} target={fmtYen(targetUnitPrice)}
+            achievement={achv(Math.round(safeDiv(sales, acquisitionCount)), targetUnitPrice)} sub="= 売上 ÷ 総獲得件数"
             mom={momLabel(Math.round(safeDiv(sales, acquisitionCount)), p ? Math.round(safeDiv(p.total_revenue, p.acquisition_count)) : 0, "yen")} />
           <Row label="CPA"    actual={fmtYen(cpa)} target={fmtYen(targetCpa)} achievement={achv(cpa, targetCpa, true)} sub="= 広告費 ÷ 総獲得件数"
             mom={momLabel(cpa, p ? Math.round(safeDiv(p.ad_cost, p.acquisition_count)) : 0, "yen")} momInvert />
