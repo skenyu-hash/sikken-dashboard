@@ -18,6 +18,7 @@ import { toPng } from "html-to-image";
 import type { DailyEntry } from "../../../lib/calculations";
 import type { BusinessCategory } from "../../../lib/businesses";
 import { AREA_NAMES, BUSINESSES } from "../../../lib/businesses";
+import { shiftDateStr } from "../../../lib/dateUtils";
 import EntryCalendar from "../EntryCalendar";
 import HelpStaffMonthlyTable from "./HelpStaffMonthlyTable";
 import WaterDailyReportSection from "./WaterDailyReportSection";
@@ -207,9 +208,8 @@ export default function DailyReportContent(props: Props) {
 
   // 日付ナビ ◀▶ (抽出元: L117-121、setInternalDate → onDateChange に置換)
   const navigate = useCallback((deltaDays: number) => {
-    const d = new Date(`${date}T00:00:00`);
-    d.setDate(d.getDate() + deltaDays);
-    onDateChange(d.toISOString().slice(0, 10));
+    const next = shiftDateStr(date, deltaDays); // TZ 安全 (lib/dateUtils)
+    if (next) onDateChange(next);
   }, [date, onDateChange]);
 
   // アクション: 画像で保存 (抽出元: L123-139、撮影対象は effectiveCaptureRef = Modal 側 container)

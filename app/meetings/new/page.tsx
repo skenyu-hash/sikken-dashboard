@@ -3,12 +3,13 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { todayLocalISO } from '../../lib/dateUtils';
 
 const PURPLE = '#3C3489';
 
 export default function NewMeetingPage() {
   const router = useRouter();
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocalISO);
   const [title, setTitle] = useState('');
   const [facilitator, setFacilitator] = useState('');
   const [submitting, setSubmitting] = useState(false);
