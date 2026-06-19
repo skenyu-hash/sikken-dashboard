@@ -137,7 +137,15 @@ export async function GET(req: NextRequest) {
           SELECT
             b.*,
             (b.sum_outsourced_sales_revenue + b.sum_internal_staff_revenue) AS d_total_revenue,
-            (b.sum_outsourced_response_count + b.sum_internal_staff_response_count) AS d_total_count,
+            -- 件数の業態別定義 (2026-06-19 鍵 0 件バグ修正):
+            --   water/electric = 応答件数 (外注 + 内勤)、locksmith/road/detective = acquisition_count。
+            --   kpiCompute.ts の count 定義 / 本体 Dashboard.tsx の total_count||acquisition_count
+            --   フォールバックと一致させる (鍵は応答件数 0 のため旧式だと total_count=0 → 客単価 "—" になっていた)。
+            CASE
+              WHEN b.business_category IN ('water', 'electric')
+                THEN (b.sum_outsourced_response_count + b.sum_internal_staff_response_count)
+              ELSE b.sum_acquisition_count
+            END AS d_total_count,
             -- water + applyConsult: c95-D-4 と同形 (sum_consultant_fee 直接控除)
             -- water + 4月以前    : sum_consultant_fee 完全除外 (絶対不変)
             -- locksmith          : 専用式
@@ -211,6 +219,15 @@ export async function GET(req: NextRequest) {
             COALESCE(SUM(COALESCE((data->>'card_processing_fee')::numeric, 0)), 0) AS sum_card_processing_fee,
             -- water 限定 consultant_fee SUM (他業態は controle 対象外、誤って引かれないように FILTER)
             COALESCE(SUM(CASE WHEN business_category = 'water' THEN COALESCE((data->>'consultant_fee')::numeric, 0) ELSE 0 END), 0) AS sum_water_consultant_fee,
+            -- 件数の業態別定義 (2026-06-19 鍵 0 件バグ修正): GROUP BY なしの合算行のため、行 (= 業態) ごとに
+            --   water/electric=応答件数、locksmith/road/detective=acquisition_count を選んで SUM する
+            --   (業態混在のグループ全体/会社別でも各業態を自分の定義で正しく合算)。
+            COALESCE(SUM(
+              CASE WHEN business_category IN ('water', 'electric')
+                THEN COALESCE((data->>'outsourced_response_count')::numeric, 0) + COALESCE((data->>'internal_staff_response_count')::numeric, 0)
+                ELSE COALESCE((data->>'acquisition_count')::numeric, 0)
+              END
+            ), 0) AS sum_effective_count,
             COALESCE(SUM(COALESCE((data->>'ad_cost')::numeric, 0)), 0) AS sum_ad_cost,
             COALESCE(SUM(COALESCE((data->>'call_count')::numeric, 0)), 0) AS sum_call_count,
             COALESCE(SUM(COALESCE((data->>'acquisition_count')::numeric, 0)), 0) AS sum_acquisition_count,
@@ -231,7 +248,7 @@ export async function GET(req: NextRequest) {
           SELECT
             b.*,
             (b.sum_outsourced_sales_revenue + b.sum_internal_staff_revenue) AS d_total_revenue,
-            (b.sum_outsourced_response_count + b.sum_internal_staff_response_count) AS d_total_count,
+            b.sum_effective_count AS d_total_count, -- 業態別件数 (2026-06-19 鍵 0 件バグ修正、base CTE で SUM 済)
             -- 業態混在の合算 profit:
             --   revenue - 共通コスト (labor/material/ad/sales_outsourcing/card) - locksmith 専用コスト
             --   - applyConsultEff のとき controle (water + 5月以降の場合のみ非 0)
