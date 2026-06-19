@@ -97,7 +97,8 @@ async function callRangeAggregate(
            COALESCE(SUM(COALESCE((data->>'consultant_fee')::numeric, 0)), 0) AS sum_consultant_fee,
            COALESCE(SUM(COALESCE((data->>'ad_cost')::numeric, 0)), 0) AS sum_ad_cost,
            COALESCE(SUM(COALESCE((data->>'locksmith_construction_cost')::numeric, 0)), 0) AS sum_locksmith_construction_cost,
-           COALESCE(SUM(COALESCE((data->>'locksmith_commission_fee')::numeric, 0)), 0) AS sum_locksmith_commission_fee
+           COALESCE(SUM(COALESCE((data->>'locksmith_commission_fee')::numeric, 0)), 0) AS sum_locksmith_commission_fee,
+           COALESCE(SUM(COALESCE((data->>'acquisition_count')::numeric, 0)), 0) AS sum_acquisition_count
          FROM entries
          WHERE business_category = ANY($1::text[])
            AND area_id = ANY($2::text[])
@@ -108,7 +109,13 @@ async function callRangeAggregate(
        SELECT
          business_category, area_id,
          ROUND(sum_outsourced_sales_revenue + sum_internal_staff_revenue)::BIGINT AS total_revenue,
-         ROUND(sum_outsourced_response_count + sum_internal_staff_response_count)::INT AS total_count,
+         ROUND(
+           CASE
+             WHEN business_category IN ('water', 'electric')
+               THEN (sum_outsourced_response_count + sum_internal_staff_response_count)
+             ELSE sum_acquisition_count
+           END
+         )::INT AS total_count,
          ROUND(
            CASE
              WHEN business_category = 'locksmith' THEN
@@ -148,7 +155,13 @@ async function callRangeAggregate(
          COALESCE(SUM(CASE WHEN business_category = 'water' THEN COALESCE((data->>'consultant_fee')::numeric, 0) ELSE 0 END), 0) AS sum_water_consultant_fee,
          COALESCE(SUM(COALESCE((data->>'ad_cost')::numeric, 0)), 0) AS sum_ad_cost,
          COALESCE(SUM(COALESCE((data->>'locksmith_construction_cost')::numeric, 0)), 0) AS sum_locksmith_construction_cost,
-         COALESCE(SUM(COALESCE((data->>'locksmith_commission_fee')::numeric, 0)), 0) AS sum_locksmith_commission_fee
+         COALESCE(SUM(COALESCE((data->>'locksmith_commission_fee')::numeric, 0)), 0) AS sum_locksmith_commission_fee,
+         COALESCE(SUM(
+           CASE WHEN business_category IN ('water', 'electric')
+             THEN COALESCE((data->>'outsourced_response_count')::numeric, 0) + COALESCE((data->>'internal_staff_response_count')::numeric, 0)
+             ELSE COALESCE((data->>'acquisition_count')::numeric, 0)
+           END
+         ), 0) AS sum_effective_count
        FROM entries
        WHERE business_category = ANY($1::text[])
          AND area_id = ANY($2::text[])
@@ -157,7 +170,7 @@ async function callRangeAggregate(
      )
      SELECT
        ROUND(sum_outsourced_sales_revenue + sum_internal_staff_revenue)::BIGINT AS total_revenue,
-       ROUND(sum_outsourced_response_count + sum_internal_staff_response_count)::INT AS total_count,
+       ROUND(sum_effective_count)::INT AS total_count,
        ROUND(
          (sum_outsourced_sales_revenue + sum_internal_staff_revenue)
          - sum_total_labor_cost - sum_material_cost - sum_ad_cost
@@ -208,11 +221,14 @@ async function main() {
     };
     await insertEntry(client, "kanto", "electric", 5, electricKantoData);
     // 投入: locksmith/kansai に 5 日 (専用式)
+    // 件数バグ回帰用 (2026-06-19): acquisition_count=7 を主、outsourced_response_count=3 を罠として併置。
+    //   鍵の件数は acquisition_count を採用すべき (応答件数 3 ではなく 7 が total_count になる)。
     const locksmithData = {
       outsourced_sales_revenue: 200000,
       locksmith_construction_cost: 50000, material_cost: 30000, ad_cost: 10000,
       locksmith_commission_fee: 20000,
-      outsourced_response_count: 3,
+      outsourced_response_count: 3, // 罠: 鍵では件数に使われない
+      acquisition_count: 7,         // 正: 鍵の件数はこちら
     };
     await insertEntry(client, "kansai", "locksmith", 5, locksmithData);
 
@@ -258,6 +274,11 @@ async function main() {
     // locksmith: 200000 - 50000 - 30000 - 10000 - 20000 = 90000
     eqNum("locksmith/kansai profit = 90,000 (専用式)",
       Number(locksmith.total_profit), 90000);
+    // 件数バグ回帰 (2026-06-19): 業態別件数定義の検証
+    eqNum("water/kansai total_count = 10 (応答件数)", Number(water.total_count), 10);
+    eqNum("electric/kanto total_count = 5 (応答件数)", Number(electric.total_count), 5);
+    eqNum("locksmith/kansai total_count = 7 (acquisition_count、応答件数 3 ではない★)",
+      Number(locksmith.total_count), 7);
 
     // ── 4. group_by=none (merged) + 全業態×全エリア ─
     console.log("\n📋 4. group_by=none (merged) + 全業態×全エリア");
@@ -312,6 +333,12 @@ async function main() {
     eqNum("kansai 全業態 revenue = 1,200,000", Number(r6_all[0].total_revenue), 1200000);
     eqNum("kansai water 単独 revenue = 1,000,000", Number(r6_w[0].total_revenue), 1000000);
     eqNum("kansai locksmith 単独 revenue = 200,000", Number(r6_l[0].total_revenue), 200000);
+    // 件数バグ回帰 (2026-06-19): none (merged) 経路でも業態別件数が正しく合算される
+    eqNum("kansai locksmith 単独 total_count = 7 (acquisition_count、応答件数 3 ではない★)",
+      Number(r6_l[0].total_count), 7);
+    eqNum("kansai water 単独 total_count = 10 (応答件数)", Number(r6_w[0].total_count), 10);
+    eqNum("kansai 全業態 merged total_count = 17 (water 10 + locksmith 7、混在合算)",
+      Number(r6_all[0].total_count), 17);
 
     await cleanupTestMonth(client);
     console.log(`\n${failed === 0 ? "✅" : "❌"} ${passed}/${passed + failed} passed`);
