@@ -32,6 +32,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { BusinessCategory } from "../lib/businesses";
 import { COMPANIES, deriveCompanySwitchPatch, getCompanyCategoriesAndAreas } from "../lib/companies";
 import DailyReportContent from "../entry/components/dailyReport/DailyReportContent";
+import { todayLocalISO } from "../lib/dateUtils";
 
 const VALID_CATEGORIES: BusinessCategory[] = ["water", "electric", "locksmith", "road", "detective"];
 const VALID_AREAS = ["kansai", "kanto", "nagoya", "kyushu", "kitakanto", "hokkaido", "chugoku", "shizuoka"];
@@ -45,7 +46,7 @@ type DateMode = typeof VALID_MODES[number];
 //   FilterBar 側だけでなく URL 直叩き / ブラウザ履歴経由でも 4 月以前が入らないよう本ファイルでもガード。
 const MIN_DATE_C96 = "2026-05-01";
 
-const todayISO = (): string => new Date().toISOString().slice(0, 10);
+const todayISO = todayLocalISO; // TZ 安全 (lib/dateUtils): 朝 9 時前に「今日」が前日になる UTC ずれを解消
 
 const isValidDate = (s: string): boolean =>
   /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(`${s}T00:00:00`).getTime());
@@ -133,10 +134,13 @@ function DailyReportPageContent() {
   }, [searchParams, router]);
 
   // 単日 (date) 変更 (◀▶ / カレンダー)
+  // c96-2: ヘッダー ◀▶ / カレンダーは MIN_DATE ガードを持たないため、単一チョークポイントの
+  //   ここで clampDate を効かせ、4 月以前データへの遡及 (§1 重大事故) を全経路で構造的に封殺。
   const handleDateChange = useCallback((newDate: string) => {
     if (!isValidDate(newDate)) return;
-    setDate(newDate);
-    updateUrl({ date: newDate });
+    const clamped = clampDate(newDate);
+    setDate(clamped);
+    updateUrl({ date: clamped });
   }, [updateUrl]);
 
   // 視点切替 (会社別 / 事業別 / グループ全体)

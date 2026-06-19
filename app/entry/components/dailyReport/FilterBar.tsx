@@ -18,6 +18,7 @@
 import { useMemo } from "react";
 import type { BusinessCategory } from "../../../lib/businesses";
 import { AREA_NAMES, BUSINESSES } from "../../../lib/businesses";
+import { shiftDateStr } from "../../../lib/dateUtils";
 import { COMPANIES, getCompanyCategoriesAndAreas } from "../../../lib/companies";
 import {
   COLOR_BRAND_DARK,
@@ -252,10 +253,8 @@ export default function FilterBar(props: Props) {
 }
 
 function shiftDate(current: string, deltaDays: number, onChange: (d: string) => void, minDate?: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(current)) return;
-  const d = new Date(`${current}T00:00:00`);
-  d.setDate(d.getDate() + deltaDays);
-  const next = d.toISOString().slice(0, 10);
+  const next = shiftDateStr(current, deltaDays); // TZ 安全 (lib/dateUtils)
+  if (next == null) return;
   if (minDate && next < minDate) return; // c96-2-hotfix: 4 月以前ガード
   onChange(next);
 }

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, use } from 'react';
+import { todayLocalISO } from '../../../lib/dateUtils';
 
 const PURPLE = '#3C3489';
 const PURPLE_DARK = '#26215C';
@@ -38,7 +39,7 @@ export default function NewMinutesPage({ params }: { params: Promise<{ series: s
   const seriesLabel = SERIES_LABEL[series] ?? series;
 
   const router = useRouter();
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocalISO);
   const [title, setTitle] = useState('');
   const [facilitator, setFacilitator] = useState('');
   const [metricScope, setMetricScope] = useState<'group' | 'business' | 'area'>('group');
