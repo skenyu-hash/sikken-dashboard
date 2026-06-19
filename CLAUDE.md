@@ -357,6 +357,17 @@ UI / フロント変更 PR (= ユーザー画面に影響する変更) は本番
   - **検証**: `scripts/check-company-mom-prevday.ts`（READ ONLY、本番DB直読の独立検算）。TOPLEVEL 水道が本番スクショ実値と**1円単位一致**（売上-32.2% 差¥11,434,386 等）で手法を実値立証、ULUA 電気の正しい前月同日比は**売上-26.7%**（前月¥46.4M、旧-39.5%は誤比較）、REXIA 複数エリア水道の連結合算=エリア別合算で粗利差0、consultant_fee(202605~)前月反映・4月以前非混入を確認。number-verifier / invariant-guard 両番人合格、tsc緑、build緑、Preview で ULUA -26.7% 目視確認済。DB 書き込みなし。
   - **§10 事後一報 実施済**（現場が見る前月同日比の数字が会社別タブで変わるため）。
 
+### PR #176 / #177: 日報の日付ナビ TZ ずれ + 鍵/ロード/探偵の件数バグ修正（2026-06-19）
+- **PR #176** ✅ マージ済 (2026-06-19T02:36Z、squash commit d621e29) — /daily-report 単日ナビ ◀▶ が JST で「対象日+delta−1日」になる TZ ずれ（▶ が動かない/◀ が2日飛ぶ）の根本修正。原因は `new Date("...T00:00:00")`(ローカル基準パース)+`toISOString().slice(0,10)`(UTC基準出力)の混在。
+  - 新規 `app/lib/dateUtils.ts`（TZ 安全な純関数 lib: isIsoDate/formatLocalDate/todayLocalISO/shiftDateStr、toISOString 不使用）に統一。FilterBar.tsx/DailyReportContent.tsx の日付送りを shiftDateStr 委譲、daily-report/page.tsx の todayISO→todayLocalISO、meetings/new・minutes/[series]/new の日付初期値も統一。
+  - `handleDateChange` に `clampDate` 適用し、ヘッダー◀▶・カレンダー・FilterBar の全経路で MIN_DATE_C96="2026-05-01"（4月以前ガード §1）を統一（番人指摘の既存不整合を解消）。
+  - 新規 test-date-utils 18/18 pass（TZ=Asia/Tokyo 強制で旧バグ回帰封じ）、tsc/build 緑、invariant-guard 合格。
+- **PR #177** ✅ マージ済 (2026-06-19T02:36Z、squash commit 2a6bad1) — /daily-report 拡張モード（会社別/事業別/グループ）で鍵・ロード・探偵の「対応件数」が 0件・「客単価」が「—」になるバグの根本修正。原因は range-aggregate API の `total_count` が全業態で「応答件数の和」固定で、acquisition_count で数える業態は 0 → unit_price=売上÷0=0 になっていた（本体 Dashboard は `total_count||acquisition_count` フォールバックで正しく表示していた＝非対称が真因）。
+  - `app/api/range-aggregate/route.ts` 両 CTE で件数を業態別分岐（water/electric=応答件数、locksmith/road/detective=acquisition_count）。groupBy="none" は base CTE に行ごと条件付き SUM `sum_effective_count` を追加（業態混在でも各業態を自分の定義で合算）。unit_price は既存式で自動追従。
+  - **monthly_summaries/monthlyAggregation は非変更**（本体フォールバックで実害なし、DB再集計回避）。range-aggregate は READ ONLY、DB書き込みなし。
+  - **本番実データ検算**: 修正後 SQL で鍵/関西/2026-06 = 289件・¥34,851 → 本体スクショと1件・1円一致（`scripts/check-locksmith-count-debug.ts`、READ ONLY）。test-range-aggregate 24/24 pass（鍵 total_count=7[acquisition] を罠の応答3と区別、混在 merged=17 を新規アサーション）。number-verifier/invariant-guard 両番人合格。
+  - **§10 事後一報 対象**（現場が見る鍵/ロード/探偵の件数・客単価が「0/—」→実値に変わる）。
+
 ### 保留中
 - ⚠️ **water 5/6 月コンサル費の実額入力 (現場運用)**: 2026-06-02 c95-D-4 apply 時点で water 5月の entries.data.consultant_fee は 217 行中 3 行 (chugoku 5/1-5/3) のみ has_key 状態。slice 4 マージで profit が約 +2,790 万円 跳ね上がっており、現場 (各エリアマネージャー) が実額入力を進めて初めて正しい粗利に収束する。**現場周知 + 入力催促が運用上の最優先課題**
 - **c95-C** 残作業（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— C-1 完了、C-2〜C-5 着手可能
