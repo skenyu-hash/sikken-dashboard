@@ -11,6 +11,7 @@
     "test:permissions": "tsx scripts/test-permissions.ts",
     "test:profit": "tsx scripts/test-profit.ts",
     "test:year-aggregation": "tsx scripts/test-year-aggregation.ts",
+    "test:targets-row": "tsx scripts/test-targets-row.ts",
     "test:c94-c-3a": "tsx scripts/test-c94-c-3a-dashboard-trainee.ts",
     "test:mom-sameday": "tsx scripts/test-mom-sameday.ts",
     "test:integration:import-monthly": "tsx scripts/test-import-monthly-integration.ts",
