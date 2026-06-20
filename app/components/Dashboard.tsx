@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   calculateDashboard, calculateBreakeven, calculateAchievement,
   forecastWeekday, forecastRecent7, getDaysInMonth,
@@ -834,6 +835,11 @@ export default function Dashboard() {
           SIKKEN GROUP 経営OS
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {/* 月次 / 年次 トグル (年次は /year へリンク = ルート遷移で完全分離、本体の14 effect は無干渉) */}
+          <div style={{ display: "flex", gap: 2, background: "rgba(0,0,0,0.25)", borderRadius: 6, padding: 2 }}>
+            <span style={{ padding: "3px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, background: "#fff", color: "#059669" }}>月次</span>
+            <Link href="/year" style={{ padding: "3px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, textDecoration: "none", background: "transparent", color: "rgba(255,255,255,0.7)" }}>年次</Link>
+          </div>
           {canEditDashboard && (
             <div style={{ display: "flex", gap: 2, background: "rgba(0,0,0,0.2)", borderRadius: 6, padding: 2 }}>
               <button type="button" onClick={() => setViewMode("business")}
