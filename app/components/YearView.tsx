@@ -88,12 +88,12 @@ export default function YearView() {
     };
   }, [actuals]);
 
+  // 目標は「入力済み月の月次目標の合計」(fullYear)。月次画面の目標比と同じ流儀に統一 (D-013)。
+  // pacing(当月日割り按分)は経営者に分かりにくいため不採用 (DECISIONS.md D-013)。
   const tgt = useMemo(() => {
-    const sum = { pSales: 0, pProfit: 0, pCount: 0, pAd: 0, fSales: 0, fProfit: 0, fCount: 0, fAd: 0 };
+    const sum = { fSales: 0, fProfit: 0, fCount: 0, fAd: 0 };
     for (const cat of Object.keys(targets) as BusinessCategory[]) {
       const t = targets[cat]!;
-      sum.pSales += t.pacing.targetSales; sum.pProfit += t.pacing.targetProfit;
-      sum.pCount += t.pacing.targetCount; sum.pAd += t.pacing.targetAdCost;
       sum.fSales += t.fullYear.targetSales; sum.fProfit += t.fullYear.targetProfit;
       sum.fCount += t.fullYear.targetCount; sum.fAd += t.fullYear.targetAdCost;
     }
@@ -183,15 +183,16 @@ export default function YearView() {
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{headerLabel}</h1>
           <p style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
             {viewYear}年 年初来累計（5月〜）{loading ? " ｜ 読込中…" : ""}
+            <br />目標 = 月次目標管理で入力済みの月の合計（未入力の月は含まない）
           </p>
 
-          {/* ヒーロー KPI: YTD実績 / 達成ペース比 / 年間目標 */}
+          {/* ヒーロー KPI: YTD実績 / 目標比 / 目標(入力済み月の合計)。月次画面と同じ目標比の流儀 (D-013) */}
           <div className="kpi-grid-5" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginTop: 12 }}>
-            <HeroCard label="売上" actual={yen(totals.revenue)} pace={pace(totals.revenue, tgt.pSales)} annual={tgt.fSales > 0 ? yen(tgt.fSales) : "—"} />
-            <HeroCard label="粗利" actual={yen(totals.profit)} sub={`粗利率 ${totals.profitRate.toFixed(1)}%`} pace={pace(totals.profit, tgt.pProfit)} annual={tgt.fProfit > 0 ? yen(tgt.fProfit) : "—"} negative={totals.profit < 0} />
-            <HeroCard label="対応件数" actual={`${totals.count.toLocaleString("ja-JP")}件`} pace={pace(totals.count, tgt.pCount)} annual={tgt.fCount > 0 ? `${tgt.fCount.toLocaleString("ja-JP")}件` : "—"} />
-            <HeroCard label="客単価" actual={yen(totals.unitPrice)} annual={tgt.fCount > 0 ? yen(Math.round(tgt.fSales / tgt.fCount)) : "—"} annualLabel="目標" />
-            <HeroCard label="広告費" actual={yen(totals.adCost)} sub={`広告費率 ${totals.adRate.toFixed(1)}%`} pace={pace(totals.adCost, tgt.pAd)} annual={tgt.fAd > 0 ? yen(tgt.fAd) : "—"} />
+            <HeroCard label="売上" actual={yen(totals.revenue)} ratio={ratio(totals.revenue, tgt.fSales)} target={tgt.fSales > 0 ? yen(tgt.fSales) : "—"} />
+            <HeroCard label="粗利" actual={yen(totals.profit)} sub={`粗利率 ${totals.profitRate.toFixed(1)}%`} ratio={ratio(totals.profit, tgt.fProfit)} target={tgt.fProfit > 0 ? yen(tgt.fProfit) : "—"} negative={totals.profit < 0} />
+            <HeroCard label="対応件数" actual={`${totals.count.toLocaleString("ja-JP")}件`} ratio={ratio(totals.count, tgt.fCount)} target={tgt.fCount > 0 ? `${tgt.fCount.toLocaleString("ja-JP")}件` : "—"} />
+            <HeroCard label="客単価" actual={yen(totals.unitPrice)} ratio={ratio(totals.unitPrice, tgt.fCount > 0 ? Math.round(tgt.fSales / tgt.fCount) : 0)} target={tgt.fCount > 0 ? yen(Math.round(tgt.fSales / tgt.fCount)) : "—"} />
+            <HeroCard label="広告費" actual={yen(totals.adCost)} sub={`広告費率 ${totals.adRate.toFixed(1)}%`} ratio={ratio(totals.adCost, tgt.fAd)} target={tgt.fAd > 0 ? yen(tgt.fAd) : "—"} />
           </div>
         </div>
       </div>
@@ -211,27 +212,27 @@ export default function YearView() {
   );
 }
 
-/** 達成ペース比 (YTD実績 ÷ 経過月按分目標) を色付き文字列で返す。 */
-function pace(actual: number, pacingTarget: number): { text: string; color: string } | null {
-  if (pacingTarget <= 0) return null;
-  const r = (actual / pacingTarget) * 100;
+/** 目標比 (YTD実績 ÷ 入力済み月の目標合計) を色付き文字列で返す。月次画面の目標比と同じ流儀 (D-013)。 */
+function ratio(actual: number, target: number): { text: string; color: string } | null {
+  if (target <= 0) return null;
+  const r = (actual / target) * 100;
   const color = r >= 100 ? "#a7f3d0" : r >= 70 ? "#fde68a" : "#fca5a5";
   return { text: `${r.toFixed(1)}%`, color };
 }
 
 function HeroCard(props: {
   label: string; actual: string; sub?: string;
-  pace?: { text: string; color: string } | null; annual: string; annualLabel?: string; negative?: boolean;
+  ratio?: { text: string; color: string } | null; target: string; negative?: boolean;
 }) {
   return (
     <div style={{ background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: "10px 12px", minWidth: 0 }}>
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>{props.label}</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: props.negative ? "#fca5a5" : "#fff", marginTop: 2, whiteSpace: "nowrap" }}>{props.actual}</div>
       {props.sub && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 1 }}>{props.sub}</div>}
-      {props.pace && (
-        <div style={{ fontSize: 11, fontWeight: 700, color: props.pace.color, marginTop: 4 }}>ペース比 {props.pace.text}</div>
+      {props.ratio && (
+        <div style={{ fontSize: 11, fontWeight: 700, color: props.ratio.color, marginTop: 4 }}>目標比 {props.ratio.text}</div>
       )}
-      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", marginTop: 2, whiteSpace: "nowrap" }}>{props.annualLabel ?? "年間目標"} {props.annual}</div>
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", marginTop: 2, whiteSpace: "nowrap" }}>目標 {props.target}</div>
     </div>
   );
 }
