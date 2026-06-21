@@ -368,6 +368,17 @@ UI / フロント変更 PR (= ユーザー画面に影響する変更) は本番
   - **本番実データ検算**: 修正後 SQL で鍵/関西/2026-06 = 289件・¥34,851 → 本体スクショと1件・1円一致（`scripts/check-locksmith-count-debug.ts`、READ ONLY）。test-range-aggregate 24/24 pass（鍵 total_count=7[acquisition] を罠の応答3と区別、混在 merged=17 を新規アサーション）。number-verifier/invariant-guard 両番人合格。
   - **§10 事後一報 対象**（現場が見る鍵/ロード/探偵の件数・客単価が「0/—」→実値に変わる）。
 
+### 年次(YTD)ビュー 新設 + ダークモード無効化（2026-06-21）
+- **年次(YTD)ビュー** ✅ マージ済 — 月次に加え暦年の年初来累計（2026年5月〜当月）を表示する独立ルート `/year` を新設。月次トップバーに月次/年次トグル（年次=`<Link href="/year">`）。事業別（業態タブ＋全エリア/エリア）・会社別（会社/全社合計）対応。ヒーロー＝YTD実績＋目標比＋目標（入力済み月の合計）。着地予測・前年比なし、赤字は真の負値表示。業態別 Section は既存5種を再利用。Gemini 独立設計レビューで4盲点（損失消去・hookライフサイクル・スナップショット重複・率合算）を設計段階で封殺。
+  - **PR #179** (squash b14a94b) — slice1: `app/lib/yearAggregation.ts` 純関数（YTD合算、`YTD_MIN_YYYYMM=202605` で4月以前ガード、粗利は合算後1回導出で損失消去回避、率は総額再計算、スナップショットMAX月、件数fallback）＋ test 22件。number-verifier/invariant-guard 合格。
+  - **PR #185** (squash 95468be) — slice2-4 統合: `useYearAggregate` hook ＋ `targetsRow.ts` ＋ `targets-bulk?full=1`（READ ONLY）／`/year` ＋ `YearView.tsx`（Dashboard.tsx は月次/年次トグルのみ +6/-0、14 effect不変）／目標表示を案A（月次と同じ目標比）に統一（[D-013](./DECISIONS.md)）。test:targets-row 17件。両番人合格。
+    - ※ 当初 stacked PR #180/#181/#182 だったが #179 の squash で分岐したため、現 main に cherry-pick して #185 に統合（中身同一）。#180-182 はクローズ。
+  - **PR #184** (squash 13cd2c4) — ダークモード無効化: Next.js テンプレ由来のダーク残骸（OSダーク時 `dark:bg-black` で背景黒、年次ビューの空白部で露出）を `globals.css` の `@custom-variant dark` クラス方式化＋`prefers-color-scheme: dark` 撤去で全ページ白基調固定（§4.5）。CSSのみ。
+  - **本番実データ検算**: 関西水道 YTD 売上156,093,791/粗利48,454,565/31%/1,042件、関西鍵 44,032,370/23,910,170/54.3%/1,012件が手計算と1円一致。本番に実在の1〜4月行をガードが全除外することも実証（READ ONLY スクリプト、`/tmp` 退避・非コミット）。
+  - **§10 事後一報 対象**（現場に「年次タブ追加」「背景白化」が出る）。
+  - **後続候補（任意）**: 年次の「グループ全体」タブ追加（現状は会社別→全社合計で代替可）。年間予算（期初一括入力）は [BACKLOG](./BACKLOG.md) に記録（IPO予実管理の土台、D-013 将来項）。
+  - **見送り**: 「ナビが Ctrl+Shift+R しないと出ない」件は調査したが本番の通常リロードで正常表示＝観測バグ無し。PR #183（/api/me no-store 予防策）は取り下げ・完全削除。
+
 ### 保留中
 - ⚠️ **water 5/6 月コンサル費の実額入力 (現場運用)**: 2026-06-02 c95-D-4 apply 時点で water 5月の entries.data.consultant_fee は 217 行中 3 行 (chugoku 5/1-5/3) のみ has_key 状態。slice 4 マージで profit が約 +2,790 万円 跳ね上がっており、現場 (各エリアマネージャー) が実額入力を進めて初めて正しい粗利に収束する。**現場周知 + 入力催促が運用上の最優先課題**
 - **c95-C** 残作業（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— C-1 完了、C-2〜C-5 着手可能
