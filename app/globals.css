@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* ダークモード無効化 (2026-06-20):
+   本アプリは CLAUDE.md §4.5 の通り「白基調 + 緑アクセント」固定デザインで、ダークモードは
+   Next.js 初期テンプレートの残骸 (意図せず). OS がダークモードだと dark:bg-black 等が効いて
+   背景が黒くなり、データの薄い画面 (年次ビュー等) で黒が露出する不具合になっていた。
+   dark バリアントをクラス方式 (.dark 配下のみ) に切替 → .dark を一切付与しないため全 dark:* が
+   inert になり、常に白基調で描画される。併せて下の prefers-color-scheme ブロックも撤去し
+   body の --background を常に #ffffff に固定する。 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -10,13 +19,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
