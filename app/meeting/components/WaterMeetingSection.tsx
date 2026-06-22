@@ -70,7 +70,8 @@ export default function WaterMeetingSection({
   const helpRevenue = numOf(monthlySummary?.help_revenue);
   const helpCount = numOf(monthlySummary?.help_count);
   const helpUnitPrice = Math.round(safeDiv(helpRevenue, helpCount));
-  const helpRate = safeDiv(helpRevenue, sales) * 100;
+  // HELP 率 = HELP件数 ÷ 対応件数 × 100 (浸透率)。ダッシュボードと定義統一 (旧 HELP売上÷売上 から変更)。
+  const helpRate = safeDiv(helpCount, totalCount) * 100;
 
   // ⑤ 水道専用 (PR c94-B-1)
   const responseRate = safeDiv(totalCount, callCount) * 100;

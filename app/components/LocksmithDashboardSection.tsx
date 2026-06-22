@@ -22,7 +22,7 @@
 //   CPA      = 広告費 ÷ 総獲得件数
 //   成約率   = 総獲得件数 ÷ 総入電件数 × 100
 //   HELP 客単価 = HELP売上 ÷ HELP件数
-//   HELP 率  = HELP売上 ÷ 売上 × 100
+//   HELP 率  = HELP件数 ÷ 総獲得件数 × 100 (浸透率)。旧 HELP売上÷売上 は HELP売上の売上比サブへ移設
 
 import React from "react";
 import { yen, momLabel, type Targets, type SameDayAggregate } from "../lib/calculations";
@@ -70,7 +70,10 @@ export default function LocksmithDashboardSection({ monthlySummary, targets, pre
   const helpRevenue = numOf(monthlySummary?.help_revenue);
   const helpCount = numOf(monthlySummary?.help_count);
   const helpUnitPrice = Math.round(safeDiv(helpRevenue, helpCount));
-  const helpRate = safeDiv(helpRevenue, sales) * 100;
+  // HELP 率 = HELP件数 ÷ 総獲得件数 × 100 (獲得のうち HELP が何件食い込んだかの浸透率)。
+  //   鍵は対応件数(total_count)を入力せず総獲得件数(acquisition_count)を実働母数にするため、
+  //   客単価 (= 売上 ÷ 総獲得件数) と母数を揃える。旧定義 (HELP売上 ÷ 売上) は HELP売上の売上比サブへ移設。
+  const helpRate = safeDiv(helpCount, acquisitionCount) * 100;
 
   // 売上比%
   const ratio = (cost: number) => (sales > 0 ? (cost / sales) * 100 : 0);
@@ -155,14 +158,14 @@ export default function LocksmithDashboardSection({ monthlySummary, targets, pre
 
         {/* ④ HELP */}
         <Card title="④ HELP" group="help">
-          <Row label="HELP 売上"   actual={fmtYen(helpRevenue)}   target={fmtYen(targetHelpSales)}    achievement={achv(helpRevenue, targetHelpSales)}
+          <Row label="HELP 売上"   actual={fmtYen(helpRevenue)}   target={fmtYen(targetHelpSales)}    achievement={achv(helpRevenue, targetHelpSales)} sub={`売上比 ${fmtPct(ratio(helpRevenue))}`}
             mom={momLabel(helpRevenue, p?.help_revenue ?? 0, "yen")} />
           <Row label="HELP 件数"   actual={fmtCount(helpCount)}   target={fmtCount(targetHelpCount)}  achievement={achv(helpCount, targetHelpCount)}
             mom={momLabel(helpCount, p?.help_count ?? 0, "count")} />
           <Row label="HELP 客単価" actual={fmtYen(helpUnitPrice)} target={fmtYen(targetHelpUnitPrice)} achievement={achv(helpUnitPrice, targetHelpUnitPrice)} sub="= HELP売上 ÷ HELP件数"
             mom={momLabel(helpUnitPrice, p ? Math.round(safeDiv(p.help_revenue, p.help_count)) : 0, "yen")} />
-          <Row label="HELP 率"     actual={fmtPct(helpRate)}      target={fmtPct(targetHelpRate)}      achievement={achv(helpRate, targetHelpRate)} sub="= HELP売上 ÷ 売上 × 100"
-            mom={momLabel(helpRate, p ? safeDiv(p.help_revenue, p.total_revenue) * 100 : 0, "pct")} />
+          <Row label="HELP 率"     actual={fmtPct(helpRate)}      target={fmtPct(targetHelpRate)}      achievement={achv(helpRate, targetHelpRate)} sub="= HELP件数 ÷ 総獲得件数 × 100"
+            mom={momLabel(helpRate, p ? safeDiv(p.help_count, p.acquisition_count) * 100 : 0, "pct")} />
         </Card>
 
         {/* ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット) */}

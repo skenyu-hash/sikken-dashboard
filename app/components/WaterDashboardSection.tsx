@@ -79,7 +79,9 @@ export default function WaterDashboardSection({ monthlySummary, targets, prevCal
   const helpRevenue = numOf(monthlySummary?.help_revenue);
   const helpCount = numOf(monthlySummary?.help_count);
   const helpUnitPrice = Math.round(safeDiv(helpRevenue, helpCount));
-  const helpRate = safeDiv(helpRevenue, sales) * 100;
+  // HELP 率 = HELP件数 ÷ 対応件数 × 100 (対応のうち HELP が何件食い込んだかの浸透率)。
+  //   旧定義 (HELP売上 ÷ 売上) は HELP売上 行の「売上比」サブ表記へ移設 (ratio(helpRevenue))。
+  const helpRate = safeDiv(helpCount, totalCount) * 100;
 
   // ⑤ 水道専用 (PR c94-B-1)
   //   - 対応率: 対応件数 ÷ 入電件数 (入電のうち何件対応できたか、旧 MetricsTable から継承)
@@ -184,14 +186,14 @@ export default function WaterDashboardSection({ monthlySummary, targets, prevCal
 
         {/* ④ HELP */}
         <Card title="④ HELP 部門" group="help">
-          <Row label="HELP 売上"   actual={fmtYen(helpRevenue)}   target={fmtYen(targetHelpSales)}    achievement={achv(helpRevenue, targetHelpSales)}
+          <Row label="HELP 売上"   actual={fmtYen(helpRevenue)}   target={fmtYen(targetHelpSales)}    achievement={achv(helpRevenue, targetHelpSales)} sub={`売上比 ${fmtPct(ratio(helpRevenue))}`}
             mom={momLabel(helpRevenue, p?.help_revenue ?? 0, "yen")} />
           <Row label="HELP 件数"   actual={fmtCount(helpCount)}   target={fmtCount(targetHelpCount)}  achievement={achv(helpCount, targetHelpCount)}
             mom={momLabel(helpCount, p?.help_count ?? 0, "count")} />
           <Row label="HELP 客単価" actual={fmtYen(helpUnitPrice)} target={fmtYen(targetHelpUnitPrice)} achievement={achv(helpUnitPrice, targetHelpUnitPrice)} sub="= HELP売上 ÷ HELP件数"
             mom={momLabel(helpUnitPrice, p ? Math.round(safeDiv(p.help_revenue, p.help_count)) : 0, "yen")} />
-          <Row label="HELP 率"     actual={fmtPct(helpRate)}      target={fmtPct(targetHelpRate)}      achievement={achv(helpRate, targetHelpRate)} sub="= HELP売上 ÷ 売上 × 100"
-            mom={momLabel(helpRate, p ? safeDiv(p.help_revenue, p.total_revenue) * 100 : 0, "pct")} />
+          <Row label="HELP 率"     actual={fmtPct(helpRate)}      target={fmtPct(targetHelpRate)}      achievement={achv(helpRate, targetHelpRate)} sub="= HELP件数 ÷ 対応件数 × 100"
+            mom={momLabel(helpRate, p ? safeDiv(p.help_count, p.total_count) * 100 : 0, "pct")} />
         </Card>
 
         {/* ⑤ 水道専用 */}
