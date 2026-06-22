@@ -74,7 +74,8 @@ export default function ElectricMeetingSection({
   const helpRevenue = numOf(monthlySummary?.help_revenue);
   const helpCount = numOf(monthlySummary?.help_count);
   const helpUnitPrice = Math.round(safeDiv(helpRevenue, helpCount));
-  const helpRate = safeDiv(helpRevenue, sales) * 100;
+  // HELP 率 = HELP件数 ÷ 対応件数 × 100 (浸透率)。ダッシュボードと定義統一 (旧 HELP売上÷売上 から変更)。
+  const helpRate = safeDiv(helpCount, totalCount) * 100;
 
   // 電気専用
   const switchboardCount = numOf(monthlySummary?.switchboard_count);

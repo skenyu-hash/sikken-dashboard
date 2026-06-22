@@ -64,7 +64,8 @@ export default function LocksmithMeetingSection({
   // HELP
   const helpRevenue = numOf(monthlySummary?.help_revenue);
   const helpUnitPrice = Math.round(safeDiv(helpRevenue, helpCount));
-  const helpRate = safeDiv(helpRevenue, sales) * 100;
+  // HELP 率 = HELP件数 ÷ 総獲得件数 × 100 (浸透率)。鍵は総獲得件数を母数にする (ダッシュボードと定義統一)。
+  const helpRate = safeDiv(helpCount, acquisitionCount) * 100;
 
   // ⑥ 体制 (PR c94-C-3a)
   const vehicleCount = numOf(monthlySummary?.vehicle_count);
