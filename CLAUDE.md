@@ -387,6 +387,14 @@ UI / フロント変更 PR (= ユーザー画面に影響する変更) は本番
   - **検証**: tsc/build 緑、純関数テスト全pass。number-verifier 合格（本番DB実値 water/kansai/2026-06 で新HELP率15÷449=3.3%、売上比16,672,100÷69,956,091=23.8%が完全一致）。invariant-guard 合格（絶対不変項目1〜7すべて無変更）。
   - **§10 事後一報 + 現場周知 対象**（現場が見るHELP率の意味が変わる＝23.8%→3.3%等。「HELP率は件数浸透率に変わった」「HELP率の目標値を入れ直す」周知が必要）。
 
+### HELP率の目標を件数目標から自動算出 + /targets手入力欄を廃止（2026-06-22）
+- **PR #189** ✅ マージ済 (2026-06-22T10:44Z、squash commit 24fb2d6) — PR #187 の続き。HELP率の「目標」を手入力(target_help_rate列)から **件数目標による自動算出** に変更。`目標HELP率 = HELP件数目標(targetHelpCount) ÷ 件数目標(targetCount) × 100`。実績(件数浸透率)と定義を揃え達成率を妥当化。**現場が見る達成率が変わる変更**（§0該当）。
+  - **設計（最小リスク）**: 合算レイヤー(db/targetsRow/yearAggregation/company-aggregations)は不変。表示8ファイル側で「合算済みの件数目標」から率を導出するため、単一エリア/全エリア/会社別/グループ/年次すべてで Σ(HELP件数目標)÷Σ(件数目標) になり整合（年次は3 Section再利用）。
+  - **変更ファイル(8、表示のみ)**: `{Water,Electric,Locksmith}DashboardSection.tsx` / `{Water,Electric,Locksmith}MeetingSection.tsx`（targetHelpRateを件数導出に）/ `ranking/page.tsx`（実績は既に件数ベース、目標も件数導出に整合化）/ `targets/components/TargetsMatrix.tsx`（「HELP率目標」入力欄を削除。DB列 target_help_rate は物理削除せず残置・未使用）。
+  - **検証**: number-verifier 合格（本番DB実値 water/kansai 27÷560=4.8%・locksmith/kansai 5÷600=0.8%、ゼロ除算/合算/保存も確認）。invariant-guard 合格（AUTOSAVE/4月以前データ/vehicleCount/c94-c95/aggregation/DB 全て無接触）。tsc/build/純関数テスト 全緑。
+  - **★既知の論点（指摘A、方針A採用で当面OK・反社長確認待ち）**: water/electric は実績の分母=対応件数(total_count)だが、目標の分母=単一の件数目標(targetCount、/targetsラベルは「獲得件数目標」、ダッシュボードでは対応件数行の目標としても兼用)。total_count≠acquisition_count(電気は獲得259 vs 対応376で差が大)のため厳密には分母定義が完全一致しない。鍵は実績=目標=総獲得件数で完全一致。**方針A=兼用のまま(現場の入力を増やさない)を反専務が暫定採用**。理想形B(「対応件数目標」を新設して完全一致、現場入力+1)はIPO視点の厳密性が要れば別PRで対応する将来候補（[BACKLOG](./BACKLOG.md)）。/targetsラベルを「件数目標」に整理する案も保留。
+  - **§10 事後一報 + 現場周知 対象**（HELP率の目標は件数目標から自動算出に変更・手入力欄は廃止）。
+
 ### 保留中
 - ⚠️ **water 5/6 月コンサル費の実額入力 (現場運用)**: 2026-06-02 c95-D-4 apply 時点で water 5月の entries.data.consultant_fee は 217 行中 3 行 (chugoku 5/1-5/3) のみ has_key 状態。slice 4 マージで profit が約 +2,790 万円 跳ね上がっており、現場 (各エリアマネージャー) が実額入力を進めて初めて正しい粗利に収束する。**現場周知 + 入力催促が運用上の最優先課題**
 - **c95-C** 残作業（日報の独立ページ化 + モバイル対応 + LINE 画像共有）— C-1 完了、C-2〜C-5 着手可能
