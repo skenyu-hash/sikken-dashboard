@@ -105,7 +105,9 @@ export default function ElectricDashboardSection({ monthlySummary, targets, prev
   const targetHelpSales = numOf(targets.targetHelpSales);
   const targetHelpCount = numOf(targets.targetHelpCount);
   const targetHelpUnitPrice = numOf(targets.targetHelpUnitPrice);
-  const targetHelpRate = numOf(targets.targetHelpRate);
+  // HELP率の目標は手入力(target_help_rate)を廃止し、件数目標から自動算出 (実績と定義を一致)。
+  //   = HELP件数目標 ÷ 対応件数目標 × 100。合算済みの件数目標を使うため全エリア/会社/グループ/年次も整合。
+  const targetHelpRate = safeDiv(targetHelpCount, targetCount) * 100;
   // PR #54 新規目標
   const targetSwitchboardCount = numOf(targets.targetSwitchboardCount);
   // ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット)

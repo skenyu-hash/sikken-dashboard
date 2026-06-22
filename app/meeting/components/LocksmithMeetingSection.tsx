@@ -66,6 +66,8 @@ export default function LocksmithMeetingSection({
   const helpUnitPrice = Math.round(safeDiv(helpRevenue, helpCount));
   // HELP 率 = HELP件数 ÷ 総獲得件数 × 100 (浸透率)。鍵は総獲得件数を母数にする (ダッシュボードと定義統一)。
   const helpRate = safeDiv(helpCount, acquisitionCount) * 100;
+  // HELP率の目標も件数目標から自動算出 (= HELP件数目標 ÷ 総獲得件数目標(targetCount) × 100、手入力廃止)。
+  const targetHelpRate = safeDiv(numOf(targets.targetHelpCount), numOf(targets.targetCount)) * 100;
 
   // ⑥ 体制 (PR c94-C-3a)
   const vehicleCount = numOf(monthlySummary?.vehicle_count);
@@ -102,7 +104,7 @@ export default function LocksmithMeetingSection({
         <MetricRow label="HELP 売上"   actual={helpRevenue}    target={targets.targetHelpSales}     {...mp} format={fmtYen} />
         <MetricRow label="HELP 件数"   actual={helpCount}      target={targets.targetHelpCount}     {...mp} format={fmtCount} />
         <MetricRow label="HELP 客単価" actual={helpUnitPrice}  target={targets.targetHelpUnitPrice} {...mp} format={fmtYen} isRate />
-        <MetricRow label="HELP 率"     actual={helpRate}       target={targets.targetHelpRate}      {...mp} format={fmtPct} isRate />
+        <MetricRow label="HELP 率"     actual={helpRate}       target={targetHelpRate}              {...mp} format={fmtPct} isRate />
       </SectionTable>
 
       {/* ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (旬独立 MAX) */}

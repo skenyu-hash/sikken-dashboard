@@ -114,7 +114,7 @@ export default function RankingPage() {
         unitPrice: r(unitPrice, tgts.targetUnitPrice),
         constructionRate: r(constructionRate, tgts.targetConstructionRate),
         adRate: r(adRate, tgts.targetAdRate),
-        helpRate: r(helpRate, tgts.targetHelpRate),
+        helpRate: r(helpRate, tgts.targetCount > 0 ? (tgts.targetHelpCount / tgts.targetCount) * 100 : 0),
         convRate: r(convRate, tgts.targetConversionRate),
       };
       const displaySummary = { ...summary, totalRevenue: revenue, totalProfit: profit,
