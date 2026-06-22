@@ -33,11 +33,11 @@ type MetricKey =
   | "targetCpa"
   | "targetConstructionRate"
   | "targetConversionRate"
-  // ③ HELP 部門 (4)
+  // ③ HELP 部門 (3、targetHelpRate は自動算出のため入力欄なし)
   | "targetHelpSales"
   | "targetHelpCount"
   | "targetHelpUnitPrice"
-  | "targetHelpRate"
+  | "targetHelpRate"  // 型キーは残置 (Targets 型・他経路で参照)、入力 METRICS には不採用
   // ④ 面談ファネル (探偵専用、PR #53)
   | "targetMeetingCount"
   | "targetMeetingRate"
@@ -91,11 +91,13 @@ const ADS_METRICS: MetricDef[] = [
 ];
 
 // セクション 3: HELP 部門
+//   HELP率目標 (targetHelpRate) は手入力欄を廃止。ダッシュボード/会議/年次/ランキングの
+//   HELP率目標は「HELP件数目標 ÷ 件数目標 × 100」で自動算出するため (実績の件数浸透率定義と一致)、
+//   入力させる必要がなくなった (旧 target_help_rate 列は残置だが未使用)。
 const HELP_METRICS: MetricDef[] = [
   { key: "targetHelpSales",     label: "HELP売上目標",   unit: "yen_man" },
   { key: "targetHelpCount",     label: "HELP件数目標",   unit: "count" },
   { key: "targetHelpUnitPrice", label: "HELP客単価目標", unit: "yen_raw" },
-  { key: "targetHelpRate",      label: "HELP率目標",     unit: "percent" },
 ];
 
 // セクション 4: 面談ファネル (探偵専用、PR #53)

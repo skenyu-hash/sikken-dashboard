@@ -112,7 +112,9 @@ export default function WaterDashboardSection({ monthlySummary, targets, prevCal
   const targetHelpSales = numOf(targets.targetHelpSales);
   const targetHelpCount = numOf(targets.targetHelpCount);
   const targetHelpUnitPrice = numOf(targets.targetHelpUnitPrice);
-  const targetHelpRate = numOf(targets.targetHelpRate);
+  // HELP率の目標は手入力(target_help_rate)を廃止し、件数目標から自動算出 (実績と定義を一致)。
+  //   = HELP件数目標 ÷ 対応件数目標 × 100。合算済みの件数目標を使うため全エリア/会社/グループ/年次も整合。
+  const targetHelpRate = safeDiv(targetHelpCount, targetCount) * 100;
   const targetVehicleCount = numOf(targets.targetVehicleCount);
   const targetTraineeCount = numOf(targets.targetTraineeCount);
   const targetCallUnitPrice = numOf(targets.targetCallUnitPrice);

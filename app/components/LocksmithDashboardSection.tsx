@@ -95,7 +95,9 @@ export default function LocksmithDashboardSection({ monthlySummary, targets, pre
   const targetConvRate = numOf(targets.targetConversionRate);
   const targetCallCount = numOf(targets.targetCallCount);
   const targetHelpUnitPrice = numOf(targets.targetHelpUnitPrice);
-  const targetHelpRate = numOf(targets.targetHelpRate);
+  // HELP率の目標は手入力(target_help_rate)を廃止し、件数目標から自動算出 (実績と定義を一致)。
+  //   鍵は = HELP件数目標 ÷ 総獲得件数目標(targetCount) × 100。実績の分母(総獲得件数)と揃う。
+  const targetHelpRate = safeDiv(targetHelpCount, targetCount) * 100;
   // ⑥ 体制 (PR c94-C-3a) — 全業態共通、車両数 + 研修生 (スナップショット)
   const vehicleCount = numOf(monthlySummary?.vehicle_count);
   const traineeCount = numOf(monthlySummary?.trainee_count);

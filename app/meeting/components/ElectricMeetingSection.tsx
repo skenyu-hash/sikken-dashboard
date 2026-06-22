@@ -76,6 +76,8 @@ export default function ElectricMeetingSection({
   const helpUnitPrice = Math.round(safeDiv(helpRevenue, helpCount));
   // HELP 率 = HELP件数 ÷ 対応件数 × 100 (浸透率)。ダッシュボードと定義統一 (旧 HELP売上÷売上 から変更)。
   const helpRate = safeDiv(helpCount, totalCount) * 100;
+  // HELP率の目標も件数目標から自動算出 (= HELP件数目標 ÷ 件数目標 × 100、手入力 target_help_rate は廃止)。
+  const targetHelpRate = safeDiv(numOf(targets.targetHelpCount), numOf(targets.targetCount)) * 100;
 
   // 電気専用
   const switchboardCount = numOf(monthlySummary?.switchboard_count);
@@ -131,7 +133,7 @@ export default function ElectricMeetingSection({
         <MetricRow label="HELP 売上"   actual={helpRevenue}   target={targets.targetHelpSales}     {...mp} format={fmtYen} />
         <MetricRow label="HELP 件数"   actual={helpCount}     target={targets.targetHelpCount}     {...mp} format={fmtCount} />
         <MetricRow label="HELP 客単価" actual={helpUnitPrice} target={targets.targetHelpUnitPrice} {...mp} format={fmtYen} isRate />
-        <MetricRow label="HELP 率"     actual={helpRate}      target={targets.targetHelpRate}      {...mp} format={fmtPct} isRate />
+        <MetricRow label="HELP 率"     actual={helpRate}      target={targetHelpRate}              {...mp} format={fmtPct} isRate />
       </SectionTable>
 
       <SectionTable title="⑤ 電気専用" group="cnt" count={1} defaultOpen={false}>
